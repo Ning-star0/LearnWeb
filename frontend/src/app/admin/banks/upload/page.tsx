@@ -52,7 +52,20 @@ interface UploadItem {
   result: ParseResult | null;
   error: string | null;
   imported: boolean;
+  phase: 'idle' | 'parsing' | 'parsed' | 'importing' | 'imported' | 'error';
 }
+
+interface ProgressState {
+  active: boolean;
+  label: string;
+  currentFile: string;
+  done: number;
+  failed: number;
+  total: number;
+}
+
+const MAX_BATCH_FILES = 20;
+const MAX_IMPORT_QUESTIONS = 3000;
 
 const TYPE_LABEL: Record<string, string> = {
   SINGLE: '单选',
@@ -76,10 +89,16 @@ export default function BankUploadPage() {
   const [books, setBooks] = useState<Book[]>([]);
   const [bookId, setBookId] = useState('');
   const [items, setItems] = useState<UploadItem[]>([]);
-  const [sourceType, setSourceType] = useState('UNKNOWN');
-  const [copyrightRisk, setCopyrightRisk] = useState('LOW');
   const [parsing, setParsing] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [progress, setProgress] = useState<ProgressState>({
+    active: false,
+    label: '',
+    currentFile: '',
+    done: 0,
+    failed: 0,
+    total: 0,
+  });
 
   useEffect(() => {
     api.get('/books').then((res) => {
@@ -118,9 +137,18 @@ export default function BankUploadPage() {
 
   const canParse = Boolean(bookId && items.length > 0);
   const canImport = importableItems.length > 0;
+  const importQuestionTotal = importableItems.reduce(
+    (total, item) => total + (item.result?.questions.length || 0),
+    0,
+  );
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
+    if (files.length > MAX_BATCH_FILES) {
+      toast.error(`一次最多选择 ${MAX_BATCH_FILES} 个文件，请分批上传`);
+      event.target.value = '';
+      return;
+    }
     setItems(
       files.map((file, index) => ({
         id: `${file.name}-${file.lastModified}-${index}`,
@@ -129,8 +157,10 @@ export default function BankUploadPage() {
         result: null,
         error: null,
         imported: false,
+        phase: 'idle',
       })),
     );
+    setProgress({ active: false, label: '', currentFile: '', done: 0, failed: 0, total: 0 });
   };
 
   const updateBankName = (id: string, bankName: string) => {
@@ -148,8 +178,28 @@ export default function BankUploadPage() {
     setParsing(true);
     let successCount = 0;
     let failedCount = 0;
+    setProgress({
+      active: true,
+      label: '解析进度',
+      currentFile: '',
+      done: 0,
+      failed: 0,
+      total: items.length,
+    });
 
-    for (const item of items) {
+    for (const [index, item] of items.entries()) {
+      setProgress((current) => ({
+        ...current,
+        currentFile: item.file.name,
+        done: index,
+        failed: failedCount,
+      }));
+      setItems((current) =>
+        current.map((entry) =>
+          entry.id === item.id ? { ...entry, phase: 'parsing', error: null } : entry,
+        ),
+      );
+
       const formData = new FormData();
       formData.append('bookId', bookId);
       formData.append('file', item.file);
@@ -160,7 +210,7 @@ export default function BankUploadPage() {
         setItems((current) =>
           current.map((entry) =>
             entry.id === item.id
-              ? { ...entry, result: res.data, error: null, imported: false }
+              ? { ...entry, result: res.data, error: null, imported: false, phase: 'parsed' }
               : entry,
           ),
         );
@@ -169,14 +219,26 @@ export default function BankUploadPage() {
         setItems((current) =>
           current.map((entry) =>
             entry.id === item.id
-              ? { ...entry, result: null, error: res.message || '解析失败', imported: false }
+              ? {
+                  ...entry,
+                  result: null,
+                  error: res.message || '解析失败',
+                  imported: false,
+                  phase: 'error',
+                }
               : entry,
           ),
         );
       }
+      setProgress((current) => ({
+        ...current,
+        done: index + 1,
+        failed: failedCount,
+      }));
     }
 
     setParsing(false);
+    setProgress((current) => ({ ...current, active: false, currentFile: '' }));
     if (failedCount) {
       toast.warning(`解析完成：${successCount} 个成功，${failedCount} 个失败`);
     } else {
@@ -186,20 +248,41 @@ export default function BankUploadPage() {
 
   const handleImport = async () => {
     if (!canImport) return;
+    if (importQuestionTotal > MAX_IMPORT_QUESTIONS) {
+      toast.error(`本批次共 ${importQuestionTotal} 题，单次最多导入 ${MAX_IMPORT_QUESTIONS} 题，请拆分后导入`);
+      return;
+    }
 
     setImporting(true);
     let importedFiles = 0;
     let importedQuestions = 0;
     let failedFiles = 0;
+    setProgress({
+      active: true,
+      label: '导入进度',
+      currentFile: '',
+      done: 0,
+      failed: 0,
+      total: importableItems.length,
+    });
 
-    for (const item of importableItems) {
+    for (const [index, item] of importableItems.entries()) {
       if (!item.result) continue;
+      setProgress((current) => ({
+        ...current,
+        currentFile: item.file.name,
+        done: index,
+        failed: failedFiles,
+      }));
+      setItems((current) =>
+        current.map((entry) =>
+          entry.id === item.id ? { ...entry, phase: 'importing', error: null } : entry,
+        ),
+      );
 
       const res = await api.post('/admin/banks/import', {
         bookId: item.result.bookId,
         name: item.bankName.trim(),
-        sourceType,
-        copyrightRisk,
         questions: item.result.questions,
       });
 
@@ -208,7 +291,9 @@ export default function BankUploadPage() {
         importedQuestions += res.data.imported || 0;
         setItems((current) =>
           current.map((entry) =>
-            entry.id === item.id ? { ...entry, imported: true, error: null } : entry,
+            entry.id === item.id
+              ? { ...entry, imported: true, error: null, phase: 'imported' }
+              : entry,
           ),
         );
       } else {
@@ -216,14 +301,20 @@ export default function BankUploadPage() {
         setItems((current) =>
           current.map((entry) =>
             entry.id === item.id
-              ? { ...entry, error: res.message || '导入失败' }
+              ? { ...entry, error: res.message || '导入失败', phase: 'error' }
               : entry,
           ),
         );
       }
+      setProgress((current) => ({
+        ...current,
+        done: index + 1,
+        failed: failedFiles,
+      }));
     }
 
     setImporting(false);
+    setProgress((current) => ({ ...current, active: false, currentFile: '' }));
     if (failedFiles) {
       toast.warning(`导入完成：${importedFiles} 个成功，${failedFiles} 个失败`);
     } else {
@@ -243,10 +334,10 @@ export default function BankUploadPage() {
           </Link>
           <h1 className="text-2xl font-semibold">上传题库</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            仅管理员可上传。支持多选 .xlsx 批量解析和导入，不限制上传文件大小。
+            仅管理员可上传。支持多选 .xlsx 批量解析和导入，系统会限制单批题量并顺序导入。
           </p>
         </div>
-        <Button onClick={handleImport} disabled={!canImport || importing}>
+        <Button onClick={handleImport} disabled={!canImport || importing || parsing}>
           <CheckCircle2 className="size-4" />
           {importing ? '导入中...' : `确认导入 ${importableItems.length} 个题库`}
         </Button>
@@ -283,37 +374,8 @@ export default function BankUploadPage() {
                 <Input id="bank-file" type="file" accept=".xlsx" multiple onChange={handleFileChange} />
               </div>
 
-              <div className="space-y-2">
-                <Label>来源</Label>
-                <Select value={sourceType} onValueChange={(value) => setSourceType(value || 'UNKNOWN')}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="UNKNOWN">未知</SelectItem>
-                    <SelectItem value="ORIGINAL">原创</SelectItem>
-                    <SelectItem value="AUTHORIZED">授权</SelectItem>
-                    <SelectItem value="USER_UPLOAD">用户上传</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>版权风险</Label>
-                <Select value={copyrightRisk} onValueChange={(value) => setCopyrightRisk(value || 'LOW')}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="LOW">低</SelectItem>
-                    <SelectItem value="MEDIUM">中</SelectItem>
-                    <SelectItem value="HIGH">高</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
               <div className="md:col-span-2">
-                <Button onClick={handleParse} disabled={!canParse || parsing}>
+                <Button onClick={handleParse} disabled={!canParse || parsing || importing}>
                   <Upload className="size-4" />
                   {parsing ? '解析中...' : `解析 ${items.length || 0} 个文件`}
                 </Button>
@@ -360,8 +422,12 @@ export default function BankUploadPage() {
               <StatusRow label="总题数" value={`${totals.questions} 题`} />
               <StatusRow label="可导入" value={`${importableItems.length} 个题库`} />
               <StatusRow label="错误" value={`${totals.errors} 个`} />
+              <StatusRow label="题量上限" value={`${MAX_IMPORT_QUESTIONS} 题/次`} />
+              {progress.total > 0 && (
+                <ProgressPanel progress={progress} />
+              )}
               <Separator />
-              <Button className="w-full" onClick={handleImport} disabled={!canImport || importing}>
+              <Button className="w-full" onClick={handleImport} disabled={!canImport || importing || parsing}>
                 {importing ? '导入中...' : '确认导入'}
               </Button>
             </CardContent>
@@ -372,6 +438,7 @@ export default function BankUploadPage() {
             <p className="mt-2">第 1 行为表头；从第 2 行开始读取。</p>
             <p className="mt-2">A列题序，B列题型，C列题目，D列答案，E列开始为选项。</p>
             <p className="mt-2">题型可写：单选、多选、判断、简答。答案可写 A/B/C，也兼容 1/2/3。</p>
+            <p className="mt-2">一次最多选择 {MAX_BATCH_FILES} 个文件；单次导入最多 {MAX_IMPORT_QUESTIONS} 题。</p>
           </div>
         </aside>
       </div>
@@ -389,6 +456,10 @@ function UploadFileCard({
   const hasErrors = hasParseErrors(item);
   const status = item.imported
     ? { label: '已导入', variant: 'secondary' as const }
+    : item.phase === 'importing'
+      ? { label: '导入中', variant: 'outline' as const }
+      : item.phase === 'parsing'
+        ? { label: '解析中', variant: 'outline' as const }
     : item.error || hasErrors
       ? { label: '需处理', variant: 'destructive' as const }
       : item.result
@@ -476,6 +547,34 @@ function UploadFileCard({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function ProgressPanel({ progress }: { progress: ProgressState }) {
+  const completed = Math.min(progress.done, progress.total);
+  const percent =
+    progress.total > 0 ? Math.round((completed / progress.total) * 100) : 0;
+
+  return (
+    <div className="rounded-lg border bg-muted/40 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-medium">{progress.label}</span>
+        <span className="text-muted-foreground">{percent}%</span>
+      </div>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full bg-primary transition-all"
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+      <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+        <p>
+          已完成 {completed}/{progress.total}
+          {progress.failed ? `，失败 ${progress.failed}` : ''}
+        </p>
+        {progress.currentFile && <p className="truncate">当前：{progress.currentFile}</p>}
+      </div>
     </div>
   );
 }

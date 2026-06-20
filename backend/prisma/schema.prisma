@@ -1,6 +1,5 @@
 // ============================================================
 // 政治 / 思政刷题系统 — 核心数据库 Schema
-// 17 张表 + 10 个枚举（含安全模块）
 // ============================================================
 
 generator client {
@@ -35,19 +34,6 @@ enum QuestionType {
   MULTIPLE
   JUDGE
   SHORT
-}
-
-enum SourceType {
-  ORIGINAL
-  USER_UPLOAD
-  AUTHORIZED
-  UNKNOWN
-}
-
-enum CopyrightRisk {
-  LOW
-  MEDIUM
-  HIGH
 }
 
 enum PracticeMode {
@@ -261,9 +247,6 @@ model Question {
   answerRaw     String?
   answerJson    Json?
   explanation   String?
-  sourceType    SourceType?
-  sourceNote    String?
-  copyrightRisk CopyrightRisk @default(LOW)
   isPublished   Boolean       @default(false)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt

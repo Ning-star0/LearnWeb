@@ -3,7 +3,6 @@ import {
   IsArray,
   IsInt,
   IsString,
-  IsOptional,
   ValidateNested,
   IsIn,
 } from 'class-validator';
@@ -34,15 +33,6 @@ export class ImportQuestionsDto {
 
   @IsString()
   name: string;
-
-  @IsOptional()
-  @IsString()
-  sourceType?: string;
-
-  @IsOptional()
-  @IsString()
-  @IsIn(['LOW', 'MEDIUM', 'HIGH'])
-  copyrightRisk?: string;
 
   @IsArray()
   @ValidateNested({ each: true })

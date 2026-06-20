@@ -24,10 +24,17 @@ export interface ParseResult {
   };
 }
 
+export interface ParseExcelOptions {
+  maxRows?: number;
+}
+
 /**
  * 解析上传的 Excel 文件
  */
-export function parseExcel(buffer: Buffer): ParseResult {
+export function parseExcel(
+  buffer: Buffer,
+  options: ParseExcelOptions = {},
+): ParseResult {
   const workbook = XLSX.read(buffer, { type: 'buffer' });
   const sheetName = workbook.SheetNames[0]; // 只读 Sheet1
   const sheet = workbook.Sheets[sheetName];
@@ -50,6 +57,21 @@ export function parseExcel(buffer: Buffer): ParseResult {
   const dataRows = rows.slice(1);
   const questions: ParsedQuestion[] = [];
   const errors: { row: number; message: string }[] = [];
+  const maxRows = options.maxRows || 5000;
+
+  if (dataRows.length > maxRows) {
+    return {
+      success: false,
+      questions: [],
+      errors: [
+        {
+          row: maxRows + 2,
+          message: `单个文件最多解析 ${maxRows} 行题目，请拆分后再上传`,
+        },
+      ],
+      summary: { total: 0, single: 0, multiple: 0, judge: 0, short: 0 },
+    };
+  }
 
   for (let i = 0; i < dataRows.length; i++) {
     const row = dataRows[i];
