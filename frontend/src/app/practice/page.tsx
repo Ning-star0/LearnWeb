@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState, Suspense } from 'react';
+import { useCallback, useEffect, useMemo, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowRight, ArrowUpDown, Brain, Check, CheckCircle2, ChevronLeft, Clock3, HelpCircle, Sparkles, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Brain, Check, CheckCircle2, ChevronLeft, Clock3, HelpCircle, Keyboard, Sparkles, XCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -14,6 +14,13 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 const TYPE_MAP: Record<string, string> = {
   SINGLE: '单选题',
@@ -91,6 +98,10 @@ function PracticePage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [studyAction, setStudyAction] = useState<string | null>(null);
   const [quizUncertain, setQuizUncertain] = useState(false);
+  const [trialDialog, setTrialDialog] = useState<{ open: boolean; remaining: number }>({
+    open: false,
+    remaining: 5,
+  });
 
   const resetState = () => {
     setSelectedOption('');
@@ -153,6 +164,8 @@ function PracticePage() {
   const currentQuestion = questions[currentIndex];
   const progress = questions.length > 0 ? Math.round(((currentIndex + 1) / questions.length) * 100) : 0;
   const correctAnswer = submitted && result ? result.correctAnswer : currentQuestion?.answerJson;
+  const canGoPrevious = currentIndex > 0;
+  const isLastQuestion = currentIndex >= questions.length - 1;
 
   const canSubmit = useMemo(() => {
     if (!currentQuestion || submitted) return false;
@@ -163,14 +176,46 @@ function PracticePage() {
     return false;
   }, [currentQuestion, submitted, selectedOption, selectedOptions, judgeAnswer, shortAnswer]);
 
-  const nextQuestion = () => {
+  const previousQuestion = useCallback(() => {
+    if (currentIndex <= 0) return;
+    resetState();
+    setCurrentIndex((index) => Math.max(0, index - 1));
+  }, [currentIndex]);
+
+  const nextQuestion = useCallback(() => {
     resetState();
     if (currentIndex < questions.length - 1) {
-      setCurrentIndex(currentIndex + 1);
+      setCurrentIndex((index) => Math.min(questions.length - 1, index + 1));
     } else {
-      router.push('/practice/select');
+      backToSelect();
     }
-  };
+  }, [currentIndex, questions.length]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName;
+      if (
+        tagName === 'INPUT' ||
+        tagName === 'TEXTAREA' ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        previousQuestion();
+      }
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        nextQuestion();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [previousQuestion, nextQuestion]);
 
   const handleStudyAction = async (action: 'remembered' | 'not_remembered') => {
     setStudyAction(action);
@@ -180,21 +225,25 @@ function PracticePage() {
     });
   };
 
-  const handleSubmit = async () => {
-    let userAnswer: unknown;
-    switch (currentQuestion.type) {
-      case 'SINGLE':
-        userAnswer = selectedOption;
-        break;
-      case 'MULTIPLE':
-        userAnswer = selectedOptions;
-        break;
-      case 'JUDGE':
-        userAnswer = judgeAnswer;
-        break;
-      case 'SHORT':
-        userAnswer = true;
-        break;
+  const handleSubmit = async (answerOverride?: unknown) => {
+    if (!currentQuestion || submitted) return;
+
+    let userAnswer = answerOverride;
+    if (userAnswer === undefined) {
+      switch (currentQuestion.type) {
+        case 'SINGLE':
+          userAnswer = selectedOption;
+          break;
+        case 'MULTIPLE':
+          userAnswer = selectedOptions;
+          break;
+        case 'JUDGE':
+          userAnswer = judgeAnswer;
+          break;
+        case 'SHORT':
+          userAnswer = true;
+          break;
+      }
     }
 
     const res = await api.post('/practice/submit', {
@@ -205,11 +254,28 @@ function PracticePage() {
     setResult(res.data || res);
   };
 
-  const handleAiExplanation = async () => {
+  const handleSingleAnswer = (label: string) => {
+    if (submitted || mode === 'study') return;
+    setSelectedOption(label);
+    handleSubmit(label);
+  };
+
+  const handleJudgeAnswer = (value: boolean) => {
+    if (submitted || mode === 'study') return;
+    setJudgeAnswer(value);
+    handleSubmit(value);
+  };
+
+  const handleAiExplanation = async (useTrial = false) => {
     setAiLoading(true);
     setShowSupporterPrompt(false);
-    const res = await api.post(`/questions/${currentQuestion.id}/ai-explanation`);
-    if (res.code === -1 && res.message === 'NEED_SUPPORTER') {
+    const res = await api.post(`/questions/${currentQuestion.id}/ai-explanation`, useTrial ? { useTrial: true } : {});
+    if (res.code === -1 && res.message === 'TRIAL_CONFIRM_REQUIRED') {
+      setTrialDialog({
+        open: true,
+        remaining: res.data?.trialRemaining || 5,
+      });
+    } else if (res.code === -1 && res.message === 'NEED_SUPPORTER') {
       setShowSupporterPrompt(true);
     } else if (res.code === 0 && res.data) {
       // 尝试解析 JSON 格式的 AI 回复
@@ -262,34 +328,60 @@ function PracticePage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-5 lg:py-6">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Button variant="ghost" size="sm" onClick={backToSelect} className="w-fit">
-          <ChevronLeft className="size-4" />
-          重新选择
-        </Button>
+    <div className="mx-auto flex max-w-7xl flex-col px-4 py-3 lg:h-[calc(100dvh-3.5rem)] lg:overflow-hidden">
+      <div className="mb-3 flex flex-col gap-3 rounded-xl border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={backToSelect} className="shrink-0">
+            <ChevronLeft className="size-4" />
+            重新选择
+          </Button>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary">{MODE_MAP[mode] || mode}</Badge>
+              <Badge variant="outline">{TYPE_MAP[currentQuestion.type]}</Badge>
+              <Badge variant="outline" className="max-w-48 truncate">{currentQuestion.book?.name}</Badge>
+            </div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+              <div className="h-full bg-blue-600 transition-all" style={{ width: `${progress}%` }} />
+            </div>
+          </div>
+        </div>
+
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary">{MODE_MAP[mode] || mode}</Badge>
-          <Badge variant="outline">{TYPE_MAP[currentQuestion.type]}</Badge>
-          <Badge variant="outline">{currentQuestion.book?.name}</Badge>
+          <Button variant="outline" size="sm" onClick={previousQuestion} disabled={!canGoPrevious}>
+            <ArrowLeft className="size-4" />
+            上一题
+          </Button>
+          {mode === 'quiz' && !submitted && (currentQuestion.type === 'MULTIPLE' || currentQuestion.type === 'SHORT') && (
+            <Button size="sm" onClick={() => handleSubmit()} disabled={!canSubmit}>
+              提交答案
+            </Button>
+          )}
+          {mode === 'quiz' && !submitted && (currentQuestion.type === 'SINGLE' || currentQuestion.type === 'JUDGE') && (
+            <Badge variant="secondary" className="h-8 px-3">点击选项自动判题</Badge>
+          )}
+          <Button variant="outline" size="sm" onClick={nextQuestion}>
+            {isLastQuestion ? '完成' : '下一题'}
+            <ArrowRight className="size-4" />
+          </Button>
         </div>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <main className="space-y-4">
-          <Card className="min-h-[420px]">
-            <CardHeader className="border-b">
+      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <main className="min-h-0">
+          <Card className="flex min-h-[520px] flex-col lg:h-full lg:min-h-0">
+            <CardHeader className="shrink-0 border-b">
               <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="mb-2 text-sm text-muted-foreground">第 {currentIndex + 1} 题</div>
-                  <CardTitle className="text-xl leading-relaxed">
+                <div className="min-w-0">
+                  <div className="mb-2 text-sm text-muted-foreground">第 {currentIndex + 1} / {questions.length} 题</div>
+                  <CardTitle className="text-lg leading-relaxed sm:text-xl">
                     {currentQuestion.stem}
                   </CardTitle>
                 </div>
-                <Badge>{TYPE_MAP[currentQuestion.type]}</Badge>
+                <Badge className="shrink-0">{TYPE_MAP[currentQuestion.type]}</Badge>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4 pt-1">
+            <CardContent className="min-h-0 flex-1 space-y-4 overflow-y-auto pt-4">
               {(currentQuestion.type === 'SINGLE' || currentQuestion.type === 'MULTIPLE') && (
                 <div className="grid gap-3">
                   {currentQuestion.options?.map((opt) => {
@@ -330,7 +422,7 @@ function PracticePage() {
                             value={opt.label}
                             checked={selected}
                             onChange={() => {
-                              if (!submitted && mode !== 'study') setSelectedOption(opt.label);
+                              if (!submitted && mode !== 'study') handleSingleAnswer(opt.label);
                             }}
                             disabled={submitted || mode === 'study'}
                             className="size-4"
@@ -352,7 +444,7 @@ function PracticePage() {
                 <RadioGroup
                   value={judgeAnswer === null ? '' : String(judgeAnswer)}
                   onValueChange={(value) => {
-                    if (!submitted && mode !== 'study') setJudgeAnswer(value === 'true');
+                    if (!submitted && mode !== 'study') handleJudgeAnswer(value === 'true');
                   }}
                   className="grid gap-3 sm:grid-cols-2"
                 >
@@ -421,9 +513,9 @@ function PracticePage() {
           </Card>
         </main>
 
-        <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
+        <aside className="grid min-h-0 gap-4 lg:grid-rows-[auto_minmax(0,1fr)]">
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-3">
               <CardTitle className="flex items-center justify-between">
                 <span>进度</span>
                 <span className="text-sm text-muted-foreground">{currentIndex + 1} / {questions.length}</span>
@@ -432,7 +524,7 @@ function PracticePage() {
             <CardContent className="space-y-4">
               <div>
                 <div className="h-2 overflow-hidden rounded-full bg-muted">
-                  <div className="h-full bg-foreground transition-all" style={{ width: `${progress}%` }} />
+                  <div className="h-full bg-blue-600 transition-all" style={{ width: `${progress}%` }} />
                 </div>
                 <div className="mt-2 text-xs text-muted-foreground">{progress}% 完成</div>
               </div>
@@ -463,14 +555,14 @@ function PracticePage() {
 
               {mode === 'study' && studyAction && (
                 <Button onClick={nextQuestion} className="w-full">
-                  {currentIndex < questions.length - 1 ? '下一题' : '完成'}
+                  {isLastQuestion ? '完成' : '下一题'}
                   <ArrowRight className="size-4" />
                 </Button>
               )}
 
-              {mode === 'quiz' && !submitted && (
+              {mode === 'quiz' && !submitted && (currentQuestion.type === 'MULTIPLE' || currentQuestion.type === 'SHORT') && (
                 <div className="flex gap-2 w-full">
-                  <Button onClick={handleSubmit} className="flex-1" disabled={!canSubmit}>
+                  <Button onClick={() => handleSubmit()} className="flex-1" disabled={!canSubmit}>
                     提交答案
                   </Button>
                   <Button
@@ -494,89 +586,127 @@ function PracticePage() {
 
               {mode === 'quiz' && submitted && (
                 <Button onClick={nextQuestion} className="w-full">
-                  {currentIndex < questions.length - 1 ? '下一题' : '完成刷题'}
+                  {isLastQuestion ? '完成刷题' : '下一题'}
                   <ArrowRight className="size-4" />
                 </Button>
               )}
 
-              <Button variant="outline" onClick={handleAiExplanation} disabled={aiLoading} className="w-full">
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="outline" onClick={previousQuestion} disabled={!canGoPrevious}>
+                  <ArrowLeft className="size-4" />
+                  上一题
+                </Button>
+                <Button variant="outline" onClick={nextQuestion}>
+                  下一题
+                  <ArrowRight className="size-4" />
+                </Button>
+              </div>
+
+              <div className="rounded-lg border bg-muted/50 p-3 text-xs text-muted-foreground">
+                <Keyboard className="mr-1 inline size-3.5" />
+                键盘方向键：左键上一题，右键下一题。
+              </div>
+
+              <Button variant="outline" onClick={() => handleAiExplanation()} disabled={aiLoading} className="w-full">
                 <Sparkles className="size-4" />
                 {aiLoading ? '加载中...' : '查看 AI 解析'}
               </Button>
             </CardContent>
           </Card>
 
-          <div className="rounded-lg border bg-card p-4 text-xs leading-relaxed text-muted-foreground">
-            <Brain className="mr-1 inline size-3.5" />
-            答错会进入错题本；背题时点“没记住”会进入待背题。
-          </div>
+          <Card className="min-h-0 border-blue-200 bg-blue-50/40">
+            <CardHeader className="shrink-0 pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Sparkles className="size-4 text-blue-500" />
+                AI 解析
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="min-h-0 overflow-y-auto text-sm">
+              {!aiExplanation && !showSupporterPrompt && (
+                <div className="rounded-lg border border-blue-100 bg-white/70 p-4 text-sm leading-relaxed text-muted-foreground">
+                  <Brain className="mr-1 inline size-4" />
+                  答错会进入错题本；背题时点“没记住”会进入待背题。需要解析时点击上方“查看 AI 解析”。
+                </div>
+              )}
+              {aiExplanation && (
+                <div className="space-y-4">
+                  {aiExplanation.knowledgePoint && (
+                    <div>
+                      <h4 className="font-medium text-blue-800 mb-1">考察知识点</h4>
+                      <p className="text-muted-foreground">{aiExplanation.knowledgePoint}</p>
+                    </div>
+                  )}
+                  {aiExplanation.correctReason && (
+                    <div>
+                      <h4 className="font-medium text-blue-800 mb-1">正确答案分析</h4>
+                      <div className="prose prose-sm max-w-none text-muted-foreground [&_strong]:text-foreground [&_ul]:list-disc [&_ul]:pl-4">
+                        <ReactMarkdown>{aiExplanation.correctReason}</ReactMarkdown>
+                      </div>
+                    </div>
+                  )}
+                  {aiExplanation.wrongReason && (
+                    <div>
+                      <h4 className="font-medium text-blue-800 mb-1">错误选项辨析</h4>
+                      <div className="prose prose-sm max-w-none text-muted-foreground [&_strong]:text-foreground [&_ul]:list-disc [&_ul]:pl-4">
+                        <ReactMarkdown>{aiExplanation.wrongReason}</ReactMarkdown>
+                      </div>
+                    </div>
+                  )}
+                  {aiExplanation.memoryTip && (
+                    <div>
+                      <h4 className="font-medium text-blue-800 mb-1">记忆方法</h4>
+                      <p className="text-muted-foreground">{aiExplanation.memoryTip}</p>
+                    </div>
+                  )}
+                  {aiExplanation.similarJudge && (
+                    <div>
+                      <h4 className="font-medium text-blue-800 mb-1">类似题判断</h4>
+                      <p className="text-muted-foreground">{aiExplanation.similarJudge}</p>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground border-t pt-2">
+                    本解析由 AI 生成，仅供学习参考，可能存在不准确之处，请以教材、课堂内容和教师要求为准。
+                  </p>
+                </div>
+              )}
+              {showSupporterPrompt && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                  <h3 className="font-medium text-amber-800 mb-2">支持项目，解锁 AI 解析功能</h3>
+                  <p className="text-sm text-amber-700 mb-3">
+                    试用次数已用完。基础刷题、背题、查看正确答案功能永久免费，支持者可继续查看 AI 解析。
+                  </p>
+                  <Button variant="outline" size="sm" onClick={() => setShowSupporterPrompt(false)}>我知道了</Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </aside>
       </div>
 
-      {/* AI 解析（内联显示在题目下方） */}
-      {aiExplanation && (
-        <Card className="mt-4 border-blue-200 bg-blue-50/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Sparkles className="size-4 text-blue-500" />
-              AI 解析
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm">
-            {aiExplanation.knowledgePoint && (
-              <div>
-                <h4 className="font-medium text-blue-800 mb-1">考察知识点</h4>
-                <p className="text-muted-foreground">{aiExplanation.knowledgePoint}</p>
-              </div>
-            )}
-            {aiExplanation.correctReason && (
-              <div>
-                <h4 className="font-medium text-blue-800 mb-1">正确答案分析</h4>
-                <div className="prose prose-sm max-w-none text-muted-foreground [&_strong]:text-foreground [&_ul]:list-disc [&_ul]:pl-4">
-                  <ReactMarkdown>{aiExplanation.correctReason}</ReactMarkdown>
-                </div>
-              </div>
-            )}
-            {aiExplanation.wrongReason && (
-              <div>
-                <h4 className="font-medium text-blue-800 mb-1">错误选项辨析</h4>
-                <div className="prose prose-sm max-w-none text-muted-foreground [&_strong]:text-foreground [&_ul]:list-disc [&_ul]:pl-4">
-                  <ReactMarkdown>{aiExplanation.wrongReason}</ReactMarkdown>
-                </div>
-              </div>
-            )}
-            {aiExplanation.memoryTip && (
-              <div>
-                <h4 className="font-medium text-blue-800 mb-1">记忆方法</h4>
-                <p className="text-muted-foreground">{aiExplanation.memoryTip}</p>
-              </div>
-            )}
-            {aiExplanation.similarJudge && (
-              <div>
-                <h4 className="font-medium text-blue-800 mb-1">类似题判断</h4>
-                <p className="text-muted-foreground">{aiExplanation.similarJudge}</p>
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground border-t pt-2">
-              本解析由 AI 生成，仅供学习参考，可能存在不准确之处，请以教材、课堂内容和教师要求为准。
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 支持者提示（内联） */}
-      {showSupporterPrompt && (
-        <Card className="mt-4 border-amber-200 bg-amber-50/50">
-          <CardContent className="py-4 text-center">
-            <h3 className="font-medium text-amber-800 mb-2">支持项目，解锁 AI 解析功能</h3>
-            <p className="text-sm text-amber-700 mb-3">
-              基础刷题、背题、查看正确答案功能永久免费。支持者可查看 AI 解析（考察知识点、正误辨析、记忆方法等）。
-              AI 解析仅供学习参考，不保证考试结果。
-            </p>
-            <Button variant="outline" size="sm" onClick={() => setShowSupporterPrompt(false)}>我知道了</Button>
-          </CardContent>
-        </Card>
-      )}
+      <Dialog open={trialDialog.open} onOpenChange={(open) => setTrialDialog((current) => ({ ...current, open }))}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>AI 解析试用</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm leading-relaxed text-muted-foreground">
+            <p>AI 解析属于付费支持功能，可先试用 {trialDialog.remaining} 次。试用会消耗次数，次数用完后需要支持项目后继续使用。</p>
+            <p>基础刷题、背题和查看正确答案功能永久免费。</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTrialDialog((current) => ({ ...current, open: false }))}>
+              暂不使用
+            </Button>
+            <Button
+              onClick={() => {
+                setTrialDialog((current) => ({ ...current, open: false }));
+                handleAiExplanation(true);
+              }}
+            >
+              开始试用
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

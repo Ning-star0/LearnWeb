@@ -78,9 +78,9 @@ export default function PaymentPage() {
                   <Clock className="size-5" /> 试用中
                 </div>
                 <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div className="h-full bg-amber-500" style={{ width: `${(status.used / 10) * 100}%` }} />
+                  <div className="h-full bg-amber-500" style={{ width: `${(status.used / 5) * 100}%` }} />
                 </div>
-                <p className="text-sm text-muted-foreground">已用 {status.used}/10 次，剩余 {status.remaining} 次</p>
+                <p className="text-sm text-muted-foreground">已用 {status.used}/5 次，剩余 {status.remaining} 次</p>
               </div>
             ) : (
               <div className="flex items-center gap-2 text-red-600">

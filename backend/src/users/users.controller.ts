@@ -84,7 +84,7 @@ export class UsersController {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
     const isAdminRole = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
 
-    let membership = { isMember: isAdminRole, remaining: 0, trialUsed: 0, trialRemaining: 10, subscribed: false };
+    let membership = { isMember: isAdminRole, remaining: 0, trialUsed: 0, trialRemaining: 5, subscribed: false };
     if (!isAdminRole) {
       const approved = await this.prisma.paymentProof.findFirst({
         where: { userId, status: 'APPROVED' },
@@ -97,7 +97,7 @@ export class UsersController {
       }
       if (!membership.isMember) {
         const trialCount = await this.prisma.trialUsage.count({ where: { userId } });
-        membership = { isMember: false, remaining: 0, trialUsed: trialCount, trialRemaining: Math.max(0, 10 - trialCount), subscribed: false };
+        membership = { isMember: false, remaining: 0, trialUsed: trialCount, trialRemaining: Math.max(0, 5 - trialCount), subscribed: false };
       }
     }
 

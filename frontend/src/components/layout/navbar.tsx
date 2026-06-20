@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpen, History, Home, Search, Target } from 'lucide-react';
+import { Bell, BookOpen, History, Home, Search, Target } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -39,6 +39,9 @@ export function Navbar() {
 
         {/* 右侧导航 - 保持最小宽度 */}
         <nav className="flex items-center gap-1 sm:gap-3 min-w-0 shrink-0">
+          <Link href="/#announcement" className={navItemClass(false, 'hidden md:flex')}>
+            <Bell className="size-4" /><span className="hidden lg:inline">公告</span>
+          </Link>
           <Link href="/books" className={navItemClass(booksActive, 'hidden sm:flex')}>
             <BookOpen className="size-4" /><span className="hidden md:inline">教材</span>
           </Link>

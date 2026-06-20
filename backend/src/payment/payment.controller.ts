@@ -77,7 +77,7 @@ export class PaymentController {
 
     // 检查试用次数
     const trialCount = await this.prisma.trialUsage.count({ where: { userId } });
-    const maxTrials = 10;
+    const maxTrials = 5;
     if (trialCount < maxTrials) {
       return { code: 0, data: { canUseAi: true, trial: true, used: trialCount, remaining: maxTrials - trialCount } };
     }

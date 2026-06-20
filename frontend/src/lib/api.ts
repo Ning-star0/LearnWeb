@@ -11,7 +11,11 @@ class ApiClient {
 
   private getToken(): string | null {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem('accessToken') || localStorage.getItem('token');
+    const cookieToken = document.cookie
+      .split('; ')
+      .find((item) => item.startsWith('accessToken='))
+      ?.split('=')[1];
+    return localStorage.getItem('accessToken') || (cookieToken ? decodeURIComponent(cookieToken) : null) || localStorage.getItem('token');
   }
 
   async fetch(path: string, options: RequestInit = {}): Promise<any> {

@@ -39,6 +39,29 @@ const AuthContext = createContext<AuthContextType>({
 
 const TOKEN_KEY = 'accessToken';
 const REFRESH_KEY = 'refreshToken';
+const COOKIE_MAX_AGE = 7 * 24 * 60 * 60;
+
+function setAuthStorage(accessToken: string, refreshToken: string) {
+  localStorage.setItem(TOKEN_KEY, accessToken);
+  localStorage.setItem(REFRESH_KEY, refreshToken);
+  document.cookie = `${TOKEN_KEY}=${encodeURIComponent(accessToken)}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+  document.cookie = `${REFRESH_KEY}=${encodeURIComponent(refreshToken)}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+}
+
+function getStoredToken(key: string) {
+  const cookieValue = document.cookie
+    .split('; ')
+    .find((item) => item.startsWith(`${key}=`))
+    ?.split('=')[1];
+  return localStorage.getItem(key) || (cookieValue ? decodeURIComponent(cookieValue) : null);
+}
+
+function clearAuthStorage() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+  document.cookie = `${TOKEN_KEY}=; path=/; max-age=0; SameSite=Lax`;
+  document.cookie = `${REFRESH_KEY}=; path=/; max-age=0; SameSite=Lax`;
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -46,29 +69,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const refreshAccessToken = useCallback(async (): Promise<boolean> => {
-    const refreshToken = localStorage.getItem(REFRESH_KEY);
+    const refreshToken = getStoredToken(REFRESH_KEY);
     if (!refreshToken) return false;
 
     const res = await api.post('/auth/refresh', { refreshToken });
     if (res.code === 0 && res.data) {
       setToken(res.data.accessToken);
-      localStorage.setItem(TOKEN_KEY, res.data.accessToken);
-      localStorage.setItem(REFRESH_KEY, res.data.refreshToken);
+      if (res.data.user) setUser(res.data.user);
+      setAuthStorage(res.data.accessToken, res.data.refreshToken);
       return true;
     } else {
       // Refresh 失败，清除登录状态
       setUser(null);
       setToken(null);
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(REFRESH_KEY);
+      clearAuthStorage();
       return false;
     }
   }, []);
 
   useEffect(() => {
-    const savedToken = localStorage.getItem(TOKEN_KEY);
+    const savedToken = getStoredToken(TOKEN_KEY);
     if (savedToken) {
       setToken(savedToken);
+      localStorage.setItem(TOKEN_KEY, savedToken);
       api.get('/auth/me').then((res) => {
         if (res.code === 0) {
           setUser(res.data);
@@ -76,8 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Token 过期，尝试 refresh
           refreshAccessToken().then((refreshed) => {
             if (!refreshed) {
-              localStorage.removeItem(TOKEN_KEY);
-              localStorage.removeItem(REFRESH_KEY);
+              clearAuthStorage();
               setToken(null);
             }
           });
@@ -93,8 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (res.code === 0) {
       setUser(res.data.user);
       setToken(res.data.accessToken);
-      localStorage.setItem(TOKEN_KEY, res.data.accessToken);
-      localStorage.setItem(REFRESH_KEY, res.data.refreshToken);
+      setAuthStorage(res.data.accessToken, res.data.refreshToken);
       return { success: true };
     }
     return { success: false, message: res.message };
@@ -113,8 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (res.code === 0) {
       setUser(res.data.user);
       setToken(res.data.accessToken);
-      localStorage.setItem(TOKEN_KEY, res.data.accessToken);
-      localStorage.setItem(REFRESH_KEY, res.data.refreshToken);
+      setAuthStorage(res.data.accessToken, res.data.refreshToken);
       return { success: true, message: res.data.message };
     }
     return { success: false, message: res.message };
@@ -129,14 +149,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    const refreshToken = localStorage.getItem(REFRESH_KEY);
+    const refreshToken = getStoredToken(REFRESH_KEY);
     if (refreshToken) {
       await api.post('/auth/logout', { refreshToken }).catch(() => {});
     }
     setUser(null);
     setToken(null);
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(REFRESH_KEY);
+    clearAuthStorage();
   }, []);
 
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';

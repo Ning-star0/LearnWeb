@@ -336,7 +336,8 @@ export class AuthService {
       },
     });
 
-    return { accessToken: newAccessToken, refreshToken: newRefreshToken };
+    const { password, ...userResult } = session.user;
+    return { accessToken: newAccessToken, refreshToken: newRefreshToken, user: userResult };
   }
 
   // ============================================================

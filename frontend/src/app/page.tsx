@@ -1,11 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { BookOpen, Brain, CheckCircle2, Clock3, Target } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Bell, BookOpen, Brain, CheckCircle2, Clock3, Target } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/lib/auth';
+import { api } from '@/lib/api';
 
 const QUICK_ACTIONS = [
   {
@@ -36,6 +38,17 @@ const QUICK_ACTIONS = [
 
 export default function HomePage() {
   const { user } = useAuth();
+  const [announcement, setAnnouncement] = useState({
+    enabled: true,
+    title: '复习公告',
+    content: '背题模式适合考前快速记忆；答题模式会先作答再判题，答错自动进入错题本；AI 解析首次使用会提示付费说明，并提供 5 次试用。',
+  });
+
+  useEffect(() => {
+    api.get('/settings/announcement').then((res) => {
+      if (res.code === 0 && res.data) setAnnouncement(res.data);
+    });
+  }, []);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 lg:py-8">
@@ -73,6 +86,22 @@ export default function HomePage() {
         </div>
       </section>
 
+      {announcement.enabled && (
+        <section id="announcement" className="mb-6 rounded-lg border border-blue-200 bg-blue-50/60 p-4 sm:p-5">
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg border border-blue-200 bg-white p-2 text-blue-700">
+              <Bell className="size-4" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-blue-950">{announcement.title || '复习公告'}</h2>
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-blue-900">
+                {announcement.content}
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
+
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {QUICK_ACTIONS.map((item) => {
           const Icon = item.icon;
@@ -92,21 +121,6 @@ export default function HomePage() {
             </Link>
           );
         })}
-      </section>
-
-      <section className="mt-6 grid gap-4 md:grid-cols-3">
-        <div className="rounded-lg border bg-muted/40 p-4">
-          <div className="text-sm font-medium">背题模式</div>
-          <p className="mt-1 text-sm text-muted-foreground">答案直接展示，适合建立记忆。</p>
-        </div>
-        <div className="rounded-lg border bg-muted/40 p-4">
-          <div className="text-sm font-medium">答题模式</div>
-          <p className="mt-1 text-sm text-muted-foreground">提交后判题，答错自动进入错题本。</p>
-        </div>
-        <div className="rounded-lg border bg-muted/40 p-4">
-          <div className="text-sm font-medium">AI 解析</div>
-          <p className="mt-1 text-sm text-muted-foreground">支持者和管理员可查看知识点、辨析和记忆方法。</p>
-        </div>
       </section>
     </div>
   );

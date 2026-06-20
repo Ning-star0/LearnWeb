@@ -22,6 +22,7 @@ export class AiService {
     user: any,
     ip: string,
     userAgent: string,
+    useTrial = false,
   ) {
     // 1. 检查用户状态
     if (user.status === 'DISABLED' || user.status === 'BANNED') {
@@ -47,9 +48,16 @@ export class AiService {
     }
 
     // 4. 权限检查（支持者/管理员/试用次数）
-    const permission = await this.checkAiPermission(user.id, user.role);
+    const permission = await this.checkAiPermission(user.id, user.role, useTrial);
     if (!permission.allowed) {
-      return { code: -1, message: permission.reason || 'NEED_SUPPORTER', data: null };
+      return {
+        code: -1,
+        message: permission.reason || 'NEED_SUPPORTER',
+        data: {
+          trialRemaining: permission.trialRemaining || 0,
+          trialLimit: 5,
+        },
+      };
     }
 
     // 5. 查询数据库是否已有解析
@@ -75,8 +83,9 @@ export class AiService {
         },
       });
 
-      // 记录试用（非管理员）
-      await this.recordTrialUse(user.id);
+      if (permission.consumesTrial) {
+        await this.recordTrialUse(user.id);
+      }
 
       // 异常检测
       await this.riskService.checkAiViewRisk(user.id, ip);
@@ -113,6 +122,9 @@ export class AiService {
             userAgent,
           },
         });
+        if (permission.consumesTrial) {
+          await this.recordTrialUse(user.id);
+        }
         return { code: 0, data: doubleCheck };
       }
 
@@ -123,8 +135,9 @@ export class AiService {
         ip,
       );
 
-      // 记录试用（非管理员）
-      await this.recordTrialUse(user.id);
+      if (permission.consumesTrial) {
+        await this.recordTrialUse(user.id);
+      }
 
       // 记录查看日志（fromCache = false，首次生成后查看）
       await this.prisma.aiViewLog.create({
@@ -345,12 +358,21 @@ ${optionsText}
 
   // ======== 私有方法 ========
 
-  /** 检查 AI 权限（支持者/管理员/试用）并记录试用 */
+  /** 记录一次 AI 试用查看 */
   async recordTrialUse(userId: number) {
     await this.prisma.trialUsage.create({ data: { userId } });
   }
 
-  private async checkAiPermission(userId: number, role: string): Promise<{ allowed: boolean; reason?: string }> {
+  private async checkAiPermission(
+    userId: number,
+    role: string,
+    useTrial: boolean,
+  ): Promise<{
+    allowed: boolean;
+    reason?: string;
+    trialRemaining?: number;
+    consumesTrial?: boolean;
+  }> {
     // ADMIN/SUPER_ADMIN 始终可用
     if (role === 'ADMIN' || role === 'SUPER_ADMIN') return { allowed: true };
 
@@ -370,11 +392,25 @@ ${optionsText}
     });
     if (supporterAccess) return { allowed: true };
 
-    // 检查试用次数
+    // 首次点击先提示付费/试用说明，用户确认后才消耗试用次数。
     const trialCount = await this.prisma.trialUsage.count({ where: { userId } });
-    if (trialCount < 10) return { allowed: true };
+    const trialLimit = 5;
+    if (trialCount === 0 && !useTrial) {
+      return {
+        allowed: false,
+        reason: 'TRIAL_CONFIRM_REQUIRED',
+        trialRemaining: trialLimit,
+      };
+    }
+    if (trialCount < trialLimit) {
+      return {
+        allowed: true,
+        trialRemaining: trialLimit - trialCount,
+        consumesTrial: true,
+      };
+    }
 
-    return { allowed: false, reason: 'NEED_SUPPORTER' };
+    return { allowed: false, reason: 'NEED_SUPPORTER', trialRemaining: 0 };
   }
 
   private async canViewAiExplanation(userId: number): Promise<boolean> {

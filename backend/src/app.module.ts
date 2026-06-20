@@ -14,6 +14,7 @@ import { AiModule } from './ai/ai.module';
 import { FeedbackModule } from './feedback/feedback.module';
 import { PaymentModule } from './payment/payment.module';
 import { QuestionsModule } from './questions/questions.module';
+import { SettingsModule } from './settings/settings.module';
 import { RateLimitGuard } from './common/rate-limit/rate-limit.guard';
 
 @Module({
@@ -21,7 +22,7 @@ import { RateLimitGuard } from './common/rate-limit/rate-limit.guard';
     PrismaModule, RedisModule, SecurityModule, RiskModule, MailModule,
     AuthModule, UsersModule, BooksModule, AdminModule,
     PracticeModule, AiModule, FeedbackModule,
-    PaymentModule, QuestionsModule,
+    PaymentModule, QuestionsModule, SettingsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: RateLimitGuard }],
 })

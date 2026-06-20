@@ -113,7 +113,7 @@ export default function ProfilePage() {
                     {stats.membership.isMember && stats.membership.subscribed
                       ? 'AI 会员已激活'
                       : stats.membership.trialRemaining > 0
-                        ? `试用中（剩余 ${stats.membership.trialRemaining}/10 次）`
+                        ? `试用中（剩余 ${stats.membership.trialRemaining}/5 次）`
                         : '未订阅'}
                   </span>
                 </div>

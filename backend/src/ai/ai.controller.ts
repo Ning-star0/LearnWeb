@@ -31,12 +31,14 @@ export class AiController {
     @Param('questionId', ParseIntPipe) questionId: number,
     @CurrentUser() user: any,
     @Req() req: Request,
+    @Body('useTrial') useTrial?: boolean,
   ) {
     return this.aiService.getOrGenerateExplanation(
       questionId,
       user,
       this.securityService.getClientIp(req),
       req.headers['user-agent'] || '',
+      Boolean(useTrial),
     );
   }
 
