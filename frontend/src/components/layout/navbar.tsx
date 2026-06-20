@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { BookOpen, History, Home, Search, Target } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,8 @@ import {
 
 export function Navbar() {
   const { user, logout, isAdmin } = useAuth();
+  const pathname = usePathname();
+  const practiceActive = pathname.startsWith('/practice');
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur">
@@ -35,10 +38,15 @@ export function Navbar() {
 
           {user ? (
             <>
-              <Link href="/practice/select" className="shrink-0">
-                <Button size="sm" className="gap-1">
-                  刷题
-                </Button>
+              <Link
+                href="/practice/select"
+                className={`inline-flex h-8 shrink-0 items-center rounded-lg border px-3 text-sm font-medium transition ${
+                  practiceActive
+                    ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-100'
+                    : 'border-transparent hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700'
+                }`}
+              >
+                刷题
               </Link>
               <Link href="/wrong" className="hidden items-center gap-1 text-sm hover:underline lg:flex">
                 <Target className="size-4" /><span>错题本</span>
