@@ -17,7 +17,6 @@ import { AdminGuard } from '../../common/guards/admin.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SecurityService } from '../../common/security/security.service';
 import { validateExcelFile } from '../../common/utils/file-validator';
-import { RateLimit } from '../../common/rate-limit/rate-limit.guard';
 import type { Request } from 'express';
 
 @Controller('admin/banks')
@@ -29,7 +28,6 @@ export class BanksController {
   ) {}
 
   @Post('parse')
-  @RateLimit({ points: 10, duration: 3600, keyPrefix: 'upload' })
   @UseInterceptors(FileInterceptor('file'))
   async parseFile(
     @UploadedFile() file: Express.Multer.File,
@@ -41,7 +39,6 @@ export class BanksController {
   }
 
   @Post('import')
-  @RateLimit({ points: 10, duration: 3600, keyPrefix: 'import' })
   async importQuestions(@CurrentUser('id') adminId: number, @Body() body: any) {
     return this.banksService.importQuestions(adminId, body);
   }
