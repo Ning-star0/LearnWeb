@@ -1,6 +1,8 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
+const QUESTION_TYPES = new Set(['SINGLE', 'MULTIPLE', 'JUDGE', 'SHORT']);
+
 @Injectable()
 export class PracticeService {
   constructor(private prisma: PrismaService) {}
@@ -16,6 +18,7 @@ export class PracticeService {
   }) {
     const { userId, mode, scope, bookId, type, order, limit } = params;
     const take = Math.min(limit || 50, 100);
+    const normalizedType = this.normalizeQuestionType(type);
 
     let questionIds: number[] | null = null;
 
@@ -48,7 +51,7 @@ export class PracticeService {
     // 构建查询条件
     const where: any = { isPublished: true };
     if (bookId) where.bookId = bookId;
-    if (type) where.type = type;
+    if (normalizedType) where.type = normalizedType;
     if (questionIds !== null) where.id = { in: questionIds };
 
     // 查询题目
@@ -79,6 +82,12 @@ export class PracticeService {
     }
 
     return questions;
+  }
+
+  private normalizeQuestionType(type?: string) {
+    if (!type || type === '_all' || type === 'all') return undefined;
+    const normalized = type.toUpperCase();
+    return QUESTION_TYPES.has(normalized) ? normalized : undefined;
   }
 
   async studyAction(

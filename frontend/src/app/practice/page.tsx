@@ -27,6 +27,13 @@ const MODE_MAP: Record<string, string> = {
   quiz: '答题模式',
 };
 
+const SCOPE_MAP: Record<string, string> = {
+  all: '全部题库',
+  book: '按教材',
+  wrong: '错题本',
+  review: '待背题',
+};
+
 function answerContains(answer: unknown, label: string) {
   if (Array.isArray(answer)) return answer.includes(label);
   return answer === label;
@@ -66,7 +73,7 @@ function PracticePage() {
   const mode = searchParams.get('mode') || 'study';
   const scope = searchParams.get('scope') || 'all';
   const bookId = searchParams.get('bookId') || '';
-  const type = searchParams.get('type') || '';
+  const type = normalizeTypeParam(searchParams.get('type'));
   const order = searchParams.get('order') || 'random';
 
   const [questions, setQuestions] = useState<PracticeQuestion[]>([]);
@@ -80,6 +87,7 @@ function PracticePage() {
   const [aiExplanation, setAiExplanation] = useState<any>(null);
   const [showSupporterPrompt, setShowSupporterPrompt] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [studyAction, setStudyAction] = useState<string | null>(null);
   const [quizUncertain, setQuizUncertain] = useState(false);
@@ -104,6 +112,8 @@ function PracticePage() {
       return;
     }
 
+    setLoading(true);
+    setLoadError('');
     const params = new URLSearchParams();
     params.set('mode', mode);
     params.set('scope', scope);
@@ -112,15 +122,33 @@ function PracticePage() {
     params.set('order', order);
     params.set('limit', '50');
 
-    api.get(`/practice/questions?${params.toString()}`).then((res) => {
-      if (res.code === 0) {
-        setQuestions(res.data);
-        setCurrentIndex(0);
-        resetState();
-      }
-      setLoading(false);
-    });
+    api.get(`/practice/questions?${params.toString()}`)
+      .then((res) => {
+        if (res.code === 0) {
+          setQuestions(res.data);
+          setCurrentIndex(0);
+          resetState();
+        } else {
+          setQuestions([]);
+          setLoadError(res.message || '题目加载失败');
+        }
+      })
+      .catch(() => {
+        setQuestions([]);
+        setLoadError('题目加载失败，请稍后重试');
+      })
+      .finally(() => setLoading(false));
   }, [authLoading, user, mode, scope, bookId, type, order, router]);
+
+  const backToSelect = () => {
+    const params = new URLSearchParams();
+    params.set('mode', mode);
+    params.set('scope', scope);
+    if (bookId) params.set('bookId', bookId);
+    if (type) params.set('type', type);
+    params.set('order', order);
+    router.push(`/practice/select?${params.toString()}`);
+  };
 
   const currentQuestion = questions[currentIndex];
   const progress = questions.length > 0 ? Math.round(((currentIndex + 1) / questions.length) * 100) : 0;
@@ -203,12 +231,32 @@ function PracticePage() {
     return <div className="mx-auto max-w-6xl px-4 py-12 text-center text-sm text-muted-foreground">加载题目中...</div>;
   }
 
+  if (loadError) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-16">
+        <Card>
+          <CardContent className="space-y-4 p-6 text-center">
+            <h1 className="text-2xl font-semibold">题目加载失败</h1>
+            <p className="text-sm text-muted-foreground">{loadError}</p>
+            <PracticeFilterSummary mode={mode} scope={scope} type={type} order={order} />
+            <Button onClick={backToSelect}>返回重新选择</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (questions.length === 0) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-16 text-center">
-        <h1 className="text-2xl font-semibold">暂无题目</h1>
-        <p className="mt-2 text-sm text-muted-foreground">当前范围没有可练习的题，可以换一个范围或题型。</p>
-        <Button className="mt-6" onClick={() => router.push('/practice/select')}>重新选择</Button>
+      <div className="mx-auto max-w-2xl px-4 py-16">
+        <Card>
+          <CardContent className="space-y-4 p-6 text-center">
+            <h1 className="text-2xl font-semibold">暂无题目</h1>
+            <p className="text-sm text-muted-foreground">当前范围没有可练习的题，可以换一个范围或题型。</p>
+            <PracticeFilterSummary mode={mode} scope={scope} type={type} order={order} />
+            <Button onClick={backToSelect}>返回重新选择</Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -216,7 +264,7 @@ function PracticePage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-5 lg:py-6">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Button variant="ghost" size="sm" onClick={() => router.push('/practice/select')} className="w-fit">
+        <Button variant="ghost" size="sm" onClick={backToSelect} className="w-fit">
           <ChevronLeft className="size-4" />
           重新选择
         </Button>
@@ -531,6 +579,36 @@ function PracticePage() {
       )}
     </div>
   );
+}
+
+function PracticeFilterSummary({
+  mode,
+  scope,
+  type,
+  order,
+}: {
+  mode: string;
+  scope: string;
+  type: string;
+  order: string;
+}) {
+  return (
+    <div className="mx-auto grid max-w-sm grid-cols-2 gap-2 rounded-lg bg-muted p-3 text-left text-sm">
+      <span className="text-muted-foreground">范围</span>
+      <span className="font-medium">{SCOPE_MAP[scope] || scope}</span>
+      <span className="text-muted-foreground">模式</span>
+      <span className="font-medium">{MODE_MAP[mode] || mode}</span>
+      <span className="text-muted-foreground">题型</span>
+      <span className="font-medium">{type ? TYPE_MAP[type] || type : '全部题型'}</span>
+      <span className="text-muted-foreground">排序</span>
+      <span className="font-medium">{order === 'random' ? '随机排序' : '顺序排列'}</span>
+    </div>
+  );
+}
+
+function normalizeTypeParam(value: string | null) {
+  if (!value || value === '_all' || value === 'all') return '';
+  return TYPE_MAP[value] ? value : '';
 }
 
 export default function PracticePageWrapper() {

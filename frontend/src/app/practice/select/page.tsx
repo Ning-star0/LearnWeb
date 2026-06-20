@@ -8,8 +8,6 @@ import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface Book {
   id: number; name: string;
@@ -20,6 +18,11 @@ const TYPE_OPTIONS = [
   { value: '', label: '全部题型' },
   { value: 'SINGLE', label: '单选题' }, { value: 'MULTIPLE', label: '多选题' },
   { value: 'JUDGE', label: '判断题' }, { value: 'SHORT', label: '简答题' },
+];
+
+const ORDER_OPTIONS = [
+  { value: 'random', label: '随机排序' },
+  { value: 'sequential', label: '顺序排列' },
 ];
 
 const SCOPE_OPTIONS = [
@@ -38,7 +41,7 @@ function PracticeSelectPage() {
   const [scope, setScope] = useState(searchParams.get('scope') || (initialBookId ? 'book' : 'all'));
   const [bookId, setBookId] = useState(initialBookId);
   const [mode, setMode] = useState(searchParams.get('mode') || 'quiz');
-  const [type, setType] = useState(searchParams.get('type') || '');
+  const [type, setType] = useState(normalizeTypeParam(searchParams.get('type')));
   const [order, setOrder] = useState(searchParams.get('order') || 'random');
 
   useEffect(() => {
@@ -146,27 +149,50 @@ function PracticeSelectPage() {
           </section>
 
           {/* 题型 + 排序方式 */}
-          <section className="grid gap-3 rounded-lg border bg-card p-4 sm:grid-cols-2">
+          <section className="grid gap-4 rounded-lg border bg-card p-4 md:grid-cols-[minmax(0,1fr)_14rem]">
             <div>
-              <Label className="text-sm font-medium">题型</Label>
-              <Select value={type || '_all'} onValueChange={(v) => setType((v && v !== '_all') ? v : '')}>
-                <SelectTrigger className="mt-2"><SelectValue placeholder="全部题型" /></SelectTrigger>
-                <SelectContent>
-                  {TYPE_OPTIONS.map((item) => (
-                    <SelectItem key={item.value || '_all'} value={item.value || '_all'}>{item.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="text-sm font-medium">题型</div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {TYPE_OPTIONS.map((item) => {
+                  const active = type === item.value;
+                  return (
+                    <button
+                      key={item.value || 'all'}
+                      type="button"
+                      onClick={() => setType(item.value)}
+                      className={`rounded-lg border px-3 py-2 text-sm transition ${
+                        active
+                          ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-500'
+                          : 'border-border hover:border-blue-300 hover:bg-blue-50/50'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div>
-              <Label className="text-sm font-medium">排序方式</Label>
-              <Select value={order} onValueChange={(v) => setOrder(v || 'random')}>
-                <SelectTrigger className="mt-2"><SelectValue placeholder="随机排序" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="random">随机排序</SelectItem>
-                  <SelectItem value="sequential">顺序排列</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="text-sm font-medium">排序方式</div>
+              <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-1">
+                {ORDER_OPTIONS.map((item) => {
+                  const active = order === item.value;
+                  return (
+                    <button
+                      key={item.value}
+                      type="button"
+                      onClick={() => setOrder(item.value)}
+                      className={`rounded-lg border px-3 py-2 text-sm transition ${
+                        active
+                          ? 'border-slate-900 bg-slate-900 text-white'
+                          : 'border-border hover:border-slate-400'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </section>
         </div>
@@ -225,4 +251,9 @@ function PracticeSelectPage() {
 export default function PracticeSelectWrapper() {
   return <Suspense fallback={<div className="mx-auto max-w-6xl px-4 py-8 text-center">加载中...</div>}>
     <PracticeSelectPage /></Suspense>;
+}
+
+function normalizeTypeParam(value: string | null) {
+  if (!value || value === '_all' || value === 'all') return '';
+  return TYPE_OPTIONS.some((item) => item.value === value) ? value : '';
 }
