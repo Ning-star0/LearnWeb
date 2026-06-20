@@ -59,7 +59,7 @@ function QuestionsPage() {
       </div>
 
       <div className="flex gap-2 mb-4 flex-wrap">
-        <Select value={bookId || '_all'} onValueChange={(v) => { setBookId(v === '_all' ? '' : v); setPage(1); }}>
+        <Select value={bookId || '_all'} onValueChange={(v) => { setBookId(v && v !== '_all' ? v : ''); setPage(1); }}>
           <SelectTrigger className="w-48"><SelectValue placeholder="全部教材" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="_all">全部教材</SelectItem>
@@ -68,7 +68,7 @@ function QuestionsPage() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={type || '_all'} onValueChange={(v) => { setType(v === '_all' ? '' : v); setPage(1); }}>
+        <Select value={type || '_all'} onValueChange={(v) => { setType(v && v !== '_all' ? v : ''); setPage(1); }}>
           <SelectTrigger className="w-36"><SelectValue placeholder="全部题型" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="_all">全部题型</SelectItem>
