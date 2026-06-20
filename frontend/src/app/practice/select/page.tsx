@@ -25,12 +25,12 @@ const SCOPE_OPTIONS = [
 ];
 
 const MODE_OPTIONS = [
-  { value: 'study', label: '背题模式', desc: '先看答案，快速记忆', icon: Brain },
   { value: 'quiz', label: '答题模式', desc: '先作答，再判题', icon: CheckCircle2 },
+  { value: 'study', label: '背题模式', desc: '先看答案，快速记忆', icon: Brain },
 ];
 
 const TYPE_OPTIONS = [
-  { value: 'ALL', label: '所有题型' },
+  { value: '', label: '全部题型' },
   { value: 'SINGLE', label: '单选题' },
   { value: 'MULTIPLE', label: '多选题' },
   { value: 'JUDGE', label: '判断题' },
@@ -45,7 +45,7 @@ function PracticeSelectPage() {
   const [books, setBooks] = useState<Book[]>([]);
   const [scope, setScope] = useState(searchParams.get('scope') || (initialBookId ? 'book' : 'all'));
   const [bookId, setBookId] = useState(initialBookId);
-  const [mode, setMode] = useState(searchParams.get('mode') || 'study');
+  const [mode, setMode] = useState(searchParams.get('mode') || 'quiz');
   const [type, setType] = useState(searchParams.get('type') || '');
   const [order, setOrder] = useState(searchParams.get('order') || 'random');
 
@@ -66,7 +66,6 @@ function PracticeSelectPage() {
 
   const handleStart = () => {
     if (!canStart) return;
-
     const params = new URLSearchParams();
     params.set('mode', mode);
     params.set('scope', scope);
@@ -107,6 +106,7 @@ function PracticeSelectPage() {
 
       <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
         <div className="space-y-5">
+          {/* 刷题范围 */}
           <section>
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-sm font-medium">刷题范围</h2>
@@ -121,18 +121,18 @@ function PracticeSelectPage() {
                     key={item.value}
                     type="button"
                     onClick={() => setScope(item.value)}
-                    className={`min-h-24 rounded-lg border p-4 text-left transition ${
-                      active ? 'border-foreground bg-foreground text-background' : 'border-border bg-card hover:border-foreground/40'
+                    className={`rounded-lg border p-4 text-left transition ${
+                      active
+                        ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500'
+                        : 'border-border bg-card hover:border-blue-300 hover:bg-blue-50/50'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="font-medium">{item.label}</div>
-                        <div className={`mt-1 text-sm ${active ? 'text-background/70' : 'text-muted-foreground'}`}>
-                          {item.desc}
-                        </div>
+                        <div className={`font-medium ${active ? 'text-blue-700' : ''}`}>{item.label}</div>
+                        <div className="mt-1 text-sm text-muted-foreground">{item.desc}</div>
                       </div>
-                      <Icon className="mt-0.5 size-4 shrink-0" />
+                      <Icon className={`mt-0.5 size-4 shrink-0 ${active ? 'text-blue-500' : ''}`} />
                     </div>
                   </button>
                 );
@@ -140,24 +140,40 @@ function PracticeSelectPage() {
             </div>
           </section>
 
+          {/* 教材选择 */}
           {scope === 'book' && (
-            <section className="rounded-lg border bg-card p-4">
-              <Label className="text-sm font-medium">教材</Label>
-              <Select value={bookId} onValueChange={(value) => setBookId(value || '')}>
-                <SelectTrigger className="mt-2">
-                  <SelectValue placeholder="选择一本教材" />
-                </SelectTrigger>
-                <SelectContent>
-                  {books.map((book) => (
-                    <SelectItem key={book.id} value={String(book.id)}>
-                      {book.name}（{book._count.questions} 题）
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <section>
+              <h2 className="mb-3 text-sm font-medium">选择教材</h2>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {books.map((book) => {
+                  const active = String(book.id) === bookId;
+                  return (
+                    <button
+                      key={book.id}
+                      type="button"
+                      onClick={() => setBookId(String(book.id))}
+                      className={`rounded-lg border p-3 text-left transition ${
+                        active
+                          ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500'
+                          : 'border-border bg-card hover:border-blue-300 hover:bg-blue-50/50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={`text-sm font-medium ${active ? 'text-blue-700' : ''}`}>
+                          {book.name}
+                        </span>
+                        <Badge variant={active ? 'default' : 'secondary'} className="shrink-0">
+                          {book._count.questions} 题
+                        </Badge>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </section>
           )}
 
+          {/* 刷题模式 */}
           <section>
             <h2 className="mb-3 text-sm font-medium">刷题模式</h2>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -170,13 +186,15 @@ function PracticeSelectPage() {
                     type="button"
                     onClick={() => setMode(item.value)}
                     className={`rounded-lg border p-4 text-left transition ${
-                      active ? 'border-emerald-700 bg-emerald-50 text-emerald-950' : 'border-border bg-card hover:border-foreground/40'
+                      active
+                        ? 'border-emerald-600 bg-emerald-50 ring-1 ring-emerald-600'
+                        : 'border-border bg-card hover:border-emerald-300 hover:bg-emerald-50/50'
                     }`}
                   >
                     <div className="flex items-start gap-3">
-                      <Icon className="mt-0.5 size-4 shrink-0" />
+                      <Icon className={`mt-0.5 size-4 shrink-0 ${active ? 'text-emerald-600' : ''}`} />
                       <div>
-                        <div className="font-medium">{item.label}</div>
+                        <div className={`font-medium ${active ? 'text-emerald-800' : ''}`}>{item.label}</div>
                         <div className="mt-1 text-sm text-muted-foreground">{item.desc}</div>
                       </div>
                     </div>
@@ -186,12 +204,13 @@ function PracticeSelectPage() {
             </div>
           </section>
 
+          {/* 题型 + 排序 */}
           <section className="grid gap-3 rounded-lg border bg-card p-4 sm:grid-cols-2">
             <div>
               <Label className="text-sm font-medium">题型</Label>
-              <Select value={type || 'ALL'} onValueChange={(value) => setType(!value || value === 'ALL' ? '' : value)}>
+              <Select value={type || ''} onValueChange={(value) => setType(value || '')}>
                 <SelectTrigger className="mt-2">
-                  <SelectValue />
+                  <SelectValue placeholder="全部题型" />
                 </SelectTrigger>
                 <SelectContent>
                   {TYPE_OPTIONS.map((item) => (
@@ -201,10 +220,10 @@ function PracticeSelectPage() {
               </Select>
             </div>
             <div>
-              <Label className="text-sm font-medium">排序</Label>
+              <Label className="text-sm font-medium">排序方式</Label>
               <Select value={order} onValueChange={(value) => setOrder(value || 'random')}>
                 <SelectTrigger className="mt-2">
-                  <SelectValue />
+                  <SelectValue placeholder="随机排序" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="random">随机排序</SelectItem>
@@ -215,6 +234,7 @@ function PracticeSelectPage() {
           </section>
         </div>
 
+        {/* 侧边栏摘要 */}
         <aside className="lg:sticky lg:top-20 lg:self-start">
           <Card>
             <CardHeader>
@@ -232,13 +252,13 @@ function PracticeSelectPage() {
                 <span className="text-muted-foreground">模式</span>
                 <span className="font-medium">{selectedMode?.label}</span>
                 <span className="text-muted-foreground">题型</span>
-                <span className="font-medium">{TYPE_OPTIONS.find((item) => item.value === (type || 'ALL'))?.label}</span>
+                <span className="font-medium">{TYPE_OPTIONS.find((item) => item.value === (type || ''))?.label || '全部题型'}</span>
                 <span className="text-muted-foreground">排序</span>
                 <span className="font-medium">{order === 'random' ? '随机排序' : '顺序排列'}</span>
               </div>
               <div className="rounded-lg bg-muted p-3 text-xs leading-relaxed text-muted-foreground">
                 <CircleHelp className="mr-1 inline size-3.5" />
-                背题模式会直接显示答案；答题模式会在提交后把错题自动加入错题本。
+                答题模式提交后错题自动加入错题本；背题模式直接显示答案。
               </div>
               <Button className="w-full" onClick={handleStart} disabled={!canStart}>
                 开始刷题

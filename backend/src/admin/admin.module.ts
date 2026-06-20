@@ -7,16 +7,14 @@ import { AdminSupportersModule } from './supporters/supporters.module';
 import { AdminLogsModule } from './logs/logs.module';
 import { AdminFeedbackModule } from './feedback/feedback.module';
 import { AdminSecurityModule } from './security/security.module';
+import { AdminPaymentModule } from './payment/payment.module';
 
 @Module({
   imports: [
-    BanksModule,
-    AdminUsersModule,
-    AdminSettingsModule,
-    AdminSupportersModule,
-    AdminLogsModule,
-    AdminFeedbackModule,
-    AdminSecurityModule,
+    BanksModule, AdminUsersModule, AdminSettingsModule,
+    AdminSupportersModule, AdminLogsModule,
+    AdminFeedbackModule, AdminSecurityModule,
+    AdminPaymentModule,
   ],
   controllers: [AdminController],
 })

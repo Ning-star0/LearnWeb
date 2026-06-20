@@ -129,4 +129,41 @@ export class PracticeController {
     });
     return { success: true };
   }
+
+  /** 练习历史：查看自己做对的题 */
+  @Get('practice/history')
+  async getHistory(
+    @CurrentUser('id') userId: number,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    const p = page ? parseInt(page) : 1;
+    const ps = Math.min(pageSize ? parseInt(pageSize) : 30, 100);
+
+    const where = { userId, isCorrect: true };
+    const [items, total] = await Promise.all([
+      this.prisma.answerRecord.findMany({
+        where,
+        include: {
+          question: {
+            include: {
+              options: { orderBy: { orderNo: 'asc' } },
+              book: { select: { id: true, name: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        distinct: ['questionId'],
+        skip: (p - 1) * ps,
+        take: ps,
+      }),
+      this.prisma.answerRecord.groupBy({
+        by: ['questionId'],
+        where,
+        _count: true,
+      }),
+    ]);
+
+    return { items, total: total.length, page: p, pageSize: ps };
+  }
 }

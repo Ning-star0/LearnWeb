@@ -153,6 +153,9 @@ model User {
   aiGenerationLogs       AiGenerationLog[]
   handledFeedbacks       Feedback[]         @relation("HandledFeedbacks")
   handledRiskFlags       UserRiskFlag[]     @relation("HandledRiskFlags")
+  trialUsages            TrialUsage[]
+  paymentProofs          PaymentProof[]
+  reviewedPaymentProofs  PaymentProof[]     @relation("ReviewedPaymentProofs")
 
   @@map("users")
 }
@@ -247,6 +250,7 @@ model Question {
   answerRaw     String?
   answerJson    Json?
   explanation   String?
+  contentHash   String?
   isPublished   Boolean       @default(false)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
@@ -581,4 +585,39 @@ model UserRiskFlag {
   handler User? @relation("HandledRiskFlags", fields: [handledBy], references: [id])
 
   @@map("user_risk_flags")
+}
+
+// ============================================================
+// 22. TrialUsage — AI 试用次数表
+// ============================================================
+
+model TrialUsage {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  usedAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("trial_usages")
+}
+
+// ============================================================
+// 23. PaymentProof — 付款凭证表
+// ============================================================
+
+model PaymentProof {
+  id          String   @id @default(uuid())
+  userId      Int
+  imageUrl    String
+  note        String?
+  status      String   @default("PENDING")
+  reviewedBy  Int?
+  reviewedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user     User  @relation(fields: [userId], references: [id])
+  reviewer User? @relation("ReviewedPaymentProofs", fields: [reviewedBy], references: [id])
+
+  @@map("payment_proofs")
 }

@@ -46,10 +46,10 @@ export class AiService {
       throw new ForbiddenException('请先验证邮箱后再使用 AI 解析功能');
     }
 
-    // 4. 权限检查
-    const canView = await this.canViewAiExplanation(user.id);
-    if (!canView) {
-      return { code: -1, message: 'NEED_SUPPORTER', data: null };
+    // 4. 权限检查（支持者/管理员/试用次数）
+    const permission = await this.checkAiPermission(user.id, user.role);
+    if (!permission.allowed) {
+      return { code: -1, message: permission.reason || 'NEED_SUPPORTER', data: null };
     }
 
     // 5. 查询数据库是否已有解析
@@ -74,6 +74,9 @@ export class AiService {
           userAgent,
         },
       });
+
+      // 记录试用（非管理员）
+      await this.recordTrialUse(user.id);
 
       // 异常检测
       await this.riskService.checkAiViewRisk(user.id, ip);
@@ -119,6 +122,9 @@ export class AiService {
         user.id,
         ip,
       );
+
+      // 记录试用（非管理员）
+      await this.recordTrialUse(user.id);
 
       // 记录查看日志（fromCache = false，首次生成后查看）
       await this.prisma.aiViewLog.create({
@@ -176,7 +182,7 @@ export class AiService {
     };
     const correctAnswer = this.formatCorrectAnswer(question);
 
-    const prompt = `你是一名政治 / 思政课老师，请为下面这道题生成适合学生复习的解析。
+    const prompt = `你是一名政治课老师，请为下面这道题生成适合学生复习的解析。
 
 教材：${question.book.name}
 题型：${typeMap[question.type] || question.type}
@@ -185,12 +191,15 @@ export class AiService {
 ${optionsText}
 正确答案：${correctAnswer}
 
-请输出：
-1. 考察知识点
-2. 正确答案为什么对
-3. 错误选项为什么不选
-4. 记忆方法
-5. 类似题怎么判断
+请严格输出以下 JSON 格式（不要输出其他内容，只输出 JSON）：
+
+{
+  "knowledgePoint": "考察知识点（纯文本）",
+  "correctReason": "正确答案为什么对（支持 Markdown：加粗、列表、换行）",
+  "wrongReason": "错误选项为什么不选（支持 Markdown）",
+  "memoryTip": "记忆方法（纯文本）",
+  "similarJudge": "类似题怎么判断（纯文本）"
+}
 
 要求：用中文、适合学生复习、不要太长、不编造教材之外内容、不宣传押题包过必过、解析仅供学习参考。`;
 
@@ -335,6 +344,38 @@ ${optionsText}
   }
 
   // ======== 私有方法 ========
+
+  /** 检查 AI 权限（支持者/管理员/试用）并记录试用 */
+  async recordTrialUse(userId: number) {
+    await this.prisma.trialUsage.create({ data: { userId } });
+  }
+
+  private async checkAiPermission(userId: number, role: string): Promise<{ allowed: boolean; reason?: string }> {
+    // ADMIN/SUPER_ADMIN 始终可用
+    if (role === 'ADMIN' || role === 'SUPER_ADMIN') return { allowed: true };
+
+    // 检查是否有有效订阅
+    const approved = await this.prisma.paymentProof.findFirst({
+      where: { userId, status: 'APPROVED' },
+      orderBy: { reviewedAt: 'desc' },
+    });
+    if (approved?.reviewedAt) {
+      const expiresAt = new Date(approved.reviewedAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+      if (expiresAt > new Date()) return { allowed: true };
+    }
+
+    // 检查老的支持者权限（兼容）
+    const supporterAccess = await this.prisma.supporterAccess.findFirst({
+      where: { userId, type: 'LIFETIME_AI_EXPLANATION' },
+    });
+    if (supporterAccess) return { allowed: true };
+
+    // 检查试用次数
+    const trialCount = await this.prisma.trialUsage.count({ where: { userId } });
+    if (trialCount < 10) return { allowed: true };
+
+    return { allowed: false, reason: 'NEED_SUPPORTER' };
+  }
 
   private async canViewAiExplanation(userId: number): Promise<boolean> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });

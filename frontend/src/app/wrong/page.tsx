@@ -2,24 +2,19 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, Target } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { CheckCircle2, ExternalLink, Play, Target, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
-interface ReviewQuestion {
-  stem: string;
-  answerJson?: unknown;
-  book?: { name?: string };
-}
-
 interface WrongItem {
   id: string | number;
   questionId: number;
   wrongCount: number;
-  question: ReviewQuestion;
+  question: { stem: string; answerJson?: unknown; book?: { id?: number; name?: string } };
 }
 
 function formatAnswer(answer: unknown) {
@@ -30,6 +25,7 @@ function formatAnswer(answer: unknown) {
 
 export default function WrongPage() {
   const { user, loading } = useAuth();
+  const router = useRouter();
   const [items, setItems] = useState<WrongItem[]>([]);
 
   useEffect(() => {
@@ -44,6 +40,14 @@ export default function WrongPage() {
     setItems(items.filter((item) => item.questionId !== questionId));
   };
 
+  const startWrongPractice = () => {
+    router.push('/practice/select?scope=wrong&mode=quiz');
+  };
+
+  const practiceOne = (questionId: number) => {
+    router.push(`/practice?ids=${questionId}&mode=quiz`);
+  };
+
   if (loading) return <div className="mx-auto max-w-6xl px-4 py-10 text-center text-sm text-muted-foreground">加载中...</div>;
   if (!user) return null;
 
@@ -55,12 +59,9 @@ export default function WrongPage() {
           <h1 className="text-2xl font-semibold tracking-normal">错题本</h1>
           <p className="mt-1 text-sm text-muted-foreground">答题模式中答错的题会自动加入这里。</p>
         </div>
-        <Link href="/practice/select?scope=wrong&mode=quiz">
-          <Button disabled={items.length === 0}>
-            <Target className="size-4" />
-            刷错题
-          </Button>
-        </Link>
+        <Button onClick={startWrongPractice} disabled={items.length === 0}>
+          <Target className="size-4" />批量刷错题
+        </Button>
       </div>
 
       {items.length === 0 ? (
@@ -73,20 +74,32 @@ export default function WrongPage() {
         <div className="grid gap-3 lg:grid-cols-2">
           {items.map((item) => (
             <Card key={item.id} className="h-full">
-              <CardHeader className="border-b">
+              <CardHeader>
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline">错 {item.wrongCount} 次</Badge>
                     <Badge variant="secondary">{item.question.book?.name}</Badge>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => removeWrong(item.questionId)}>已掌握</Button>
                 </div>
                 <CardTitle className="text-base leading-relaxed font-medium">{item.question.stem}</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm leading-relaxed text-muted-foreground">
+                <p className="text-sm text-muted-foreground mb-3">
                   正确答案：{formatAnswer(item.question.answerJson)}
                 </p>
+                <div className="flex gap-2 flex-wrap">
+                  <Button size="sm" variant="outline" onClick={() => practiceOne(item.questionId)}>
+                    <Play className="size-3 mr-1" />刷这题
+                  </Button>
+                  <Link href={`/questions/${item.questionId}`}>
+                    <Button size="sm" variant="outline">
+                      <ExternalLink className="size-3 mr-1" />查看原题
+                    </Button>
+                  </Link>
+                  <Button size="sm" variant="ghost" className="text-red-500" onClick={() => removeWrong(item.questionId)}>
+                    <Trash2 className="size-3 mr-1" />删除
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}

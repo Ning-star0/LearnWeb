@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { BookOpen, ClipboardList, Home, Target } from 'lucide-react';
+import { BookOpen, ClipboardList, History, Home, Search, Target } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -25,8 +25,10 @@ export function Navbar() {
 
         <nav className="flex items-center gap-2 sm:gap-3">
           <Link href="/books" className="hidden items-center gap-1 text-sm hover:underline sm:flex">
-            <BookOpen className="size-4" />
-            <span>教材</span>
+            <BookOpen className="size-4" /><span>教材</span>
+          </Link>
+          <Link href="/questions" className="hidden items-center gap-1 text-sm hover:underline sm:flex">
+            <Search className="size-4" /><span>题库</span>
           </Link>
 
           {user ? (
@@ -54,6 +56,9 @@ export function Navbar() {
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem>
                     <Link href="/profile">个人中心</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link href="/history"><History className="inline size-4 mr-1" />做对的题</Link>
                   </DropdownMenuItem>
                   {isAdmin && (
                     <DropdownMenuItem>

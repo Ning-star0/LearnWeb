@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../common/redis/redis.service';
 import { parseExcel, ParsedQuestion } from '../../common/utils/excel-parser';
@@ -112,6 +113,18 @@ export class BanksService {
         await this.prisma.$transaction(
           async (tx) => {
             for (const q of batch) {
+              // 去重：基于 stem + bookId + type 生成 contentHash
+              const contentHash = crypto
+                .createHash('sha256')
+                .update(`${q.stem}|${data.bookId}|${q.type}`)
+                .digest('hex');
+
+              // 检查重复
+              const duplicate = await tx.question.findFirst({
+                where: { contentHash, bookId: data.bookId },
+              });
+              if (duplicate) continue; // 跳过重复题
+
               await tx.question.create({
                 data: {
                   bankId: bank.id,
@@ -119,6 +132,7 @@ export class BanksService {
                   orderNo: q.orderNo,
                   type: q.type as any,
                   stem: q.stem,
+                  contentHash,
                   answerRaw: q.answerRaw,
                   answerJson: q.answerJson,
                   isPublished: true,

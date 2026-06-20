@@ -10,6 +10,7 @@ const MENU = [
   { href: '/admin/users', label: '用户管理' },
   { href: '/admin/banks', label: '题库管理' },
   { href: '/admin/feedback', label: '反馈管理' },
+  { href: '/admin/payments', label: '付款审核' },
   { href: '/admin/security', label: '安全风控' },
   { href: '/admin/supporters', label: '支持者管理' },
   { href: '/admin/settings', label: '系统设置' },

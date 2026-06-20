@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowRight, Brain, Check, CheckCircle2, ChevronLeft, Clock3, Sparkles, XCircle } from 'lucide-react';
+import { ArrowRight, ArrowUpDown, Brain, Check, CheckCircle2, ChevronLeft, Clock3, HelpCircle, Sparkles, XCircle } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -13,7 +14,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 const TYPE_MAP: Record<string, string> = {
   SINGLE: '单选题',
@@ -77,12 +77,12 @@ function PracticePage() {
   const [shortAnswer, setShortAnswer] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<SubmitResult | null>(null);
-  const [aiExplanation, setAiExplanation] = useState<string | null>(null);
-  const [aiDialogOpen, setAiDialogOpen] = useState(false);
-  const [supporterDialogOpen, setSupporterDialogOpen] = useState(false);
+  const [aiExplanation, setAiExplanation] = useState<any>(null);
+  const [showSupporterPrompt, setShowSupporterPrompt] = useState(false);
   const [loading, setLoading] = useState(true);
   const [aiLoading, setAiLoading] = useState(false);
   const [studyAction, setStudyAction] = useState<string | null>(null);
+  const [quizUncertain, setQuizUncertain] = useState(false);
 
   const resetState = () => {
     setSelectedOption('');
@@ -93,6 +93,8 @@ function PracticePage() {
     setResult(null);
     setAiExplanation(null);
     setStudyAction(null);
+    setShowSupporterPrompt(false);
+    setQuizUncertain(false);
   };
 
   useEffect(() => {
@@ -177,15 +179,22 @@ function PracticePage() {
 
   const handleAiExplanation = async () => {
     setAiLoading(true);
+    setShowSupporterPrompt(false);
     const res = await api.post(`/questions/${currentQuestion.id}/ai-explanation`);
     if (res.code === -1 && res.message === 'NEED_SUPPORTER') {
-      setSupporterDialogOpen(true);
+      setShowSupporterPrompt(true);
     } else if (res.code === 0 && res.data) {
-      setAiExplanation(res.data.content || '暂无解析');
-      setAiDialogOpen(true);
+      // 尝试解析 JSON 格式的 AI 回复
+      const raw = res.data.content || '';
+      try {
+        const parsed = JSON.parse(raw);
+        setAiExplanation(parsed);
+      } catch {
+        // 兼容旧格式（纯文本）
+        setAiExplanation({ correctReason: raw });
+      }
     } else {
-      setAiExplanation(res.message || '获取失败');
-      setAiDialogOpen(true);
+      setAiExplanation({ correctReason: res.message || '获取失败' });
     }
     setAiLoading(false);
   };
@@ -412,9 +421,27 @@ function PracticePage() {
               )}
 
               {mode === 'quiz' && !submitted && (
-                <Button onClick={handleSubmit} className="w-full" disabled={!canSubmit}>
-                  提交答案
-                </Button>
+                <div className="flex gap-2 w-full">
+                  <Button onClick={handleSubmit} className="flex-1" disabled={!canSubmit}>
+                    提交答案
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      setQuizUncertain(true);
+                      setSubmitted(true);
+                      setResult({ isCorrect: false, correctAnswer: currentQuestion.answerJson });
+                      api.post('/practice/submit', {
+                        questionId: currentQuestion.id,
+                        userAnswer: 'UNCERTAIN',
+                      });
+                    }}
+                  >
+                    <HelpCircle className="size-4 mr-1" />
+                    不确定
+                  </Button>
+                </div>
               )}
 
               {mode === 'quiz' && submitted && (
@@ -438,32 +465,70 @@ function PracticePage() {
         </aside>
       </div>
 
-      <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
-        <DialogContent className="max-h-[80vh] max-w-2xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>AI 解析</DialogTitle>
-          </DialogHeader>
-          <div className="text-sm leading-relaxed whitespace-pre-wrap">{aiExplanation}</div>
-          <p className="mt-4 text-xs text-muted-foreground">
-            本解析由 AI 生成，仅供学习参考，可能存在不准确之处，请以教材、课堂内容和教师要求为准。
-          </p>
-        </DialogContent>
-      </Dialog>
+      {/* AI 解析（内联显示在题目下方） */}
+      {aiExplanation && (
+        <Card className="mt-4 border-blue-200 bg-blue-50/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Sparkles className="size-4 text-blue-500" />
+              AI 解析
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            {aiExplanation.knowledgePoint && (
+              <div>
+                <h4 className="font-medium text-blue-800 mb-1">考察知识点</h4>
+                <p className="text-muted-foreground">{aiExplanation.knowledgePoint}</p>
+              </div>
+            )}
+            {aiExplanation.correctReason && (
+              <div>
+                <h4 className="font-medium text-blue-800 mb-1">正确答案分析</h4>
+                <div className="prose prose-sm max-w-none text-muted-foreground [&_strong]:text-foreground [&_ul]:list-disc [&_ul]:pl-4">
+                  <ReactMarkdown>{aiExplanation.correctReason}</ReactMarkdown>
+                </div>
+              </div>
+            )}
+            {aiExplanation.wrongReason && (
+              <div>
+                <h4 className="font-medium text-blue-800 mb-1">错误选项辨析</h4>
+                <div className="prose prose-sm max-w-none text-muted-foreground [&_strong]:text-foreground [&_ul]:list-disc [&_ul]:pl-4">
+                  <ReactMarkdown>{aiExplanation.wrongReason}</ReactMarkdown>
+                </div>
+              </div>
+            )}
+            {aiExplanation.memoryTip && (
+              <div>
+                <h4 className="font-medium text-blue-800 mb-1">记忆方法</h4>
+                <p className="text-muted-foreground">{aiExplanation.memoryTip}</p>
+              </div>
+            )}
+            {aiExplanation.similarJudge && (
+              <div>
+                <h4 className="font-medium text-blue-800 mb-1">类似题判断</h4>
+                <p className="text-muted-foreground">{aiExplanation.similarJudge}</p>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground border-t pt-2">
+              本解析由 AI 生成，仅供学习参考，可能存在不准确之处，请以教材、课堂内容和教师要求为准。
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
-      <Dialog open={supporterDialogOpen} onOpenChange={setSupporterDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>支持项目，解锁 AI 解析功能</DialogTitle>
-            <DialogDescription>
+      {/* 支持者提示（内联） */}
+      {showSupporterPrompt && (
+        <Card className="mt-4 border-amber-200 bg-amber-50/50">
+          <CardContent className="py-4 text-center">
+            <h3 className="font-medium text-amber-800 mb-2">支持项目，解锁 AI 解析功能</h3>
+            <p className="text-sm text-amber-700 mb-3">
               基础刷题、背题、查看正确答案功能永久免费。支持者可查看 AI 解析（考察知识点、正误辨析、记忆方法等）。
               AI 解析仅供学习参考，不保证考试结果。
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSupporterDialogOpen(false)}>我知道了</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </p>
+            <Button variant="outline" size="sm" onClick={() => setShowSupporterPrompt(false)}>我知道了</Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
