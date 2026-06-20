@@ -2,42 +2,30 @@
 
 import { useEffect, useMemo, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { BookOpen, Brain, CheckCircle2, Clock3, ListChecks, Shuffle, Target } from 'lucide-react';
+import { BookOpen, Brain, CheckCircle2, ChevronDown, Clock3, ListFilter, Play, Target } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
 interface Book {
-  id: number; name: string;
+  id: number;
+  name: string;
   _count: { questions: number };
 }
 
 const TYPE_OPTIONS = [
-  { value: '', label: '全部题型' },
-  { value: 'SINGLE', label: '单选题' }, { value: 'MULTIPLE', label: '多选题' },
-  { value: 'JUDGE', label: '判断题' }, { value: 'SHORT', label: '简答题' },
+  { value: '', label: '全部' },
+  { value: 'SINGLE', label: '单选' },
+  { value: 'MULTIPLE', label: '多选' },
+  { value: 'JUDGE', label: '判断' },
+  { value: 'SHORT', label: '简答' },
 ];
 
 const ORDER_OPTIONS = [
-  { value: 'random', label: '随机排序' },
-  { value: 'sequential', label: '顺序排列' },
-];
-
-const SCOPE_OPTIONS = [
-  { value: 'all', label: '全部题库', icon: Shuffle, active: 'border-sky-500 bg-sky-50 text-sky-700 ring-sky-100', hover: 'hover:border-sky-300 hover:bg-sky-50/70' },
-  { value: 'book', label: '按教材', icon: BookOpen, active: 'border-blue-500 bg-blue-50 text-blue-700 ring-blue-100', hover: 'hover:border-blue-300 hover:bg-blue-50/70' },
-  { value: 'wrong', label: '错题本', icon: Target, active: 'border-rose-500 bg-rose-50 text-rose-700 ring-rose-100', hover: 'hover:border-rose-300 hover:bg-rose-50/70' },
-  { value: 'review', label: '待背题', icon: Clock3, active: 'border-amber-500 bg-amber-50 text-amber-800 ring-amber-100', hover: 'hover:border-amber-300 hover:bg-amber-50/70' },
-];
-
-const BOOK_ACCENTS = [
-  { active: 'border-blue-500 bg-blue-50 text-blue-700 ring-blue-100', hover: 'hover:border-blue-300 hover:bg-blue-50/60', badge: 'border-blue-200 bg-blue-100 text-blue-700' },
-  { active: 'border-emerald-500 bg-emerald-50 text-emerald-700 ring-emerald-100', hover: 'hover:border-emerald-300 hover:bg-emerald-50/60', badge: 'border-emerald-200 bg-emerald-100 text-emerald-700' },
-  { active: 'border-violet-500 bg-violet-50 text-violet-700 ring-violet-100', hover: 'hover:border-violet-300 hover:bg-violet-50/60', badge: 'border-violet-200 bg-violet-100 text-violet-700' },
-  { active: 'border-amber-500 bg-amber-50 text-amber-800 ring-amber-100', hover: 'hover:border-amber-300 hover:bg-amber-50/60', badge: 'border-amber-200 bg-amber-100 text-amber-800' },
-  { active: 'border-rose-500 bg-rose-50 text-rose-700 ring-rose-100', hover: 'hover:border-rose-300 hover:bg-rose-50/60', badge: 'border-rose-200 bg-rose-100 text-rose-700' },
+  { value: 'random', label: '随机' },
+  { value: 'sequential', label: '顺序' },
 ];
 
 function PracticeSelectPage() {
@@ -46,32 +34,54 @@ function PracticeSelectPage() {
   const { user, loading } = useAuth();
   const initialBookId = searchParams.get('bookId') || '';
   const [books, setBooks] = useState<Book[]>([]);
-  const [scope, setScope] = useState(searchParams.get('scope') || (initialBookId ? 'book' : 'all'));
   const [bookId, setBookId] = useState(initialBookId);
-  const [mode, setMode] = useState(searchParams.get('mode') || 'quiz');
   const [type, setType] = useState(normalizeTypeParam(searchParams.get('type')));
   const [order, setOrder] = useState(searchParams.get('order') || 'random');
+  const [scope, setScope] = useState(searchParams.get('scope') || 'book');
 
   useEffect(() => {
     api.get('/books').then((res) => {
-      if (res.code === 0) setBooks(res.data);
+      if (res.code !== 0) return;
+      const list = res.data || [];
+      setBooks(list);
+      if (initialBookId) {
+        localStorage.setItem('preferredBookId', initialBookId);
+        return;
+      }
+      const preferred = localStorage.getItem('preferredBookId');
+      const preferredBook = list.find((book: Book) => String(book.id) === preferred && book._count.questions > 0);
+      const fallbackBook = list.find((book: Book) => book._count.questions > 0);
+      const nextBook = preferredBook || fallbackBook;
+      if (nextBook && !bookId) {
+        setBookId(String(nextBook.id));
+        setScope('book');
+      }
     });
-  }, []);
+  }, [initialBookId, bookId]);
 
   const selectedBook = useMemo(
-    () => books.find((book) => String(book.id) === bookId), [books, bookId],
+    () => books.find((book) => String(book.id) === bookId),
+    [books, bookId],
   );
 
-  const needsBook = scope === 'book' && !bookId;
-  const canStart = !needsBook;
+  const rememberBook = (nextBookId: string) => {
+    setBookId(nextBookId);
+    setScope('book');
+    localStorage.setItem('preferredBookId', nextBookId);
+  };
 
-  const handleStart = () => {
-    if (!canStart) return;
+  const startPractice = (mode: 'quiz' | 'study', scopeOverride = scope) => {
     const params = new URLSearchParams();
-    params.set('mode', mode); params.set('scope', scope);
-    if (scope === 'book' && bookId) params.set('bookId', bookId);
+    params.set('mode', mode);
+    if (scopeOverride === 'book' && bookId) {
+      params.set('scope', 'book');
+      params.set('bookId', bookId);
+      localStorage.setItem('preferredBookId', bookId);
+    } else {
+      params.set('scope', scopeOverride);
+    }
     if (type) params.set('type', type);
-    params.set('order', order);
+    params.set('order', order || 'random');
     router.push(`/practice?${params.toString()}`);
   };
 
@@ -87,93 +97,80 @@ function PracticeSelectPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 lg:py-8">
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">选择本次练习</h1>
-          {needsBook && (
-            <p className="mt-1 text-sm text-destructive">请选择左侧教材后开始按教材刷题。</p>
-          )}
-        </div>
-        <Button
-          onClick={handleStart}
-          disabled={!canStart}
-          size="lg"
-          className="border border-emerald-500 bg-emerald-50 text-emerald-700 shadow-none hover:bg-emerald-100"
-        >
-          开始刷题
-        </Button>
-      </div>
-
-      <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
-        {/* 左侧：教材选择 + 答题模式 + 排序 */}
-        <div className="space-y-5">
-          {/* 教材选择 */}
-          <section className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-            <h2 className="mb-3 text-sm font-medium">选择教材</h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {books.map((book, index) => {
-                const active = scope === 'book' && String(book.id) === bookId;
-                const accent = BOOK_ACCENTS[index % BOOK_ACCENTS.length];
-                return (
-                  <button
-                    key={book.id} type="button"
-                    onClick={() => { setBookId(String(book.id)); setScope('book'); }}
-                    className={`rounded-lg border p-3 text-left transition ${
-                      active
-                        ? `${accent.active} ring-1`
-                        : `border-border bg-card ${accent.hover}`
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className={`text-sm font-medium ${active ? '' : 'text-foreground'}`}>{book.name}</span>
-                      <Badge
-                        variant="outline"
-                        className={`shrink-0 ${active ? accent.badge : 'bg-muted text-muted-foreground'}`}
-                      >
-                        {book._count.questions} 题
-                      </Badge>
-                    </div>
-                  </button>
-                );
-              })}
+    <div className="mx-auto max-w-5xl px-4 py-5 lg:py-7">
+      <Card className="mb-4 border-blue-200 bg-blue-50/40">
+        <CardContent className="p-4 sm:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <Badge>今日学习</Badge>
+                <Badge variant="outline">{order === 'random' ? '随机' : '顺序'}</Badge>
+                <Badge variant="outline">{TYPE_OPTIONS.find((item) => item.value === type)?.label || '全部'}</Badge>
+              </div>
+              <h1 className="truncate text-xl font-semibold sm:text-2xl">
+                {selectedBook ? selectedBook.name : '全部题库'}
+              </h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {selectedBook ? `${selectedBook._count.questions} 题，已设为默认教材` : '未选择教材时进入全部题库'}
+              </p>
             </div>
-          </section>
-
-          {/* 答题模式 */}
-          <section className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
-            <h2 className="mb-3 text-sm font-medium">答题模式</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {[
-                { value: 'quiz', label: '答题模式', desc: '先作答再判题，答错自动进入错题本', icon: CheckCircle2, active: 'border-emerald-600 bg-emerald-50 text-emerald-800 ring-emerald-100', hover: 'hover:border-emerald-300 hover:bg-emerald-50/70' },
-                { value: 'study', label: '背题模式', desc: '直接显示答案，适合快速记忆', icon: Brain, active: 'border-amber-500 bg-amber-50 text-amber-800 ring-amber-100', hover: 'hover:border-amber-300 hover:bg-amber-50/70' },
-              ].map((item) => {
-                const Icon = item.icon;
-                const active = mode === item.value;
-                return (
-                  <button key={item.value} type="button" onClick={() => setMode(item.value)}
-                    className={`rounded-lg border p-4 text-left transition ${
-                      active ? `${item.active} ring-1`
-                        : `border-border bg-card ${item.hover}`
-                    }`}>
-                    <div className="flex items-start gap-3">
-                      <Icon className="mt-0.5 size-4" />
-                      <div>
-                        <div className="font-medium">{item.label}</div>
-                        <div className="mt-1 text-sm text-muted-foreground">{item.desc}</div>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
+            <div className="grid grid-cols-2 gap-2 sm:flex">
+              <Button onClick={() => startPractice('quiz')} size="lg">
+                <Play className="size-4" />
+                开始答题
+              </Button>
+              <Button onClick={() => startPractice('study')} size="lg" variant="outline">
+                <Brain className="size-4" />
+                开始背题
+              </Button>
             </div>
-          </section>
+          </div>
+        </CardContent>
+      </Card>
 
-          {/* 题型 + 排序方式 */}
-          <section className="grid gap-4 rounded-xl border border-violet-200 bg-violet-50/30 p-4 md:grid-cols-[minmax(0,1fr)_14rem]">
-            <div>
-              <div className="text-sm font-medium">题型</div>
-              <div className="mt-2 flex flex-wrap gap-2">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <section className="space-y-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="flex items-center gap-2 text-sm font-medium">
+                  <BookOpen className="size-4" />
+                  教材
+                </h2>
+                <Button variant="ghost" size="sm" onClick={() => { setScope('all'); setBookId(''); }}>
+                  全部题库
+                </Button>
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1 sm:flex-wrap">
+                {books.map((book) => {
+                  const active = scope === 'book' && String(book.id) === bookId;
+                  return (
+                    <button
+                      key={book.id}
+                      type="button"
+                      onClick={() => rememberBook(String(book.id))}
+                      className={`min-w-[12rem] rounded-lg border px-3 py-2 text-left transition sm:min-w-0 ${
+                        active
+                          ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-100'
+                          : 'border-border bg-card hover:border-blue-300 hover:bg-blue-50/60'
+                      }`}
+                    >
+                      <div className="truncate text-sm font-medium">{book.name}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">{book._count.questions} 题</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <h2 className="mb-3 flex items-center gap-2 text-sm font-medium">
+                <ListFilter className="size-4" />
+                题型
+              </h2>
+              <div className="flex flex-wrap gap-2">
                 {TYPE_OPTIONS.map((item) => {
                   const active = type === item.value;
                   return (
@@ -183,7 +180,7 @@ function PracticeSelectPage() {
                       onClick={() => setType(item.value)}
                       className={`rounded-lg border px-3 py-2 text-sm transition ${
                         active
-                          ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-500'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-100'
                           : 'border-border hover:border-blue-300 hover:bg-blue-50/50'
                       }`}
                     >
@@ -192,83 +189,57 @@ function PracticeSelectPage() {
                   );
                 })}
               </div>
-            </div>
-            <div>
-              <div className="text-sm font-medium">排序方式</div>
-              <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-1">
-                {ORDER_OPTIONS.map((item) => {
-                  const active = order === item.value;
-                  return (
-                    <button
-                      key={item.value}
-                      type="button"
-                      onClick={() => setOrder(item.value)}
-                      className={`rounded-lg border px-3 py-2 text-sm transition ${
-                        active
-                          ? 'border-violet-500 bg-violet-50 text-violet-700 ring-1 ring-violet-100'
-                          : 'border-border bg-card hover:border-violet-300 hover:bg-violet-50/60'
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </section>
-        </div>
-
-        {/* 右侧：刷题范围 + 摘要 */}
-        <aside className="lg:sticky lg:top-20 lg:self-start space-y-4">
-          <Card className="border-blue-200 bg-blue-50/30">
-            <CardHeader><CardTitle className="text-sm font-medium">刷题范围</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
-              {SCOPE_OPTIONS.map((item) => {
-                const active = scope === item.value;
-                const Icon = item.icon;
-                return (
-                  <button key={item.value} type="button" onClick={() => setScope(item.value)}
-                    className={`w-full rounded-lg border p-3 text-left text-sm transition flex items-center justify-between ${
-                      active ? `${item.active} ring-1` : `border-border bg-card ${item.hover}`
-                    }`}>
-                    <span className={`flex items-center gap-2 ${active ? 'font-medium' : ''}`}>
-                      <Icon className="size-4" />
-                      {item.label}
-                    </span>
-                    {active && <div className="size-2 rounded-full bg-current" />}
-                  </button>
-                );
-              })}
-              {needsBook && (
-                <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                  当前范围需要先选择一本教材。
-                </p>
-              )}
             </CardContent>
           </Card>
+        </section>
 
-          <Card className="border-emerald-200 bg-emerald-50/20">
-            <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><ListChecks className="size-4" />本次练习</CardTitle></CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div className="flex justify-between"><span className="text-muted-foreground">教材</span>
-                <span className={needsBook ? 'text-destructive' : ''}>
-                  {scope === 'book' ? selectedBook?.name || '未选择' : '不限'}
-                </span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">模式</span>
-                <span>{mode === 'quiz' ? '答题模式' : '背题模式'}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">题型</span>
-                <span>{TYPE_OPTIONS.find((t) => t.value === type)?.label || '全部题型'}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">排序</span>
-                <span>{order === 'random' ? '随机' : '顺序'}</span></div>
-              <Button
-                className="mt-3 w-full border border-emerald-500 bg-emerald-50 text-emerald-700 shadow-none hover:bg-emerald-100"
-                onClick={handleStart}
-                disabled={!canStart}
-              >
-                开始刷题
+        <aside className="space-y-3">
+          <Card>
+            <CardContent className="space-y-2 p-4">
+              <Button variant="outline" className="w-full justify-start" onClick={() => startPractice('quiz', 'wrong')}>
+                <Target className="size-4" />
+                刷错题
+              </Button>
+              <Button variant="outline" className="w-full justify-start" onClick={() => startPractice('study', 'review')}>
+                <Clock3 className="size-4" />
+                背待背题
               </Button>
             </CardContent>
           </Card>
+
+          <details className="rounded-xl border bg-card p-4 text-sm">
+            <summary className="flex cursor-pointer list-none items-center justify-between font-medium">
+              高级设置
+              <ChevronDown className="size-4" />
+            </summary>
+            <div className="mt-3 space-y-3">
+              <div>
+                <div className="mb-2 text-xs text-muted-foreground">排序方式</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {ORDER_OPTIONS.map((item) => {
+                    const active = order === item.value;
+                    return (
+                      <button
+                        key={item.value}
+                        type="button"
+                        onClick={() => setOrder(item.value)}
+                        className={`rounded-lg border px-3 py-2 text-sm transition ${
+                          active
+                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                            : 'border-border hover:border-blue-300'
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <Button variant="ghost" className="w-full" onClick={() => { setScope('all'); setBookId(''); }}>
+                不限教材
+              </Button>
+            </div>
+          </details>
         </aside>
       </div>
     </div>
@@ -276,8 +247,11 @@ function PracticeSelectPage() {
 }
 
 export default function PracticeSelectWrapper() {
-  return <Suspense fallback={<div className="mx-auto max-w-6xl px-4 py-8 text-center">加载中...</div>}>
-    <PracticeSelectPage /></Suspense>;
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-6xl px-4 py-8 text-center">加载中...</div>}>
+      <PracticeSelectPage />
+    </Suspense>
+  );
 }
 
 function normalizeTypeParam(value: string | null) {

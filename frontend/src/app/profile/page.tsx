@@ -67,6 +67,11 @@ export default function ProfilePage() {
     setUpdating(false);
   };
 
+  const handleLogout = async () => {
+    await logout();
+    router.push('/');
+  };
+
   if (!user) return null;
 
   const roleLabel = user.role === 'SUPER_ADMIN' ? '超级管理员' : user.role === 'ADMIN' ? '管理员' : '普通用户';
@@ -95,41 +100,45 @@ export default function ProfilePage() {
               {isAdmin && (
                 <Link href="/admin"><Button variant="outline" size="sm"><Shield className="size-4 mr-1" />管理后台</Button></Link>
               )}
-              <Link href="/payment"><Button variant="outline" size="sm"><Sparkles className="size-4 mr-1" />AI 订阅</Button></Link>
+            {stats && (
+              <Badge variant="outline" className="hidden sm:inline-flex">
+                {stats.membership.isMember && stats.membership.subscribed
+                  ? `AI 剩余 ${stats.membership.remaining} 天`
+                  : stats.membership.trialRemaining > 0
+                    ? `AI 试用 ${stats.membership.trialRemaining}/5`
+                    : 'AI 未订阅'}
+              </Badge>
+            )}
+            <Link href="/payment"><Button variant="outline" size="sm"><Sparkles className="size-4 mr-1" />AI 订阅</Button></Link>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* 会员状态 + 复习进度 */}
+      {/* 进度概览 */}
       {stats && (
         <div className="grid gap-3 sm:grid-cols-2 mb-6">
-          <Card className={stats.membership.isMember ? 'border-green-300 bg-green-50/50' : 'border-amber-300 bg-amber-50/50'}>
+          <Card>
             <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Sparkles className={`size-5 ${stats.membership.isMember ? 'text-green-600' : stats.membership.trialRemaining > 0 ? 'text-amber-600' : 'text-red-500'}`} />
-                  <span className="font-medium">
-                    {stats.membership.isMember && stats.membership.subscribed
-                      ? 'AI 会员已激活'
-                      : stats.membership.trialRemaining > 0
-                        ? `试用中（剩余 ${stats.membership.trialRemaining}/5 次）`
-                        : '未订阅'}
-                  </span>
-                </div>
-                {stats.membership.isMember && stats.membership.subscribed ? (
-                  <Badge className="bg-green-600">剩余 {stats.membership.remaining} 天</Badge>
-                ) : stats.membership.trialRemaining > 0 ? (
-                  <Badge variant="outline">{stats.membership.trialUsed} 次已用</Badge>
-                ) : (
-                  <Link href="/payment"><Button size="sm" variant="outline">去订阅</Button></Link>
-                )}
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-medium flex items-center gap-2"><BookOpen className="size-4 text-emerald-600" />总体进度</span>
+                <span className="text-sm text-muted-foreground">
+                  {stats.books.reduce((sum, book) => sum + book.done, 0)}/{stats.books.reduce((sum, book) => sum + book.total, 0)} 题
+                </span>
               </div>
-              {stats.membership.subscribed && stats.membership.remaining > 0 && (
-                <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
-                  <div className="h-full bg-green-500 rounded-full" style={{ width: `${Math.min(100, (stats.membership.remaining / 30) * 100)}%` }} />
-                </div>
-              )}
+              <div className="h-2 bg-muted rounded-full overflow-hidden mb-2">
+                <div
+                  className="h-full bg-emerald-500 rounded-full"
+                  style={{
+                    width: `${stats.books.reduce((sum, book) => sum + book.total, 0) > 0
+                      ? Math.round((stats.books.reduce((sum, book) => sum + book.done, 0) / stats.books.reduce((sum, book) => sum + book.total, 0)) * 100)
+                      : 0}%`,
+                  }}
+                />
+              </div>
+              <div className="text-xs text-muted-foreground">
+                按教材题库总量统计已正确掌握的题目
+              </div>
             </CardContent>
           </Card>
 
@@ -312,7 +321,7 @@ export default function ProfilePage() {
                 <Sparkles className="size-4 mr-2" />AI 解析订阅管理
               </Button>
             </Link>
-            <Button variant="outline" className="w-full justify-start text-red-500" onClick={logout}>
+            <Button variant="outline" className="w-full justify-start text-red-500" onClick={handleLogout}>
               <LogOut className="size-4 mr-2" />退出登录
             </Button>
           </div>

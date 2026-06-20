@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Bell, BookOpen, Brain, CheckCircle2, Clock3, Target } from 'lucide-react';
+import { Bell, BookOpen, Brain, CheckCircle2, Clock3, Play, Target } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -36,8 +36,15 @@ const QUICK_ACTIONS = [
   },
 ];
 
+interface Book {
+  id: number;
+  name: string;
+  _count: { questions: number };
+}
+
 export default function HomePage() {
   const { user } = useAuth();
+  const [books, setBooks] = useState<Book[]>([]);
   const [announcement, setAnnouncement] = useState({
     enabled: true,
     title: '复习公告',
@@ -48,7 +55,17 @@ export default function HomePage() {
     api.get('/settings/announcement').then((res) => {
       if (res.code === 0 && res.data) setAnnouncement(res.data);
     });
+    api.get('/books').then((res) => {
+      if (res.code === 0) setBooks(res.data);
+    });
   }, []);
+
+  const preferredBookId = typeof window !== 'undefined' ? localStorage.getItem('preferredBookId') : '';
+  const preferredBook = books.find((book) => String(book.id) === preferredBookId && book._count.questions > 0)
+    || books.find((book) => book._count.questions > 0);
+  const todayHref = preferredBook
+    ? `/practice?mode=quiz&scope=book&bookId=${preferredBook.id}&order=random`
+    : '/practice?mode=quiz&scope=all&order=random';
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 lg:py-8">
@@ -59,12 +76,18 @@ export default function HomePage() {
               <Badge variant="secondary">思政刷题系统</Badge>
               <span className="text-xs text-muted-foreground">刷题、背题、错题复习</span>
             </div>
-            <h1 className="text-2xl font-semibold tracking-normal sm:text-3xl">今天从哪里开始？</h1>
+            <h1 className="text-2xl font-semibold tracking-normal sm:text-3xl">今日学习</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {preferredBook ? `默认教材：${preferredBook.name}` : '默认进入全部题库随机练习'}
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             {user ? (
-              <Link href="/practice/select">
-                <Button size="lg">配置刷题</Button>
+              <Link href={todayHref}>
+                <Button size="lg">
+                  <Play className="size-4" />
+                  开始学习
+                </Button>
               </Link>
             ) : (
               <>
@@ -79,7 +102,7 @@ export default function HomePage() {
             <Link href="/books">
               <Button variant="outline" size="lg">
                 <BookOpen className="size-4" />
-                教材
+                选择教材
               </Button>
             </Link>
           </div>

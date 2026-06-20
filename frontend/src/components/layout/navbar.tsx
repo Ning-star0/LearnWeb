@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Bell, BookOpen, History, Home, Search, Target } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ import {
 export function Navbar() {
   const { user, logout, isAdmin } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
   const booksActive = pathname.startsWith('/books');
   const questionsActive = pathname.startsWith('/questions');
   const practiceActive = pathname.startsWith('/practice');
@@ -27,6 +29,11 @@ export function Navbar() {
         ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-100'
         : 'border-transparent hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700'
     }`;
+
+  const handleLogout = async () => {
+    await logout();
+    router.push('/');
+  };
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur">
@@ -82,7 +89,7 @@ export function Navbar() {
                       <Link href="/admin" className="w-full">管理后台</Link>
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuItem onClick={logout}>退出登录</DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleLogout}>退出登录</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </>

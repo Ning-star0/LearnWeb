@@ -328,7 +328,7 @@ function PracticePage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col px-4 py-3 lg:h-[calc(100dvh-3.5rem)] lg:overflow-hidden">
+    <div className="mx-auto flex max-w-7xl flex-col px-3 py-2 sm:px-4 sm:py-3 lg:h-[calc(100dvh-3.5rem)] lg:overflow-hidden">
       <div className="mb-3 flex flex-col gap-3 rounded-xl border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <Button variant="ghost" size="sm" onClick={backToSelect} className="shrink-0">
@@ -336,7 +336,7 @@ function PracticePage() {
             重新选择
           </Button>
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="hidden flex-wrap items-center gap-2 sm:flex">
               <Badge variant="secondary">{MODE_MAP[mode] || mode}</Badge>
               <Badge variant="outline">{TYPE_MAP[currentQuestion.type]}</Badge>
               <Badge variant="outline" className="max-w-48 truncate">{currentQuestion.book?.name}</Badge>
@@ -358,8 +358,12 @@ function PracticePage() {
             </Button>
           )}
           {mode === 'quiz' && !submitted && (currentQuestion.type === 'SINGLE' || currentQuestion.type === 'JUDGE') && (
-            <Badge variant="secondary" className="h-8 px-3">点击选项自动判题</Badge>
+            <Badge variant="secondary" className="hidden h-8 px-3 sm:inline-flex">点击选项自动判题</Badge>
           )}
+          <Button variant="outline" size="sm" onClick={() => handleAiExplanation()} disabled={aiLoading} className="lg:hidden">
+            <Sparkles className="size-4" />
+            AI
+          </Button>
           <Button variant="outline" size="sm" onClick={nextQuestion}>
             {isLastQuestion ? '完成' : '下一题'}
             <ArrowRight className="size-4" />
@@ -367,9 +371,9 @@ function PracticePage() {
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_460px]">
         <main className="min-h-0">
-          <Card className="flex min-h-[520px] flex-col lg:h-full lg:min-h-0">
+          <Card className="flex min-h-[calc(100dvh-9.5rem)] flex-col sm:min-h-[520px] lg:h-full lg:min-h-0">
             <CardHeader className="shrink-0 border-b">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
@@ -381,7 +385,7 @@ function PracticePage() {
                 <Badge className="shrink-0">{TYPE_MAP[currentQuestion.type]}</Badge>
               </div>
             </CardHeader>
-            <CardContent className="min-h-0 flex-1 space-y-4 overflow-y-auto pt-4">
+            <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto pt-3 sm:space-y-4 sm:pt-4">
               {(currentQuestion.type === 'SINGLE' || currentQuestion.type === 'MULTIPLE') && (
                 <div className="grid gap-3">
                   {currentQuestion.options?.map((opt) => {
@@ -513,22 +517,25 @@ function PracticePage() {
           </Card>
         </main>
 
-        <aside className="grid min-h-0 gap-4 lg:grid-rows-[auto_minmax(0,1fr)]">
-          <Card>
-            <CardHeader className="pb-3">
+        <aside className="hidden min-h-0 gap-3 lg:grid lg:grid-rows-[minmax(0,1fr)_auto]">
+          <Card className="lg:order-last">
+            <CardHeader className="hidden">
               <CardTitle className="flex items-center justify-between">
                 <span>进度</span>
                 <span className="text-sm text-muted-foreground">{currentIndex + 1} / {questions.length}</span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3 p-3">
               <div>
-                <div className="h-2 overflow-hidden rounded-full bg-muted">
+                <div className="mb-2 flex items-center justify-between text-sm">
+                  <span className="font-medium">进度</span>
+                  <span className="text-muted-foreground">{currentIndex + 1} / {questions.length}</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                   <div className="h-full bg-blue-600 transition-all" style={{ width: `${progress}%` }} />
                 </div>
-                <div className="mt-2 text-xs text-muted-foreground">{progress}% 完成</div>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="hidden grid-cols-2 gap-2 text-sm">
                 <div className="rounded-lg bg-muted p-3">
                   <div className="text-xs text-muted-foreground">范围</div>
                   <div className="mt-1 font-medium">{scope === 'wrong' ? '错题本' : scope === 'review' ? '待背题' : scope === 'book' ? '指定教材' : '全部题库'}</div>
@@ -538,7 +545,7 @@ function PracticePage() {
                   <div className="mt-1 font-medium">{order === 'random' ? '随机' : '顺序'}</div>
                 </div>
               </div>
-              <Separator />
+              <Separator className="hidden" />
 
               {mode === 'study' && !studyAction && (
                 <div className="grid gap-2">
@@ -602,7 +609,7 @@ function PracticePage() {
                 </Button>
               </div>
 
-              <div className="rounded-lg border bg-muted/50 p-3 text-xs text-muted-foreground">
+              <div className="hidden rounded-lg border bg-muted/50 p-3 text-xs text-muted-foreground">
                 <Keyboard className="mr-1 inline size-3.5" />
                 键盘方向键：左键上一题，右键下一题。
               </div>
@@ -614,14 +621,19 @@ function PracticePage() {
             </CardContent>
           </Card>
 
-          <Card className="min-h-0 border-blue-200 bg-blue-50/40">
-            <CardHeader className="shrink-0 pb-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Sparkles className="size-4 text-blue-500" />
-                AI 解析
+          <Card className="min-h-0 border-blue-200 bg-blue-50/40 lg:order-first">
+            <CardHeader className="shrink-0 border-b border-blue-100 pb-3">
+              <CardTitle className="flex items-center justify-between gap-2 text-base">
+                <span className="flex items-center gap-2">
+                  <Sparkles className="size-4 text-blue-500" />
+                  AI 解析
+                </span>
+                <Button variant="outline" size="sm" onClick={() => handleAiExplanation()} disabled={aiLoading}>
+                  {aiLoading ? '加载中' : '查看'}
+                </Button>
               </CardTitle>
             </CardHeader>
-            <CardContent className="min-h-0 overflow-y-auto text-sm">
+            <CardContent className="min-h-0 overflow-y-auto p-4 text-sm">
               {!aiExplanation && !showSupporterPrompt && (
                 <div className="rounded-lg border border-blue-100 bg-white/70 p-4 text-sm leading-relaxed text-muted-foreground">
                   <Brain className="mr-1 inline size-4" />
@@ -682,6 +694,42 @@ function PracticePage() {
           </Card>
         </aside>
       </div>
+
+      {(aiExplanation || showSupporterPrompt) && (
+        <Card className="mt-3 border-blue-200 bg-blue-50/40 lg:hidden">
+          <CardContent className="space-y-3 p-4 text-sm">
+            {aiExplanation && (
+              <>
+                {aiExplanation.knowledgePoint && (
+                  <div>
+                    <h4 className="font-medium text-blue-800">考察知识点</h4>
+                    <p className="mt-1 text-muted-foreground">{aiExplanation.knowledgePoint}</p>
+                  </div>
+                )}
+                {aiExplanation.correctReason && (
+                  <div>
+                    <h4 className="font-medium text-blue-800">正确答案分析</h4>
+                    <div className="prose prose-sm max-w-none text-muted-foreground [&_strong]:text-foreground [&_ul]:list-disc [&_ul]:pl-4">
+                      <ReactMarkdown>{aiExplanation.correctReason}</ReactMarkdown>
+                    </div>
+                  </div>
+                )}
+                {aiExplanation.memoryTip && (
+                  <div>
+                    <h4 className="font-medium text-blue-800">记忆方法</h4>
+                    <p className="mt-1 text-muted-foreground">{aiExplanation.memoryTip}</p>
+                  </div>
+                )}
+              </>
+            )}
+            {showSupporterPrompt && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800">
+                试用次数已用完。基础刷题、背题、查看正确答案功能永久免费，支持者可继续查看 AI 解析。
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Dialog open={trialDialog.open} onOpenChange={(open) => setTrialDialog((current) => ({ ...current, open }))}>
         <DialogContent>
