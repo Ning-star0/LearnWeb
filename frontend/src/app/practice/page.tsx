@@ -276,7 +276,9 @@ function PracticePage() {
         remaining: res.data?.trialRemaining || 5,
       });
     } else if (res.code === -1 && res.message === 'NEED_SUPPORTER') {
-      setShowSupporterPrompt(true);
+      // 跳转到支付页面并说明原因
+      router.push('/payment?from=ai');
+      return;
     } else if (res.code === 0 && res.data) {
       // 尝试解析 JSON 格式的 AI 回复
       const raw = res.data.content || '';

@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import { ArrowRight, Camera, CheckCircle, Clock, CreditCard, Sparkles, Upload } from 'lucide-react';
+import { useEffect, useState, useRef, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { ArrowRight, Camera, CheckCircle, Clock, CreditCard, Sparkles, Upload, Info } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -12,9 +12,11 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 
-export default function PaymentPage() {
+function PaymentContent() {
   const { user } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromAi = searchParams.get('from') === 'ai';
   const [status, setStatus] = useState<any>(null);
   const [proofs, setProofs] = useState<any[]>([]);
   const [note, setNote] = useState('');
@@ -65,6 +67,17 @@ export default function PaymentPage() {
         <CreditCard className="size-6" />
         AI 解析订阅
       </h1>
+
+      {/* 从 AI 页面跳转过来的说明 */}
+      {fromAi && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 flex items-start gap-3">
+          <Info className="size-5 text-blue-500 mt-0.5 shrink-0" />
+          <div className="text-sm text-blue-800">
+            <p className="font-medium mb-1">关于 AI 解析功能</p>
+            <p className="leading-relaxed">AI 解析调用大模型 API（DeepSeek），每次调用都会产生费用。如果大量用户同时使用，成本会非常高，我们暂时无法承担。因此采用了订阅制来控制成本。基础刷题功能永久免费。</p>
+          </div>
+        </div>
+      )}
 
       {/* 当前状态 */}
       {status && (
@@ -176,4 +189,8 @@ export default function PaymentPage() {
       )}
     </div>
   );
+}
+
+export default function PaymentPage() {
+  return <Suspense fallback={<div className="text-center py-8">加载中...</div>}><PaymentContent /></Suspense>;
 }
