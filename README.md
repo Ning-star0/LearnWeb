@@ -174,6 +174,11 @@ LearnWeb/
 | DEEPSEEK_API_KEY | DeepSeek API Key |
 | REDIS_URL | Redis 连接串 |
 | APP_URL | 前端访问地址 |
+| SMTP_HOST | SMTP 服务器地址，用于发送验证邮件和重置密码邮件 |
+| SMTP_PORT | SMTP 端口，默认 465 |
+| SMTP_USER | SMTP 登录邮箱 |
+| SMTP_PASS | SMTP 授权码或密码 |
+| MAIL_FROM | 邮件发件人显示名称和地址 |
 
 ### 前端 (.env.local)
 
