@@ -87,7 +87,7 @@ export default function AdminPaymentsPage() {
           <DialogHeader><DialogTitle>付款截图</DialogTitle></DialogHeader>
           {previewImage && (
             <img
-              src={`http://localhost:3000${previewImage}`}
+              src={previewImage}
               alt="付款截图"
               className="w-full rounded-lg"
             />
