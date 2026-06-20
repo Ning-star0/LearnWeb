@@ -17,6 +17,8 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; message?: string }>;
   register: (email: string, password: string, username: string) => Promise<{ success: boolean; message?: string }>;
+  verifyEmail: (token: string) => Promise<{ success: boolean; message?: string }>;
+  resendVerification: (email: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
   refreshAccessToken: () => Promise<boolean>;
   isAdmin: boolean;
@@ -27,6 +29,8 @@ const AuthContext = createContext<AuthContextType>({
   user: null, token: null, loading: true,
   login: async () => ({ success: false }),
   register: async () => ({ success: false }),
+  verifyEmail: async () => ({ success: false }),
+  resendVerification: async () => ({ success: false }),
   logout: async () => {},
   refreshAccessToken: async () => false,
   isAdmin: false,
@@ -104,6 +108,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: false, message: res.message };
   }, []);
 
+  const verifyEmail = useCallback(async (verificationToken: string) => {
+    const res = await api.post('/auth/verify-email', { token: verificationToken });
+    if (res.code === 0) {
+      setUser(res.data.user);
+      setToken(res.data.accessToken);
+      localStorage.setItem(TOKEN_KEY, res.data.accessToken);
+      localStorage.setItem(REFRESH_KEY, res.data.refreshToken);
+      return { success: true, message: res.data.message };
+    }
+    return { success: false, message: res.message };
+  }, []);
+
+  const resendVerification = useCallback(async (email: string) => {
+    const res = await api.post('/auth/resend-verification', { email });
+    if (res.code === 0) {
+      return { success: true, message: res.data.message };
+    }
+    return { success: false, message: res.message };
+  }, []);
+
   const logout = useCallback(async () => {
     const refreshToken = localStorage.getItem(REFRESH_KEY);
     if (refreshToken) {
@@ -119,7 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isVerified = user?.status === 'ACTIVE';
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, refreshAccessToken, isAdmin, isVerified }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, verifyEmail, resendVerification, logout, refreshAccessToken, isAdmin, isVerified }}>
       {children}
     </AuthContext.Provider>
   );

@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { compare, hash } from 'bcryptjs';
+import type { User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../common/redis/redis.service';
 import { SecurityService } from '../common/security/security.service';
@@ -134,7 +135,19 @@ export class AuthService {
       event: 'EMAIL_VERIFY_SUCCESS',
     });
 
-    return { message: '邮箱验证成功，请登录' };
+    await this.securityService.log({
+      userId: user.id,
+      email: user.email,
+      ip,
+      userAgent,
+      event: 'LOGIN_SUCCESS',
+    });
+
+    const session = await this.createAuthSession(user, ip, userAgent);
+    return {
+      message: '邮箱验证成功，已登录',
+      ...session,
+    };
   }
 
   async resendVerification(email: string, ip: string, userAgent: string) {
@@ -231,7 +244,22 @@ export class AuthService {
       throw new UnauthorizedException(genericError);
     }
 
-    // 生成 Access Token + Refresh Token
+    await this.securityService.log({
+      userId: user.id,
+      email: dto.email,
+      ip,
+      userAgent,
+      event: 'LOGIN_SUCCESS',
+    });
+
+    const session = await this.createAuthSession(user, ip, userAgent);
+    return {
+      ...session,
+      requiresVerification: false,
+    };
+  }
+
+  private async createAuthSession(user: User, ip: string, userAgent: string) {
     const accessToken = this.jwtService.sign(
       { sub: user.id, email: user.email, role: user.role },
       { expiresIn: '15m' },
@@ -240,7 +268,6 @@ export class AuthService {
     const refreshToken = this.securityService.generateToken();
     const refreshTokenHash = this.securityService.hashToken(refreshToken);
 
-    // 保存 Session
     await this.prisma.session.create({
       data: {
         userId: user.id,
@@ -251,20 +278,11 @@ export class AuthService {
       },
     });
 
-    await this.securityService.log({
-      userId: user.id,
-      email: dto.email,
-      ip,
-      userAgent,
-      event: 'LOGIN_SUCCESS',
-    });
-
     const { password, ...userResult } = user;
     return {
       accessToken,
       refreshToken,
       user: userResult,
-      requiresVerification: false,
     };
   }
 
