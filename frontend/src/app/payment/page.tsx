@@ -19,6 +19,7 @@ export default function PaymentPage() {
   const [proofs, setProofs] = useState<any[]>([]);
   const [note, setNote] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -29,6 +30,12 @@ export default function PaymentPage() {
     api.get('/payment/proofs').then((res) => {
       if (res.code === 0) setProofs(res.data);
     });
+    api.get('/admin/settings').then((res) => {
+      if (res.code === 0) {
+        const qr = res.data.find((s: any) => s.key === 'paymentQrCode');
+        if (qr) setQrCodeUrl(qr.value);
+      }
+    }).catch(() => {});
   }, [user, router]);
 
   const handleUpload = async () => {
@@ -111,9 +118,14 @@ export default function PaymentPage() {
           <Separator />
 
           {/* 付款说明 */}
-          <div className="text-sm text-muted-foreground space-y-2">
+          <div className="text-sm text-muted-foreground space-y-3">
+            {qrCodeUrl && (
+              <div className="flex justify-center mb-2">
+                <img src={`http://localhost:3000${qrCodeUrl}`} alt="收款码" className="w-48 h-48 object-contain border rounded-lg" />
+              </div>
+            )}
             <p className="font-medium text-foreground">付款步骤：</p>
-            <p>1. 扫描管理端的收款二维码进行付款</p>
+            <p>1. 扫描上方收款二维码完成付款（2.9 元）</p>
             <p>2. 截图保存付款记录</p>
             <p>3. 在下方上传截图</p>
             <p>4. 等待管理员审核通过（24 小时内）</p>

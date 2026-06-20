@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,12 +11,32 @@ import { toast } from 'sonner';
 
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<any[]>([]);
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     api.get('/admin/settings').then((res) => {
-      if (res.code === 0) setSettings(res.data);
+      if (res.code === 0) {
+        setSettings(res.data);
+        const qr = res.data.find((s: any) => s.key === 'paymentQrCode');
+        if (qr) setQrCodeUrl(qr.value);
+      }
     });
   }, []);
+
+  const uploadQrCode = async () => {
+    const file = fileRef.current?.files?.[0];
+    if (!file) { toast.error('请选择图片'); return; }
+    const form = new FormData();
+    form.append('file', file);
+    const res = await api.upload('/admin/settings/qrcode', form);
+    if (res.code === 0) {
+      setQrCodeUrl(res.data.url);
+      toast.success('收款二维码已更新');
+    } else {
+      toast.error(res.message || '上传失败');
+    }
+  };
 
   const updateSetting = async (key: string) => {
     const item = settings.find((s) => s.key === key);
@@ -46,6 +66,18 @@ export default function AdminSettingsPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold mb-4">系统设置</h1>
+
+      {/* 收款二维码 */}
+      <Card className="max-w-md">
+        <CardHeader><CardTitle>收款二维码</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          {qrCodeUrl && (
+            <img src={`http://localhost:3000${qrCodeUrl}`} alt="收款码" className="w-48 h-48 object-contain border rounded-lg" />
+          )}
+          <Input ref={fileRef} type="file" accept="image/*" />
+          <Button onClick={uploadQrCode}>上传收款码</Button>
+        </CardContent>
+      </Card>
 
       <Card className="max-w-2xl">
         <CardHeader>
