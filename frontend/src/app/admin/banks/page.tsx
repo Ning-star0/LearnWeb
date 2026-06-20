@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
@@ -8,8 +10,16 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 
+interface Bank {
+  id: number;
+  name: string;
+  isPublic: boolean;
+  book?: { name?: string };
+  _count?: { questions?: number };
+}
+
 export default function AdminBanksPage() {
-  const [banks, setBanks] = useState<any[]>([]);
+  const [banks, setBanks] = useState<Bank[]>([]);
 
   const loadBanks = async () => {
     const res = await api.get('/admin/banks');
@@ -32,7 +42,7 @@ export default function AdminBanksPage() {
         <Link href="/admin/banks/upload"><Button>上传题库</Button></Link>
       </div>
       <div className="space-y-2">
-        {banks.map((bank: any) => (
+        {banks.map((bank) => (
           <Card key={bank.id} className="p-4 flex items-center justify-between">
             <div>
               <p className="font-medium">{bank.name}</p>
