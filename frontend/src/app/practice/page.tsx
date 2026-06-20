@@ -683,9 +683,9 @@ function PracticePage() {
               )}
               {showSupporterPrompt && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-                  <h3 className="font-medium text-amber-800 mb-2">支持项目，解锁 AI 解析功能</h3>
-                  <p className="text-sm text-amber-700 mb-3">
-                    试用次数已用完。基础刷题、背题、查看正确答案功能永久免费，支持者可继续查看 AI 解析。
+                  <h3 className="font-medium text-amber-800 mb-2">关于 AI 解析功能</h3>
+                  <p className="text-sm text-amber-700 mb-3 whitespace-pre-wrap leading-relaxed">
+                    {'AI 解析需要调用大模型 API（DeepSeek），每次调用都会产生费用。如果大量用户同时使用，成本会非常高，我们目前无法承担。\n\n因此 AI 解析采用订阅制（2.9 元/月），用于覆盖 API 调用成本。基础刷题、背题、查看正确答案功能永久免费。\n\n请在「AI 订阅」页面查看详情。'}
                   </p>
                   <Button variant="outline" size="sm" onClick={() => setShowSupporterPrompt(false)}>我知道了</Button>
                 </div>
