@@ -56,6 +56,11 @@ export class BanksController {
     return this.banksService.findOne(id);
   }
 
+  @Get(':id/progress')
+  async getImportProgress(@Param('id', ParseIntPipe) id: number) {
+    return this.banksService.getImportProgress(id);
+  }
+
   @Delete(':id')
   async remove(
     @Param('id', ParseIntPipe) id: number,

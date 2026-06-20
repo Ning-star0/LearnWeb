@@ -7,13 +7,13 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../common/redis/redis.service';
 import { parseExcel, ParsedQuestion } from '../../common/utils/excel-parser';
 
-const MAX_PARSE_ROWS = Number(process.env.QUESTION_IMPORT_MAX_ROWS || 5000);
-const MAX_IMPORT_QUESTIONS = Number(
-  process.env.QUESTION_IMPORT_MAX_QUESTIONS || 3000,
-);
-const MAX_STEM_LENGTH = Number(process.env.QUESTION_IMPORT_MAX_STEM || 5000);
-const MAX_ANSWER_LENGTH = Number(process.env.QUESTION_IMPORT_MAX_ANSWER || 5000);
-const MAX_OPTION_LENGTH = Number(process.env.QUESTION_IMPORT_MAX_OPTION || 1000);
+// 放宽限制，更大的文件和更多题目
+const MAX_PARSE_ROWS = Number(process.env.QUESTION_IMPORT_MAX_ROWS || 50000);
+const MAX_IMPORT_QUESTIONS = Number(process.env.QUESTION_IMPORT_MAX_QUESTIONS || 50000);
+const MAX_STEM_LENGTH = Number(process.env.QUESTION_IMPORT_MAX_STEM || 50000);
+const MAX_ANSWER_LENGTH = Number(process.env.QUESTION_IMPORT_MAX_ANSWER || 10000);
+const MAX_OPTION_LENGTH = Number(process.env.QUESTION_IMPORT_MAX_OPTION || 10000);
+const BATCH_SIZE = 500; // 每批创建 500 道题
 
 @Injectable()
 export class BanksService {
@@ -76,98 +76,132 @@ export class BanksService {
     }
     if (data.questions.length > MAX_IMPORT_QUESTIONS) {
       throw new BadRequestException(
-        `单次最多导入 ${MAX_IMPORT_QUESTIONS} 道题，请拆分题库后再导入`,
+        `单次最多导入 ${MAX_IMPORT_QUESTIONS} 道题，当前 ${data.questions.length} 题，请拆分后导入`,
       );
     }
 
+    // 校验题目数据
     this.validateQuestionPayload(data.questions);
 
+    // 防并发导入
     const lockKey = `bank-import:admin:${adminId}`;
-    const locked = await this.redisService.lock(lockKey, 120);
+    const locked = await this.redisService.lock(lockKey, 300);
     if (!locked) {
       throw new BadRequestException('已有题库正在导入，请等待当前导入完成');
     }
 
     try {
-      const result = await this.prisma.$transaction(
-        async (tx) => {
-          const bank = await tx.questionBank.create({
-            data: {
-              userId: adminId,
-              bookId: data.bookId,
-              name: data.name,
-              isPublic: true,
-            },
-          });
-
-          let imported = 0;
-          for (const q of data.questions) {
-            await tx.question.create({
-              data: {
-                bankId: bank.id,
-                bookId: data.bookId,
-                orderNo: q.orderNo,
-                type: q.type as any,
-                stem: q.stem,
-                answerRaw: q.answerRaw,
-                answerJson: q.answerJson,
-                isPublished: true,
-                options: {
-                  create: q.options.map((o) => ({
-                    label: o.label,
-                    content: o.content,
-                    orderNo: o.orderNo,
-                  })),
-                },
-              },
-            });
-            imported++;
-          }
-          return { bank, imported };
+      // 创建题库
+      const bank = await this.prisma.questionBank.create({
+        data: {
+          userId: adminId,
+          bookId: data.bookId,
+          name: data.name,
+          isPublic: true,
         },
-        { maxWait: 5000, timeout: 30000 },
-      );
+      });
+
+      // 分批导入题目
+      let imported = 0;
+      const questions = data.questions;
+
+      for (let i = 0; i < questions.length; i += BATCH_SIZE) {
+        const batch = questions.slice(i, i + BATCH_SIZE);
+
+        // 每批使用一个事务
+        await this.prisma.$transaction(
+          async (tx) => {
+            for (const q of batch) {
+              await tx.question.create({
+                data: {
+                  bankId: bank.id,
+                  bookId: data.bookId,
+                  orderNo: q.orderNo,
+                  type: q.type as any,
+                  stem: q.stem,
+                  answerRaw: q.answerRaw,
+                  answerJson: q.answerJson,
+                  isPublished: true,
+                  options: {
+                    create: q.options.map((o) => ({
+                      label: o.label,
+                      content: o.content,
+                      orderNo: o.orderNo,
+                    })),
+                  },
+                },
+              });
+              imported++;
+            }
+          },
+          { timeout: 60000 }, // 每批 60 秒超时
+        );
+
+        // 更新导入进度到 Redis（可选：供前端轮询）
+        const progress = Math.round((imported / questions.length) * 100);
+        await this.redisService.set(
+          `bank-import-progress:${bank.id}`,
+          String(progress),
+          300,
+        );
+      }
 
       // 写入管理日志
       await this.prisma.adminLog.create({
         data: {
           adminId,
           action: 'UPLOAD_BANK',
-          target: `Bank:${result.bank.id}`,
-          detail: `导入 ${result.imported} 题到教材 ${book.name}`,
+          target: `Bank:${bank.id}`,
+          detail: `导入 ${imported} 题到教材 ${book.name}`,
         },
       });
 
       return {
-        bankId: result.bank.id,
-        name: result.bank.name,
+        bankId: bank.id,
+        name: bank.name,
         bookName: book.name,
-        imported: result.imported,
+        imported,
       };
+    } catch (e: any) {
+      // 提供明确的错误信息
+      const message = e.message || '导入失败';
+      throw new BadRequestException(`导入失败: ${message}`);
     } finally {
       await this.redisService.unlock(lockKey);
     }
   }
 
+  /** 新增：查询导入进度 */
+  async getImportProgress(bankId: number) {
+    const progress = await this.redisService.get(`bank-import-progress:${bankId}`);
+    return { bankId, progress: progress ? parseInt(progress) : 100 };
+  }
+
   private validateQuestionPayload(questions: ParsedQuestion[]) {
+    const errors: string[] = [];
     for (const q of questions) {
       if (q.stem.length > MAX_STEM_LENGTH) {
-        throw new BadRequestException(
-          `第 ${q.rawRow} 行题干过长，最多 ${MAX_STEM_LENGTH} 字`,
+        errors.push(
+          `第 ${q.rawRow} 行题干过长（${q.stem.length}/${MAX_STEM_LENGTH} 字）`,
         );
       }
       if ((q.answerRaw || '').length > MAX_ANSWER_LENGTH) {
-        throw new BadRequestException(
-          `第 ${q.rawRow} 行答案过长，最多 ${MAX_ANSWER_LENGTH} 字`,
+        errors.push(
+          `第 ${q.rawRow} 行答案过长（${(q.answerRaw || '').length}/${MAX_ANSWER_LENGTH} 字）`,
         );
       }
       for (const option of q.options || []) {
         if (option.content.length > MAX_OPTION_LENGTH) {
-          throw new BadRequestException(
-            `第 ${q.rawRow} 行选项 ${option.label} 过长，最多 ${MAX_OPTION_LENGTH} 字`,
+          errors.push(
+            `第 ${q.rawRow} 行选项 ${option.label} 过长（${option.content.length}/${MAX_OPTION_LENGTH} 字）`,
           );
         }
       }
+    }
+    if (errors.length > 0) {
+      const preview = errors.slice(0, 10).join('；');
+      const suffix = errors.length > 10 ? `... 等 ${errors.length} 个错误` : '';
+      throw new BadRequestException(`题目数据校验失败: ${preview}${suffix}`);
     }
   }
 

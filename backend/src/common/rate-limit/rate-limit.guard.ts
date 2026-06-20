@@ -14,10 +14,12 @@ export const RateLimit = (config: RateLimitConfig) =>
   SetMetadata(RATE_LIMIT_KEY, config);
 
 export interface RateLimitConfig {
-  points: number; // 请求次数
-  duration: number; // 时间窗口（秒）
-  keyPrefix: string; // Redis key 前缀
-  keyFn?: (req: any) => string; // 自定义 key 生成函数
+  points: number;
+  duration: number;
+  keyPrefix: string;
+  keyFn?: (req: any) => string;
+  /** 是否跳过 SUPER_ADMIN（默认 true） */
+  skipSuperAdmin?: boolean;
 }
 
 @Injectable()
@@ -33,9 +35,16 @@ export class RateLimitGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
 
-    if (!config) return true; // 没有限流配置直接放行
+    if (!config) return true;
 
     const request = context.switchToHttp().getRequest();
+
+    // SUPER_ADMIN 跳过所有限流（除非显式禁用）
+    if (config.skipSuperAdmin !== false) {
+      const user = request.user;
+      if (user?.role === 'SUPER_ADMIN') return true;
+    }
+
     const key = this.buildKey(config, request);
     const current = await this.redisService.incr(key);
 
