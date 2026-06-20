@@ -1,11 +1,7 @@
 import {
   Injectable,
-  ConflictException,
   UnauthorizedException,
-  ForbiddenException,
   BadRequestException,
-  HttpException,
-  HttpStatus,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { compare, hash } from 'bcryptjs';
@@ -39,36 +35,39 @@ export class AuthService {
       where: { email: dto.email },
     });
     if (existing) {
-      // 不泄露邮箱是否已注册，返回通用消息
-      throw new ConflictException('如果邮箱可用，我们已经发送了验证邮件');
+      return { message: '如果邮箱可用，我们已经发送了验证邮件' };
     }
 
     const hashedPassword = await hash(dto.password, 12);
-
-    const user = await this.prisma.user.create({
-      data: {
-        email: dto.email,
-        username: dto.username,
-        password: hashedPassword,
-        status: 'PENDING_VERIFY',
-      },
-    });
 
     // 生成验证 token
     const token = this.securityService.generateToken();
     const tokenHash = this.securityService.hashToken(token);
 
-    await this.prisma.emailVerificationToken.create({
-      data: {
-        userId: user.id,
+    await this.prisma.pendingRegistration.upsert({
+      where: { email: dto.email },
+      create: {
+        email: dto.email,
+        username: dto.username,
+        passwordHash: hashedPassword,
         tokenHash,
+        ip,
+        userAgent,
         expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 分钟
+      },
+      update: {
+        username: dto.username,
+        passwordHash: hashedPassword,
+        tokenHash,
+        ip,
+        userAgent,
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+        usedAt: null,
       },
     });
 
     // 安全日志
     await this.securityService.log({
-      userId: user.id,
       email: dto.email,
       ip,
       userAgent,
@@ -91,27 +90,45 @@ export class AuthService {
   async verifyEmail(token: string, ip: string, userAgent: string) {
     const tokenHash = this.securityService.hashToken(token);
 
-    const record = await this.prisma.emailVerificationToken.findFirst({
+    const record = await this.prisma.pendingRegistration.findFirst({
       where: { tokenHash, usedAt: null },
     });
     if (!record || record.expiresAt < new Date()) {
       throw new BadRequestException('验证链接已过期或无效');
     }
 
-    // 标记 token 已使用
-    await this.prisma.emailVerificationToken.update({
-      where: { id: record.id },
-      data: { usedAt: new Date() },
-    });
+    const user = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.user.findUnique({
+        where: { email: record.email },
+      });
+      if (existing) {
+        await tx.pendingRegistration.update({
+          where: { id: record.id },
+          data: { usedAt: new Date() },
+        });
+        return existing;
+      }
 
-    // 激活用户
-    await this.prisma.user.update({
-      where: { id: record.userId },
-      data: { status: 'ACTIVE' },
+      const created = await tx.user.create({
+        data: {
+          email: record.email,
+          username: record.username,
+          password: record.passwordHash,
+          status: 'ACTIVE',
+        },
+      });
+
+      await tx.pendingRegistration.update({
+        where: { id: record.id },
+        data: { usedAt: new Date() },
+      });
+
+      return created;
     });
 
     await this.securityService.log({
-      userId: record.userId,
+      userId: user.id,
+      email: user.email,
       ip,
       userAgent,
       event: 'EMAIL_VERIFY_SUCCESS',
@@ -122,26 +139,31 @@ export class AuthService {
 
   async resendVerification(email: string, ip: string, userAgent: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      return { message: '如果邮箱可用，我们已经发送了验证邮件' };
-    }
-    if (user.status === 'ACTIVE') {
+    if (user && user.status === 'ACTIVE') {
       return { message: '该邮箱已验证，请直接登录' };
+    }
+
+    const pending = await this.prisma.pendingRegistration.findUnique({
+      where: { email },
+    });
+    if (!pending || pending.usedAt) {
+      return { message: '如果邮箱可用，我们已经发送了验证邮件' };
     }
 
     const token = this.securityService.generateToken();
     const tokenHash = this.securityService.hashToken(token);
 
-    await this.prisma.emailVerificationToken.create({
+    await this.prisma.pendingRegistration.update({
+      where: { id: pending.id },
       data: {
-        userId: user.id,
         tokenHash,
         expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+        ip,
+        userAgent,
       },
     });
 
     await this.securityService.log({
-      userId: user.id,
       email,
       ip,
       userAgent,
@@ -149,7 +171,7 @@ export class AuthService {
     });
 
     await this.mailService
-      .sendVerificationEmail(email, user.username, token)
+      .sendVerificationEmail(email, pending.username, token)
       .catch(() => {});
 
     return { message: '如果邮箱可用，我们已经发送了验证邮件' };
@@ -179,6 +201,10 @@ export class AuthService {
 
     if (user.status === 'DISABLED') {
       throw new UnauthorizedException('账号已被禁用');
+    }
+
+    if (user.status === 'PENDING_VERIFY') {
+      throw new UnauthorizedException('请先验证邮箱后再登录');
     }
 
     const valid = await compare(dto.password, user.password);
@@ -238,7 +264,7 @@ export class AuthService {
       accessToken,
       refreshToken,
       user: userResult,
-      requiresVerification: user.status === 'PENDING_VERIFY',
+      requiresVerification: false,
     };
   }
 
@@ -259,8 +285,7 @@ export class AuthService {
     }
 
     if (
-      session.user.status !== 'ACTIVE' &&
-      session.user.status !== 'PENDING_VERIFY'
+      session.user.status !== 'ACTIVE'
     ) {
       throw new UnauthorizedException('账号状态异常');
     }

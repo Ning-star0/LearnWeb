@@ -20,7 +20,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     if (!user) throw new UnauthorizedException('用户不存在');
 
-    // PENDING_VERIFY 用户可以登录但不能调用高消耗接口
+    if (user.status === 'PENDING_VERIFY') {
+      throw new UnauthorizedException('请先验证邮箱后再登录');
+    }
     if (user.status === 'DELETED') {
       throw new UnauthorizedException('用户不存在');
     }

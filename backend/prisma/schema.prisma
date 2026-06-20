@@ -172,6 +172,26 @@ model User {
 }
 
 // ============================================================
+// PendingRegistration — 待验证注册申请表
+// ============================================================
+
+model PendingRegistration {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  username     String
+  passwordHash String
+  tokenHash    String    @unique
+  ip           String?
+  userAgent    String?
+  expiresAt    DateTime
+  usedAt       DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("pending_registrations")
+}
+
+// ============================================================
 // 2. Course — 课程表
 // ============================================================
 
