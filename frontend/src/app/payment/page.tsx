@@ -32,11 +32,8 @@ function PaymentContent() {
     api.get('/payment/proofs').then((res) => {
       if (res.code === 0) setProofs(res.data);
     });
-    api.get('/admin/settings').then((res) => {
-      if (res.code === 0) {
-        const qr = res.data.find((s: any) => s.key === 'paymentQrCode');
-        if (qr) setQrCodeUrl(qr.value);
-      }
+    api.get('/payment/qrcode').then((res) => {
+      if (res.code === 0 && res.data?.url) setQrCodeUrl(res.data.url);
     }).catch(() => {});
   }, [user, router]);
 

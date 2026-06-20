@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,35 +8,18 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
+import { Upload, Image } from 'lucide-react';
 
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<any[]>([]);
-  const [qrCodeUrl, setQrCodeUrl] = useState('');
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [qrUploading, setQrUploading] = useState(false);
+  const qrFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     api.get('/admin/settings').then((res) => {
-      if (res.code === 0) {
-        setSettings(res.data);
-        const qr = res.data.find((s: any) => s.key === 'paymentQrCode');
-        if (qr) setQrCodeUrl(qr.value);
-      }
+      if (res.code === 0) setSettings(res.data);
     });
   }, []);
-
-  const uploadQrCode = async () => {
-    const file = fileRef.current?.files?.[0];
-    if (!file) { toast.error('请选择图片'); return; }
-    const form = new FormData();
-    form.append('file', file);
-    const res = await api.upload('/admin/settings/qrcode', form);
-    if (res.code === 0) {
-      setQrCodeUrl(res.data.url);
-      toast.success('收款二维码已更新');
-    } else {
-      toast.error(res.message || '上传失败');
-    }
-  };
 
   const updateSetting = async (key: string) => {
     const item = settings.find((s) => s.key === key);
@@ -51,7 +34,28 @@ export default function AdminSettingsPage() {
 
   const getValue = (key: string) => settings.find((s) => s.key === key)?.value || '';
   const announcementKeys = ['announcementEnabled', 'announcementTitle', 'announcementContent'];
-  const generalSettings = settings.filter((item) => !announcementKeys.includes(item.key));
+  const qrCodeKeys = ['paymentQrCode'];
+  const generalSettings = settings.filter(
+    (item) => !announcementKeys.includes(item.key) && !qrCodeKeys.includes(item.key),
+  );
+  const qrCodeUrl = getValue('paymentQrCode');
+
+  const handleQrUpload = async () => {
+    const file = qrFileRef.current?.files?.[0];
+    if (!file) { toast.error('请选择图片'); return; }
+    setQrUploading(true);
+    const form = new FormData();
+    form.append('file', file);
+    const res = await api.upload('/admin/settings/qrcode', form);
+    if (res.code === 0) {
+      toast.success('收款码已更新');
+      setSettings(settings.map((s) => (s.key === 'paymentQrCode' ? { ...s, value: res.data.url } : s)));
+      if (qrFileRef.current) qrFileRef.current.value = '';
+    } else {
+      toast.error(res.message || '上传失败');
+    }
+    setQrUploading(false);
+  };
 
   const saveAnnouncement = async () => {
     const results = await Promise.all(
@@ -66,18 +70,6 @@ export default function AdminSettingsPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold mb-4">系统设置</h1>
-
-      {/* 收款二维码 */}
-      <Card className="max-w-md">
-        <CardHeader><CardTitle>收款二维码</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          {qrCodeUrl && (
-            <img src={`http://localhost:3000${qrCodeUrl}`} alt="收款码" className="w-48 h-48 object-contain border rounded-lg" />
-          )}
-          <Input ref={fileRef} type="file" accept="image/*" />
-          <Button onClick={uploadQrCode}>上传收款码</Button>
-        </CardContent>
-      </Card>
 
       <Card className="max-w-2xl">
         <CardHeader>
@@ -120,6 +112,37 @@ export default function AdminSettingsPage() {
             />
           </div>
           <Button onClick={saveAnnouncement} className="w-fit">保存公告</Button>
+        </CardContent>
+      </Card>
+
+      {/* 收款二维码上传 */}
+      <Card className="max-w-2xl">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Image className="size-5" />
+            收款二维码
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {qrCodeUrl && (
+            <div className="flex justify-center">
+              <img
+                src={`http://localhost:3000${qrCodeUrl}`}
+                alt="收款码"
+                className="w-48 h-48 object-contain border rounded-lg"
+              />
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Input ref={qrFileRef} type="file" accept="image/*" className="cursor-pointer" />
+            <Button onClick={handleQrUpload} disabled={qrUploading}>
+              <Upload className="size-4 mr-1" />
+              {qrUploading ? '上传中...' : '上传'}
+            </Button>
+          </div>
+          {!qrCodeUrl && (
+            <p className="text-sm text-muted-foreground">尚未设置收款二维码，用户支付页面将不显示收款码</p>
+          )}
         </CardContent>
       </Card>
 

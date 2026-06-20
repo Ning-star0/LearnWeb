@@ -48,6 +48,15 @@ export class PaymentController {
     });
   }
 
+  /** 获取收款二维码（公开，登录即可访问） */
+  @Get('qrcode')
+  async getQrCode() {
+    const setting = await this.prisma.systemSetting.findUnique({
+      where: { key: 'paymentQrCode' },
+    });
+    return { code: 0, data: { url: setting?.value || '' } };
+  }
+
   /** 检查试用次数和订阅状态 */
   @Get('status')
   async checkStatus(@CurrentUser('id') userId: number) {

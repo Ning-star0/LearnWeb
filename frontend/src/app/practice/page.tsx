@@ -502,14 +502,21 @@ function PracticePage() {
 
               {submitted && result && (
                 <div className={`rounded-lg border p-4 ${
-                  result.isCorrect ? 'border-emerald-200 bg-emerald-50 text-emerald-950' : 'border-red-200 bg-red-50 text-red-950'
+                  currentQuestion.type === 'SHORT'
+                    ? 'border-blue-200 bg-blue-50 text-blue-950'
+                    : result.isCorrect
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-950'
+                      : 'border-red-200 bg-red-50 text-red-950'
                 }`}>
                   <div className="flex items-center gap-2 font-medium">
-                    {result.isCorrect ? <CheckCircle2 className="size-4" /> : <XCircle className="size-4" />}
+                    {currentQuestion.type !== 'SHORT' && (result.isCorrect ? <CheckCircle2 className="size-4" /> : <XCircle className="size-4" />)}
                     {currentQuestion.type === 'SHORT'
                       ? '请对照参考答案自查'
                       : result.isCorrect ? '回答正确' : '回答错误'}
                   </div>
+                  {currentQuestion.type === 'SHORT' && (
+                    <p className="mt-2 text-sm">参考答案：{currentQuestion.answerRaw || formatAnswer(currentQuestion.answerJson)}</p>
+                  )}
                   {!result.isCorrect && currentQuestion.type !== 'SHORT' && (
                     <p className="mt-2 text-sm">正确答案：{formatAnswer(result.correctAnswer)}</p>
                   )}
@@ -685,9 +692,9 @@ function PracticePage() {
               )}
               {showSupporterPrompt && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-                  <h3 className="font-medium text-amber-800 mb-2">关于 AI 解析功能</h3>
-                  <p className="text-sm text-amber-700 mb-3 whitespace-pre-wrap leading-relaxed">
-                    {'AI 解析需要调用大模型 API（DeepSeek），每次调用都会产生费用。如果大量用户同时使用，成本会非常高，我们目前无法承担。\n\n因此 AI 解析采用订阅制（2.9 元/月），用于覆盖 API 调用成本。基础刷题、背题、查看正确答案功能永久免费。\n\n请在「AI 订阅」页面查看详情。'}
+                  <h3 className="font-medium text-amber-800 mb-2">支持项目，解锁 AI 解析功能</h3>
+                  <p className="text-sm text-amber-700 mb-3">
+                    试用次数已用完。基础刷题、背题、查看正确答案功能永久免费，支持者可继续查看 AI 解析。
                   </p>
                   <Button variant="outline" size="sm" onClick={() => setShowSupporterPrompt(false)}>我知道了</Button>
                 </div>
