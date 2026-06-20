@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { BookOpen, Brain, CheckCircle2, ListChecks, Target } from 'lucide-react';
+import { BookOpen, Brain, CheckCircle2, Clock3, ListChecks, Shuffle, Target } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,13 @@ const TYPE_OPTIONS = [
   { value: '', label: '全部题型' },
   { value: 'SINGLE', label: '单选题' }, { value: 'MULTIPLE', label: '多选题' },
   { value: 'JUDGE', label: '判断题' }, { value: 'SHORT', label: '简答题' },
+];
+
+const SCOPE_OPTIONS = [
+  { value: 'all', label: '全部题库', icon: Shuffle },
+  { value: 'book', label: '按教材', icon: BookOpen },
+  { value: 'wrong', label: '错题本', icon: Target },
+  { value: 'review', label: '待背题', icon: Clock3 },
 ];
 
 function PracticeSelectPage() {
@@ -44,7 +51,8 @@ function PracticeSelectPage() {
     () => books.find((book) => String(book.id) === bookId), [books, bookId],
   );
 
-  const canStart = scope !== 'book' || Boolean(bookId);
+  const needsBook = scope === 'book' && !bookId;
+  const canStart = !needsBook;
 
   const handleStart = () => {
     if (!canStart) return;
@@ -69,8 +77,13 @@ function PracticeSelectPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 lg:py-8">
-      <div className="mb-6 flex items-end justify-between">
-        <h1 className="text-2xl font-semibold">选择本次练习</h1>
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">选择本次练习</h1>
+          {needsBook && (
+            <p className="mt-1 text-sm text-destructive">请选择左侧教材后开始按教材刷题。</p>
+          )}
+        </div>
         <Button onClick={handleStart} disabled={!canStart} size="lg">开始刷题</Button>
       </div>
 
@@ -82,7 +95,7 @@ function PracticeSelectPage() {
             <h2 className="mb-3 text-sm font-medium">选择教材</h2>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {books.map((book) => {
-                const active = String(book.id) === bookId;
+                const active = scope === 'book' && String(book.id) === bookId;
                 return (
                   <button
                     key={book.id} type="button"
@@ -163,23 +176,27 @@ function PracticeSelectPage() {
           <Card>
             <CardHeader><CardTitle className="text-sm font-medium">刷题范围</CardTitle></CardHeader>
             <CardContent className="space-y-2">
-              {[
-                { value: 'all', label: '全部题库', icon: Target },
-                { value: 'book', label: '按教材', icon: BookOpen },
-                { value: 'wrong', label: '错题本', icon: Target },
-                { value: 'review', label: '待背题', icon: Target },
-              ].map((item) => {
+              {SCOPE_OPTIONS.map((item) => {
                 const active = scope === item.value;
+                const Icon = item.icon;
                 return (
                   <button key={item.value} type="button" onClick={() => setScope(item.value)}
                     className={`w-full rounded-lg border p-3 text-left text-sm transition flex items-center justify-between ${
                       active ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-border hover:border-blue-300'
                     }`}>
-                    <span className={active ? 'font-medium text-blue-700' : ''}>{item.label}</span>
+                    <span className={`flex items-center gap-2 ${active ? 'font-medium text-blue-700' : ''}`}>
+                      <Icon className="size-4" />
+                      {item.label}
+                    </span>
                     {active && <div className="size-2 rounded-full bg-blue-500" />}
                   </button>
                 );
               })}
+              {needsBook && (
+                <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  当前范围需要先选择一本教材。
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -187,7 +204,9 @@ function PracticeSelectPage() {
             <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><ListChecks className="size-4" />本次练习</CardTitle></CardHeader>
             <CardContent className="space-y-2 text-sm">
               <div className="flex justify-between"><span className="text-muted-foreground">教材</span>
-                <span>{scope === 'book' ? selectedBook?.name || '未选择' : '不限'}</span></div>
+                <span className={needsBook ? 'text-destructive' : ''}>
+                  {scope === 'book' ? selectedBook?.name || '未选择' : '不限'}
+                </span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">模式</span>
                 <span>{mode === 'quiz' ? '答题模式' : '背题模式'}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">题型</span>

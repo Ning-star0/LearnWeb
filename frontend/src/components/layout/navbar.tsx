@@ -51,18 +51,18 @@ export function Navbar() {
                   </Avatar>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-40">
-                  <DropdownMenuItem asChild>
-                    <Link href="/profile">个人中心</Link>
+                  <DropdownMenuItem>
+                    <Link href="/profile" className="w-full">个人中心</Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/history"><History className="inline size-4 mr-1" />做对的题</Link>
+                  <DropdownMenuItem>
+                    <Link href="/history" className="w-full"><History className="inline size-4 mr-1" />做对的题</Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/review">待背题</Link>
+                  <DropdownMenuItem>
+                    <Link href="/review" className="w-full">待背题</Link>
                   </DropdownMenuItem>
                   {isAdmin && (
-                    <DropdownMenuItem asChild>
-                      <Link href="/admin">管理后台</Link>
+                    <DropdownMenuItem>
+                      <Link href="/admin" className="w-full">管理后台</Link>
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuItem onClick={logout}>退出登录</DropdownMenuItem>
