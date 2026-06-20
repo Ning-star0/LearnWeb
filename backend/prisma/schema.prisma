@@ -1,0 +1,581 @@
+// ============================================================
+// 政治 / 思政刷题系统 — 核心数据库 Schema
+// 17 张表 + 10 个枚举（含安全模块）
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// 枚举
+// ============================================================
+
+enum UserRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  PENDING_VERIFY
+  ACTIVE
+  SUSPENDED
+  DISABLED
+  BANNED
+  DELETED
+}
+
+enum QuestionType {
+  SINGLE
+  MULTIPLE
+  JUDGE
+  SHORT
+}
+
+enum SourceType {
+  ORIGINAL
+  USER_UPLOAD
+  AUTHORIZED
+  UNKNOWN
+}
+
+enum CopyrightRisk {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum PracticeMode {
+  STUDY
+  QUIZ
+}
+
+enum AiExplanationStatus {
+  AUTO_APPROVED
+  PENDING_REVIEW
+  APPROVED
+  HIDDEN
+  REJECTED
+  FAILED
+}
+
+enum SupporterType {
+  LIFETIME_AI_EXPLANATION
+}
+
+enum SupporterSource {
+  MANUAL
+  CODE
+  PAYMENT
+}
+
+enum SecurityEvent {
+  REGISTER
+  LOGIN_SUCCESS
+  LOGIN_FAILED
+  EMAIL_VERIFY_SENT
+  EMAIL_VERIFY_SUCCESS
+  PASSWORD_RESET_REQUEST
+  PASSWORD_CHANGED
+  RATE_LIMITED
+  AI_LIMITED
+  ADMIN_LOGIN_FAILED
+  ACCOUNT_DELETED
+}
+
+enum FeedbackType {
+  QUESTION_ERROR
+  ANSWER_ERROR
+  AI_EXPLANATION_ERROR
+  BUG
+  ACCOUNT
+  SUPPORTER
+  SUGGESTION
+  REPORT_ABUSE
+  OTHER
+}
+
+enum FeedbackStatus {
+  PENDING
+  PROCESSING
+  RESOLVED
+  REJECTED
+  CLOSED
+}
+
+enum FeedbackPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum RiskType {
+  AI_ABUSE
+  LOGIN_BRUTE_FORCE
+  REGISTER_ABUSE
+  FEEDBACK_SPAM
+  UPLOAD_ABUSE
+  RATE_LIMIT_ABUSE
+  ACCOUNT_SHARING
+  OTHER
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+// ============================================================
+// 1. User — 用户表
+// ============================================================
+
+model User {
+  id             Int         @id @default(autoincrement())
+  email          String      @unique
+  username       String
+  password       String
+  role           UserRole    @default(USER)
+  status         UserStatus  @default(PENDING_VERIFY)
+  suspendedUntil DateTime?
+  banReason      String?
+  deletedAt      DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  questionBanks          QuestionBank[]
+  answerRecords          AnswerRecord[]
+  wrongQuestions         WrongQuestion[]
+  reviewQuestions        ReviewQuestion[]
+  supporterAccesses      SupporterAccess[]
+  adminLogs              AdminLog[]
+  reviewedExplanations   QuestionAiExplanation[] @relation("ReviewedExplanations")
+  verificationTokens     EmailVerificationToken[]
+  securityLogs           SecurityLog[]
+  sessions               Session[]
+  aiUsageLogs            AiUsageLog[]
+  feedbacks              Feedback[]
+  riskFlags              UserRiskFlag[]
+  aiViewLogs             AiViewLog[]
+  aiGenerationLogs       AiGenerationLog[]
+  handledFeedbacks       Feedback[]         @relation("HandledFeedbacks")
+  handledRiskFlags       UserRiskFlag[]     @relation("HandledRiskFlags")
+
+  @@map("users")
+}
+
+// ============================================================
+// 2. Course — 课程表
+// ============================================================
+
+model Course {
+  id        Int      @id @default(autoincrement())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  books Book[]
+
+  @@map("courses")
+}
+
+// ============================================================
+// 3. Book — 教材表
+// ============================================================
+
+model Book {
+  id        Int      @id @default(autoincrement())
+  courseId  Int
+  name      String
+  cover     String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  course        Course         @relation(fields: [courseId], references: [id])
+  questionBanks QuestionBank[]
+  questions     Question[]
+
+  @@map("books")
+}
+
+// ============================================================
+// 4. QuestionBank — 题库批次表
+// ============================================================
+
+model QuestionBank {
+  id         Int       @id @default(autoincrement())
+  userId     Int?
+  bookId     Int
+  name       String
+  sourceFile String?
+  isPublic   Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user      User?      @relation(fields: [userId], references: [id])
+  book      Book       @relation(fields: [bookId], references: [id])
+  questions Question[]
+
+  @@map("question_banks")
+}
+
+// ============================================================
+// 5. Question — 题目表
+// ============================================================
+
+model Question {
+  id            Int           @id @default(autoincrement())
+  bankId        Int
+  bookId        Int
+  orderNo       Int
+  type          QuestionType
+  stem          String
+  answerRaw     String?
+  answerJson    Json?
+  explanation   String?
+  sourceType    SourceType?
+  sourceNote    String?
+  copyrightRisk CopyrightRisk @default(LOW)
+  isPublished   Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  bank             QuestionBank              @relation(fields: [bankId], references: [id])
+  book             Book                      @relation(fields: [bookId], references: [id])
+  options          Option[]
+  answerRecords    AnswerRecord[]
+  wrongQuestions   WrongQuestion[]
+  reviewQuestions  ReviewQuestion[]
+  aiExplanation    QuestionAiExplanation?
+  aiUsageLogs      AiUsageLog[]
+  feedbacks        Feedback[]
+  aiViewLogs       AiViewLog[]
+  aiGenerationLogs AiGenerationLog[]
+
+  @@map("questions")
+}
+
+// ============================================================
+// 6. Option — 选项表
+// ============================================================
+
+model Option {
+  id         Int    @id @default(autoincrement())
+  questionId Int
+  label      String
+  content    String
+  orderNo    Int
+
+  question Question @relation(fields: [questionId], references: [id])
+
+  @@map("options")
+}
+
+// ============================================================
+// 7. AnswerRecord — 答题记录表
+// ============================================================
+
+model AnswerRecord {
+  id         Int          @id @default(autoincrement())
+  userId     Int
+  questionId Int
+  mode       PracticeMode
+  userAnswer String?
+  isCorrect  Boolean?
+  action     String?
+  createdAt  DateTime     @default(now())
+
+  user     User     @relation(fields: [userId], references: [id])
+  question Question @relation(fields: [questionId], references: [id])
+
+  @@map("answer_records")
+}
+
+// ============================================================
+// 8. WrongQuestion — 错题表
+// ============================================================
+
+model WrongQuestion {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  questionId Int
+  wrongCount Int      @default(1)
+  mastered   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id])
+  question Question @relation(fields: [questionId], references: [id])
+
+  @@unique([userId, questionId])
+  @@map("wrong_questions")
+}
+
+// ============================================================
+// 9. ReviewQuestion — 待背题表
+// ============================================================
+
+model ReviewQuestion {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  questionId Int
+  reason     String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id])
+  question Question @relation(fields: [questionId], references: [id])
+
+  @@unique([userId, questionId])
+  @@map("review_questions")
+}
+
+// ============================================================
+// 10. QuestionAiExplanation — AI 解析表
+// ============================================================
+
+model QuestionAiExplanation {
+  id          Int                  @id @default(autoincrement())
+  questionId  Int                  @unique
+  content     String
+  model       String?
+  status      AiExplanationStatus  @default(AUTO_APPROVED)
+  reportCount Int                  @default(0)
+  reviewedBy  Int?
+  reviewedAt  DateTime?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  question    Question     @relation(fields: [questionId], references: [id])
+  reviewer    User?        @relation("ReviewedExplanations", fields: [reviewedBy], references: [id])
+  aiViewLogs  AiViewLog[]
+
+  @@map("question_ai_explanations")
+}
+
+// ============================================================
+// 11. SupporterAccess — 支持者权限表
+// ============================================================
+
+model SupporterAccess {
+  id        Int             @id @default(autoincrement())
+  userId    Int
+  type      SupporterType
+  source    SupporterSource
+  amount    Decimal?
+  note      String?
+  createdAt DateTime        @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("supporter_access")
+}
+
+// ============================================================
+// 12. SystemSetting — 系统设置表
+// ============================================================
+
+model SystemSetting {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+// ============================================================
+// 13. AdminLog — 管理员操作日志表
+// ============================================================
+
+model AdminLog {
+  id        Int      @id @default(autoincrement())
+  adminId   Int
+  action    String
+  target    String?
+  detail    String?
+  createdAt DateTime @default(now())
+
+  admin User @relation(fields: [adminId], references: [id])
+
+  @@map("admin_logs")
+}
+
+// ============================================================
+// 14. EmailVerificationToken — 邮箱验证 Token 表（安全）
+// ============================================================
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid())
+  userId    Int
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("email_verification_tokens")
+}
+
+// ============================================================
+// 15. SecurityLog — 安全日志表（安全）
+// ============================================================
+
+model SecurityLog {
+  id        String        @id @default(uuid())
+  userId    Int?
+  email     String?
+  ip        String?
+  userAgent String?
+  event     SecurityEvent
+  detail    Json?
+  createdAt DateTime      @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("security_logs")
+}
+
+// ============================================================
+// 16. Session — 会话表（安全：Refresh Token）
+// ============================================================
+
+model Session {
+  id               String    @id @default(uuid())
+  userId           Int
+  refreshTokenHash String
+  ip               String?
+  userAgent        String?
+  revokedAt        DateTime?
+  expiresAt        DateTime
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("sessions")
+}
+
+// ============================================================
+// 17. AiUsageLog — AI 用量日志表（安全）
+// ============================================================
+
+model AiUsageLog {
+  id         String   @id @default(uuid())
+  userId     Int
+  questionId Int
+  model      String?
+  status     String
+  tokensIn   Int?
+  tokensOut  Int?
+  cost       Int?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id])
+  question Question @relation(fields: [questionId], references: [id])
+
+  @@map("ai_usage_logs")
+}
+
+// ============================================================
+// 18. Feedback — 用户反馈表
+// ============================================================
+
+model Feedback {
+  id          String           @id @default(uuid())
+  userId      Int?
+  questionId  Int?
+  type        FeedbackType
+  title       String
+  content     String
+  status      FeedbackStatus   @default(PENDING)
+  priority    FeedbackPriority @default(NORMAL)
+  adminReply  String?
+  handledBy   Int?
+  handledAt   DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  user     User?     @relation(fields: [userId], references: [id])
+  question Question? @relation(fields: [questionId], references: [id])
+  handler  User?     @relation("HandledFeedbacks", fields: [handledBy], references: [id])
+
+  @@map("feedbacks")
+}
+
+// ============================================================
+// 19. AiViewLog — AI 查看日志表
+// ============================================================
+
+model AiViewLog {
+  id            String   @id @default(uuid())
+  userId        Int
+  questionId    Int
+  explanationId Int?
+  fromCache     Boolean
+  ip            String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
+
+  user        User                     @relation(fields: [userId], references: [id])
+  question    Question                 @relation(fields: [questionId], references: [id])
+  explanation QuestionAiExplanation?   @relation(fields: [explanationId], references: [id])
+
+  @@map("ai_view_logs")
+}
+
+// ============================================================
+// 20. AiGenerationLog — AI 生成日志表
+// ============================================================
+
+model AiGenerationLog {
+  id         String   @id @default(uuid())
+  userId     Int?
+  questionId Int
+  model      String?
+  status     String
+  error      String?
+  tokensIn   Int?
+  tokensOut  Int?
+  fromCache  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  user     User?    @relation(fields: [userId], references: [id])
+  question Question @relation(fields: [questionId], references: [id])
+
+  @@map("ai_generation_logs")
+}
+
+// ============================================================
+// 21. UserRiskFlag — 用户风险标记表
+// ============================================================
+
+model UserRiskFlag {
+  id        String    @id @default(uuid())
+  userId    Int?
+  ip        String?
+  type      RiskType
+  level     RiskLevel
+  reason    String
+  detail    Json?
+  status    String    @default("OPEN")
+  handledBy Int?
+  handledAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user    User? @relation(fields: [userId], references: [id])
+  handler User? @relation("HandledRiskFlags", fields: [handledBy], references: [id])
+
+  @@map("user_risk_flags")
+}

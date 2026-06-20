@@ -1,0 +1,51 @@
+import { Type } from 'class-transformer';
+import {
+  IsArray,
+  IsInt,
+  IsString,
+  IsOptional,
+  ValidateNested,
+  IsIn,
+} from 'class-validator';
+
+class QuestionItem {
+  @IsInt()
+  orderNo: number;
+
+  @IsString()
+  @IsIn(['SINGLE', 'MULTIPLE', 'JUDGE', 'SHORT'])
+  type: string;
+
+  @IsString()
+  stem: string;
+
+  @IsString()
+  answerRaw: string;
+
+  answerJson: any;
+
+  @IsArray()
+  options: { label: string; content: string; orderNo: number }[];
+}
+
+export class ImportQuestionsDto {
+  @IsInt()
+  bookId: number;
+
+  @IsString()
+  name: string;
+
+  @IsOptional()
+  @IsString()
+  sourceType?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['LOW', 'MEDIUM', 'HIGH'])
+  copyrightRisk?: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => QuestionItem)
+  questions: QuestionItem[];
+}
