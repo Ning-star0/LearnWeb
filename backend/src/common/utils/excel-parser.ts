@@ -105,10 +105,10 @@ function parseRow(row: any[], index: number): ParsedQuestion | null {
   const errors: string[] = [];
 
   // 列映射：A=0(题序), B=1(题型), C=2(题目), D=3(答案), E+=4+(选项)
-  const colA = String(row[0] ?? '').trim();
-  const colB = String(row[1] ?? '').trim();
-  const colC = String(row[2] ?? '').trim();
-  const colD = String(row[3] ?? '').trim();
+  const colA = cleanCellText(row[0]);
+  const colB = cleanCellText(row[1]);
+  const colC = cleanCellText(row[2]);
+  const colD = cleanCellText(row[3]);
 
   // 题目为空跳过
   if (!colC) return null;
@@ -150,7 +150,7 @@ function parseRow(row: any[], index: number): ParsedQuestion | null {
   ];
   const options: { label: string; content: string; orderNo: number }[] = [];
   for (let j = 4; j < Math.min(row.length, 20); j++) {
-    const content = String(row[j] ?? '').trim();
+    const content = cleanCellText(row[j]);
     if (content) {
       const labelIndex = j - 4;
       if (labelIndex < optionLabels.length) {
@@ -178,6 +178,15 @@ function parseRow(row: any[], index: number): ParsedQuestion | null {
   };
 }
 
+function cleanCellText(value: unknown): string {
+  return String(value ?? '')
+    .replace(/_x000D_/gi, '\n')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n[ \t]+/g, '\n')
+    .trim();
+}
+
 function mapQuestionType(
   input: string,
 ): 'SINGLE' | 'MULTIPLE' | 'JUDGE' | 'SHORT' | null {
@@ -185,7 +194,13 @@ function mapQuestionType(
   if (t.includes('单选')) return 'SINGLE';
   if (t.includes('多选')) return 'MULTIPLE';
   if (t.includes('判断')) return 'JUDGE';
-  if (t.includes('简答')) return 'SHORT';
+  if (
+    t.includes('简答') ||
+    t.includes('材料') ||
+    t.includes('分析') ||
+    t.includes('论述') ||
+    t.includes('问答')
+  ) return 'SHORT';
   return null;
 }
 

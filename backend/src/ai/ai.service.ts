@@ -66,11 +66,7 @@ export class AiService {
     });
 
     // 6. 如果已有可见解析 → 直接返回（缓存命中）
-    if (
-      existing &&
-      (['AUTO_APPROVED', 'APPROVED'].includes(existing.status) ||
-        ['ADMIN', 'SUPER_ADMIN'].includes(user.role))
-    ) {
+    if (existing && this.canReturnCachedExplanation(existing, user.role)) {
       // 记录查看日志（fromCache = true，不调用 DeepSeek）
       await this.prisma.aiViewLog.create({
         data: {
@@ -108,10 +104,7 @@ export class AiService {
       const doubleCheck = await this.prisma.questionAiExplanation.findUnique({
         where: { questionId },
       });
-      if (
-        doubleCheck &&
-        ['AUTO_APPROVED', 'APPROVED'].includes(doubleCheck.status)
-      ) {
+      if (doubleCheck && this.canReturnCachedExplanation(doubleCheck, user.role)) {
         await this.prisma.aiViewLog.create({
           data: {
             userId: user.id,
@@ -225,8 +218,10 @@ ${optionsText}
       tokensIn = result.tokensIn;
       tokensOut = result.tokensOut;
     } catch (e: any) {
-      await this.prisma.questionAiExplanation.create({
-        data: { questionId, content: '', model, status: 'FAILED' },
+      await this.prisma.questionAiExplanation.upsert({
+        where: { questionId },
+        update: { content: '', model, status: 'FAILED' },
+        create: { questionId, content: '', model, status: 'FAILED' },
       });
 
       if (userId) {
@@ -244,8 +239,16 @@ ${optionsText}
       throw new ForbiddenException('AI 解析生成失败，请稍后重试');
     }
 
-    const explanation = await this.prisma.questionAiExplanation.create({
-      data: {
+    const explanation = await this.prisma.questionAiExplanation.upsert({
+      where: { questionId },
+      update: {
+        content,
+        model,
+        status: autoApproveValue ? 'AUTO_APPROVED' : 'PENDING_REVIEW',
+        reviewedBy: null,
+        reviewedAt: null,
+      },
+      create: {
         questionId,
         content,
         model,
@@ -411,6 +414,14 @@ ${optionsText}
     }
 
     return { allowed: false, reason: 'NEED_SUPPORTER', trialRemaining: 0 };
+  }
+
+  private canReturnCachedExplanation(explanation: any, role: string): boolean {
+    if (!explanation?.content) return false;
+    if (explanation.content.trim() === '该记录已存在') return false;
+    if (['FAILED', 'HIDDEN', 'REJECTED'].includes(explanation.status)) return false;
+    if (['AUTO_APPROVED', 'APPROVED', 'PENDING_REVIEW'].includes(explanation.status)) return true;
+    return ['ADMIN', 'SUPER_ADMIN'].includes(role);
   }
 
   private async canViewAiExplanation(userId: number): Promise<boolean> {
