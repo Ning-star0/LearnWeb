@@ -1,6 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_EXTENSIONS = ['.xlsx'];
 const ALLOWED_MIME_TYPES = [
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -11,11 +10,6 @@ const XLSX_MAGIC_BYTES = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
 export function validateExcelFile(file: Express.Multer.File) {
   if (!file) {
     throw new BadRequestException('请上传文件');
-  }
-
-  // 校验文件大小
-  if (file.size > MAX_FILE_SIZE) {
-    throw new BadRequestException('文件大小不能超过 10MB');
   }
 
   if (file.size === 0) {

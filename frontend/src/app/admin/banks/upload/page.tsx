@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, FileSpreadsheet, Upload, CheckCircle2, AlertCircle } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, FileSpreadsheet, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -45,6 +45,15 @@ interface ParseResult {
   };
 }
 
+interface UploadItem {
+  id: string;
+  file: File;
+  bankName: string;
+  result: ParseResult | null;
+  error: string | null;
+  imported: boolean;
+}
+
 const TYPE_LABEL: Record<string, string> = {
   SINGLE: '单选',
   MULTIPLE: '多选',
@@ -52,14 +61,23 @@ const TYPE_LABEL: Record<string, string> = {
   SHORT: '简答',
 };
 
+function getDefaultBankName(fileName: string) {
+  return fileName.replace(/\.xlsx$/i, '');
+}
+
+function hasParseErrors(item: UploadItem) {
+  if (!item.result) return false;
+  const rowErrors = item.result.errors.length;
+  const questionErrors = item.result.questions.filter((question) => question.errors?.length > 0).length;
+  return rowErrors + questionErrors > 0;
+}
+
 export default function BankUploadPage() {
   const [books, setBooks] = useState<Book[]>([]);
   const [bookId, setBookId] = useState('');
-  const [bankName, setBankName] = useState('');
-  const [file, setFile] = useState<File | null>(null);
+  const [items, setItems] = useState<UploadItem[]>([]);
   const [sourceType, setSourceType] = useState('UNKNOWN');
   const [copyrightRisk, setCopyrightRisk] = useState('LOW');
-  const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [parsing, setParsing] = useState(false);
   const [importing, setImporting] = useState(false);
 
@@ -74,67 +92,142 @@ export default function BankUploadPage() {
     [books, bookId],
   );
 
-  const rowErrorCount = parseResult?.errors.length || 0;
-  const questionErrorCount = parseResult?.questions.filter((question) => question.errors?.length > 0).length || 0;
-  const hasErrors = rowErrorCount + questionErrorCount > 0;
-  const canParse = Boolean(bookId && file);
-  const canImport = Boolean(parseResult && bankName.trim() && parseResult.questions.length > 0 && !hasErrors);
+  const totals = useMemo(() => {
+    return items.reduce(
+      (acc, item) => {
+        if (!item.result) return acc;
+        acc.files += 1;
+        acc.questions += item.result.summary.total;
+        acc.errors += item.result.errors.length;
+        acc.errors += item.result.questions.filter((question) => question.errors?.length > 0).length;
+        return acc;
+      },
+      { files: 0, questions: 0, errors: 0 },
+    );
+  }, [items]);
+
+  const importableItems = items.filter(
+    (item) =>
+      item.result &&
+      !item.imported &&
+      !item.error &&
+      !hasParseErrors(item) &&
+      item.bankName.trim() &&
+      item.result.questions.length > 0,
+  );
+
+  const canParse = Boolean(bookId && items.length > 0);
+  const canImport = importableItems.length > 0;
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const nextFile = event.target.files?.[0] || null;
-    setFile(nextFile);
-    setParseResult(null);
-    if (nextFile && !bankName) {
-      setBankName(nextFile.name.replace(/\.xlsx$/i, ''));
-    }
+    const files = Array.from(event.target.files || []);
+    setItems(
+      files.map((file, index) => ({
+        id: `${file.name}-${file.lastModified}-${index}`,
+        file,
+        bankName: getDefaultBankName(file.name),
+        result: null,
+        error: null,
+        imported: false,
+      })),
+    );
+  };
+
+  const updateBankName = (id: string, bankName: string) => {
+    setItems((current) =>
+      current.map((item) => (item.id === id ? { ...item, bankName } : item)),
+    );
   };
 
   const handleParse = async () => {
-    if (!bookId || !file) {
+    if (!bookId || items.length === 0) {
       toast.error('请选择教材并上传 .xlsx 文件');
       return;
     }
 
-    const formData = new FormData();
-    formData.append('bookId', bookId);
-    formData.append('file', file);
-
     setParsing(true);
-    const res = await api.upload('/admin/banks/parse', formData);
-    setParsing(false);
+    let successCount = 0;
+    let failedCount = 0;
 
-    if (res.code === 0) {
-      setParseResult(res.data);
-      if (res.data.errors?.length) {
-        toast.warning('文件已解析，但存在需要处理的错误');
+    for (const item of items) {
+      const formData = new FormData();
+      formData.append('bookId', bookId);
+      formData.append('file', item.file);
+
+      const res = await api.upload('/admin/banks/parse', formData);
+      if (res.code === 0) {
+        successCount++;
+        setItems((current) =>
+          current.map((entry) =>
+            entry.id === item.id
+              ? { ...entry, result: res.data, error: null, imported: false }
+              : entry,
+          ),
+        );
       } else {
-        toast.success(`解析成功，共 ${res.data.questions.length} 题`);
+        failedCount++;
+        setItems((current) =>
+          current.map((entry) =>
+            entry.id === item.id
+              ? { ...entry, result: null, error: res.message || '解析失败', imported: false }
+              : entry,
+          ),
+        );
       }
+    }
+
+    setParsing(false);
+    if (failedCount) {
+      toast.warning(`解析完成：${successCount} 个成功，${failedCount} 个失败`);
     } else {
-      toast.error(res.message || '解析失败');
+      toast.success(`解析完成：${successCount} 个文件`);
     }
   };
 
   const handleImport = async () => {
-    if (!parseResult || !canImport) return;
+    if (!canImport) return;
 
     setImporting(true);
-    const res = await api.post('/admin/banks/import', {
-      bookId: parseResult.bookId,
-      name: bankName.trim(),
-      sourceType,
-      copyrightRisk,
-      questions: parseResult.questions,
-    });
-    setImporting(false);
+    let importedFiles = 0;
+    let importedQuestions = 0;
+    let failedFiles = 0;
 
-    if (res.code === 0) {
-      toast.success(`导入成功：${res.data.imported} 题`);
-      setParseResult(null);
-      setFile(null);
-      setBankName('');
+    for (const item of importableItems) {
+      if (!item.result) continue;
+
+      const res = await api.post('/admin/banks/import', {
+        bookId: item.result.bookId,
+        name: item.bankName.trim(),
+        sourceType,
+        copyrightRisk,
+        questions: item.result.questions,
+      });
+
+      if (res.code === 0) {
+        importedFiles++;
+        importedQuestions += res.data.imported || 0;
+        setItems((current) =>
+          current.map((entry) =>
+            entry.id === item.id ? { ...entry, imported: true, error: null } : entry,
+          ),
+        );
+      } else {
+        failedFiles++;
+        setItems((current) =>
+          current.map((entry) =>
+            entry.id === item.id
+              ? { ...entry, error: res.message || '导入失败' }
+              : entry,
+          ),
+        );
+      }
+    }
+
+    setImporting(false);
+    if (failedFiles) {
+      toast.warning(`导入完成：${importedFiles} 个成功，${failedFiles} 个失败`);
     } else {
-      toast.error(res.message || '导入失败');
+      toast.success(`导入成功：${importedFiles} 个题库，共 ${importedQuestions} 题`);
     }
   };
 
@@ -150,12 +243,12 @@ export default function BankUploadPage() {
           </Link>
           <h1 className="text-2xl font-semibold">上传题库</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            支持 .xlsx 文件。列顺序：题序、题型、题目、答案、选项A、选项B、选项C...
+            仅管理员可上传。支持多选 .xlsx 批量解析和导入，不限制上传文件大小。
           </p>
         </div>
         <Button onClick={handleImport} disabled={!canImport || importing}>
           <CheckCircle2 className="size-4" />
-          {importing ? '导入中...' : '确认导入'}
+          {importing ? '导入中...' : `确认导入 ${importableItems.length} 个题库`}
         </Button>
       </div>
 
@@ -165,7 +258,7 @@ export default function BankUploadPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileSpreadsheet className="size-4" />
-                文件与题库信息
+                文件与导入设置
               </CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2">
@@ -186,122 +279,73 @@ export default function BankUploadPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="bank-name">题库名称</Label>
-                <Input
-                  id="bank-name"
-                  value={bankName}
-                  onChange={(event) => setBankName(event.target.value)}
-                  placeholder="例如：马原期末复习题"
-                />
+                <Label htmlFor="bank-file">Excel 文件</Label>
+                <Input id="bank-file" type="file" accept=".xlsx" multiple onChange={handleFileChange} />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="bank-file">Excel 文件</Label>
-                <Input id="bank-file" type="file" accept=".xlsx" onChange={handleFileChange} />
+                <Label>来源</Label>
+                <Select value={sourceType} onValueChange={(value) => setSourceType(value || 'UNKNOWN')}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="UNKNOWN">未知</SelectItem>
+                    <SelectItem value="ORIGINAL">原创</SelectItem>
+                    <SelectItem value="AUTHORIZED">授权</SelectItem>
+                    <SelectItem value="USER_UPLOAD">用户上传</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label>来源</Label>
-                  <Select value={sourceType} onValueChange={(value) => setSourceType(value || 'UNKNOWN')}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="UNKNOWN">未知</SelectItem>
-                      <SelectItem value="ORIGINAL">原创</SelectItem>
-                      <SelectItem value="AUTHORIZED">授权</SelectItem>
-                      <SelectItem value="USER_UPLOAD">用户上传</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>版权风险</Label>
-                  <Select value={copyrightRisk} onValueChange={(value) => setCopyrightRisk(value || 'LOW')}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="LOW">低</SelectItem>
-                      <SelectItem value="MEDIUM">中</SelectItem>
-                      <SelectItem value="HIGH">高</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2">
+                <Label>版权风险</Label>
+                <Select value={copyrightRisk} onValueChange={(value) => setCopyrightRisk(value || 'LOW')}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LOW">低</SelectItem>
+                    <SelectItem value="MEDIUM">中</SelectItem>
+                    <SelectItem value="HIGH">高</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="md:col-span-2">
                 <Button onClick={handleParse} disabled={!canParse || parsing}>
                   <Upload className="size-4" />
-                  {parsing ? '解析中...' : '解析并预览'}
+                  {parsing ? '解析中...' : `解析 ${items.length || 0} 个文件`}
                 </Button>
               </div>
             </CardContent>
           </Card>
 
-          {parseResult && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between gap-3">
-                  <span>解析预览</span>
-                  <Badge variant={hasErrors ? 'destructive' : 'secondary'}>
-                    {hasErrors ? '存在错误' : '可导入'}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-2 sm:grid-cols-5">
-                  <Summary label="总题数" value={parseResult.summary.total} />
-                  <Summary label="单选" value={parseResult.summary.single} />
-                  <Summary label="多选" value={parseResult.summary.multiple} />
-                  <Summary label="判断" value={parseResult.summary.judge} />
-                  <Summary label="简答" value={parseResult.summary.short} />
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between gap-3">
+                <span>批量文件</span>
+                <Badge variant={totals.errors ? 'destructive' : 'secondary'}>
+                  {items.length} 个文件
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {items.length === 0 ? (
+                <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                  请选择一个或多个 .xlsx 文件。
                 </div>
-
-                {hasErrors && (
-                  <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-950">
-                    <div className="mb-2 flex items-center gap-2 font-medium">
-                      <AlertCircle className="size-4" />
-                      请先修正 Excel 中的错误后重新上传
-                    </div>
-                    <div className="space-y-1">
-                      {parseResult.errors.slice(0, 6).map((error) => (
-                        <p key={`${error.row}-${error.message}`}>第 {error.row} 行：{error.message}</p>
-                      ))}
-                      {parseResult.questions
-                        .filter((question) => question.errors?.length)
-                        .slice(0, 6)
-                        .map((question) => (
-                          <p key={question.rawRow}>第 {question.rawRow} 行：{question.errors.join('；')}</p>
-                        ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="overflow-hidden rounded-lg border">
-                  <div className="grid grid-cols-[4rem_5rem_1fr_8rem] bg-muted px-3 py-2 text-xs font-medium text-muted-foreground">
-                    <span>行号</span>
-                    <span>题型</span>
-                    <span>题目</span>
-                    <span>答案</span>
-                  </div>
-                  <div className="max-h-[420px] overflow-y-auto">
-                    {parseResult.questions.slice(0, 80).map((question) => (
-                      <div
-                        key={`${question.rawRow}-${question.orderNo}`}
-                        className="grid grid-cols-[4rem_5rem_1fr_8rem] gap-2 border-t px-3 py-2 text-sm"
-                      >
-                        <span className="text-muted-foreground">{question.rawRow}</span>
-                        <span>{TYPE_LABEL[question.type]}</span>
-                        <span className="line-clamp-2">{question.stem}</span>
-                        <span className="truncate text-muted-foreground">{question.answerRaw}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+              ) : (
+                items.map((item) => (
+                  <UploadFileCard
+                    key={item.id}
+                    item={item}
+                    onBankNameChange={(value) => updateBankName(item.id, value)}
+                  />
+                ))
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         <aside className="space-y-4 xl:sticky xl:top-20 xl:self-start">
@@ -311,9 +355,11 @@ export default function BankUploadPage() {
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <StatusRow label="教材" value={selectedBook?.name || '未选择'} />
-              <StatusRow label="题库名称" value={bankName || '未填写'} />
-              <StatusRow label="文件" value={file?.name || '未上传'} />
-              <StatusRow label="解析结果" value={parseResult ? `${parseResult.questions.length} 题` : '未解析'} />
+              <StatusRow label="文件数" value={`${items.length} 个`} />
+              <StatusRow label="已解析" value={`${totals.files} 个`} />
+              <StatusRow label="总题数" value={`${totals.questions} 题`} />
+              <StatusRow label="可导入" value={`${importableItems.length} 个题库`} />
+              <StatusRow label="错误" value={`${totals.errors} 个`} />
               <Separator />
               <Button className="w-full" onClick={handleImport} disabled={!canImport || importing}>
                 {importing ? '导入中...' : '确认导入'}
@@ -329,6 +375,107 @@ export default function BankUploadPage() {
           </div>
         </aside>
       </div>
+    </div>
+  );
+}
+
+function UploadFileCard({
+  item,
+  onBankNameChange,
+}: {
+  item: UploadItem;
+  onBankNameChange: (value: string) => void;
+}) {
+  const hasErrors = hasParseErrors(item);
+  const status = item.imported
+    ? { label: '已导入', variant: 'secondary' as const }
+    : item.error || hasErrors
+      ? { label: '需处理', variant: 'destructive' as const }
+      : item.result
+        ? { label: '可导入', variant: 'secondary' as const }
+        : { label: '待解析', variant: 'outline' as const };
+
+  return (
+    <div className="rounded-lg border p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate font-medium">{item.file.name}</p>
+            <Badge variant={status.variant}>{status.label}</Badge>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {(item.file.size / 1024 / 1024).toFixed(2)} MB
+          </p>
+        </div>
+        <div className="w-full lg:w-72">
+          <Label className="text-xs">题库名称</Label>
+          <Input
+            className="mt-1"
+            value={item.bankName}
+            onChange={(event) => onBankNameChange(event.target.value)}
+          />
+        </div>
+      </div>
+
+      {item.error && (
+        <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-950">
+          {item.error}
+        </div>
+      )}
+
+      {item.result && (
+        <div className="mt-4 space-y-4">
+          <div className="grid gap-2 sm:grid-cols-5">
+            <Summary label="总题数" value={item.result.summary.total} />
+            <Summary label="单选" value={item.result.summary.single} />
+            <Summary label="多选" value={item.result.summary.multiple} />
+            <Summary label="判断" value={item.result.summary.judge} />
+            <Summary label="简答" value={item.result.summary.short} />
+          </div>
+
+          {hasErrors && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-950">
+              <div className="mb-2 flex items-center gap-2 font-medium">
+                <AlertCircle className="size-4" />
+                请先修正 Excel 中的错误后重新上传
+              </div>
+              <div className="space-y-1">
+                {item.result.errors.slice(0, 6).map((error) => (
+                  <p key={`${error.row}-${error.message}`}>第 {error.row} 行：{error.message}</p>
+                ))}
+                {item.result.questions
+                  .filter((question) => question.errors?.length)
+                  .slice(0, 6)
+                  .map((question) => (
+                    <p key={question.rawRow}>第 {question.rawRow} 行：{question.errors.join('；')}</p>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          <div className="overflow-hidden rounded-lg border">
+            <div className="grid grid-cols-[4rem_5rem_1fr_8rem] bg-muted px-3 py-2 text-xs font-medium text-muted-foreground">
+              <span>行号</span>
+              <span>题型</span>
+              <span>题目</span>
+              <span>答案</span>
+            </div>
+            <div className="max-h-72 overflow-y-auto">
+              {item.result.questions.slice(0, 80).map((question) => (
+                <div
+                  key={`${question.rawRow}-${question.orderNo}`}
+                  className="grid grid-cols-[4rem_5rem_1fr_8rem] gap-2 border-t px-3 py-2 text-sm"
+                >
+                  <span className="text-muted-foreground">{question.rawRow}</span>
+                  <span>{TYPE_LABEL[question.type]}</span>
+                  <span className="line-clamp-2">{question.stem}</span>
+                  <span className="truncate text-muted-foreground">{question.answerRaw}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
