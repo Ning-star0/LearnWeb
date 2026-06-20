@@ -131,7 +131,7 @@ function PaymentContent() {
           <div className="text-sm text-muted-foreground space-y-3">
             {qrCodeUrl && (
               <div className="flex justify-center mb-2">
-                <img src={`http://localhost:3000${qrCodeUrl}`} alt="收款码" className="w-48 h-48 object-contain border rounded-lg" />
+                <img src={qrCodeUrl} alt="收款码" className="w-48 h-48 object-contain border rounded-lg" />
               </div>
             )}
             <p className="font-medium text-foreground">付款步骤：</p>

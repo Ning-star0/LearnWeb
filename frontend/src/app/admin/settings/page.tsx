@@ -127,7 +127,7 @@ export default function AdminSettingsPage() {
           {qrCodeUrl && (
             <div className="flex justify-center">
               <img
-                src={`http://localhost:3000${qrCodeUrl}`}
+                src={qrCodeUrl}
                 alt="收款码"
                 className="w-48 h-48 object-contain border rounded-lg"
               />
