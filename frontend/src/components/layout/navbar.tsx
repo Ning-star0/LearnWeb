@@ -20,7 +20,7 @@ export function Navbar() {
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-3 px-4">
         <Link href="/" className="flex items-center gap-2 font-semibold">
           <Home className="size-4" />
-          思政刷题
+          思政刷题系统
         </Link>
 
         <nav className="flex items-center gap-2 sm:gap-3">

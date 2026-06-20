@@ -43,7 +43,7 @@ export default function HomePage() {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="mb-2 flex items-center gap-2">
-              <Badge variant="secondary">政治 / 思政</Badge>
+              <Badge variant="secondary">思政刷题系统</Badge>
               <span className="text-xs text-muted-foreground">刷题、背题、错题复习</span>
             </div>
             <h1 className="text-2xl font-semibold tracking-normal sm:text-3xl">今天从哪里开始？</h1>

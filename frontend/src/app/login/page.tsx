@@ -38,7 +38,7 @@ export default function LoginPage() {
         <div className="relative">
           <Link href="/" className="flex items-center gap-2 text-xl font-bold">
             <GraduationCap className="size-8" />
-            政治刷题系统
+            思政刷题系统
           </Link>
           <div className="mt-16 space-y-6">
             <h2 className="text-3xl font-bold leading-tight">高效刷题<br />从容应考</h2>
@@ -54,7 +54,7 @@ export default function LoginPage() {
             </div>
           </div>
         </div>
-        <p className="relative text-sm text-blue-200">© 2026 政治刷题系统</p>
+        <p className="relative text-sm text-blue-200">© 2026 思政刷题系统</p>
       </div>
 
       {/* 右侧登录表单 */}
