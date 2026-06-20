@@ -11,7 +11,7 @@ export class MailService {
     const port = parseInt(process.env.SMTP_PORT || '465');
     const user = process.env.SMTP_USER;
     const pass = process.env.SMTP_PASS;
-    this.from = process.env.MAIL_FROM || `政治刷题系统 <${user}>`;
+    this.from = process.env.MAIL_FROM || `思政刷题系统 <${user}>`;
 
     if (host && user && pass) {
       this.transporter = nodemailer.createTransport({
@@ -51,10 +51,10 @@ export class MailService {
     const url = `${process.env.APP_URL || 'http://localhost:3001'}/verify-email?token=${token}`;
     return this.send(
       to,
-      '验证你的邮箱 - 政治刷题系统',
+      '验证你的邮箱 - 思政刷题系统',
       `
       <div style="max-width:480px;margin:0 auto;font-family:sans-serif">
-        <h2>政治刷题系统</h2>
+        <h2>思政刷题系统</h2>
         <p>你好，${username}：</p>
         <p>请点击下方按钮验证你的邮箱地址：</p>
         <a href="${url}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px">验证邮箱</a>
@@ -68,10 +68,10 @@ export class MailService {
     const url = `${process.env.APP_URL || 'http://localhost:3001'}/reset-password?token=${token}`;
     return this.send(
       to,
-      '重置密码 - 政治刷题系统',
+      '重置密码 - 思政刷题系统',
       `
       <div style="max-width:480px;margin:0 auto;font-family:sans-serif">
-        <h2>政治刷题系统</h2>
+        <h2>思政刷题系统</h2>
         <p>请点击下方按钮重置你的密码：</p>
         <a href="${url}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px">重置密码</a>
         <p style="margin-top:20px;color:#888;font-size:12px">链接 15 分钟内有效。如果这不是你操作的，请忽略此邮件。</p>

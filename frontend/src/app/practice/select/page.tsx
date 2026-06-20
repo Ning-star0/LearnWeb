@@ -93,10 +93,6 @@ function PracticeSelectPage() {
     <div className="mx-auto max-w-6xl px-4 py-6 lg:py-8">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <div className="mb-2 flex items-center gap-2">
-            <Badge variant="secondary">刷题配置</Badge>
-            <span className="text-xs text-muted-foreground">最多一次抽取 50 题</span>
-          </div>
           <h1 className="text-2xl font-semibold tracking-normal">选择本次练习</h1>
         </div>
         <Button onClick={handleStart} disabled={!canStart} size="lg" className="sm:min-w-32">

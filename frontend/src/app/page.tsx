@@ -47,9 +47,6 @@ export default function HomePage() {
               <span className="text-xs text-muted-foreground">刷题、背题、错题复习</span>
             </div>
             <h1 className="text-2xl font-semibold tracking-normal sm:text-3xl">今天从哪里开始？</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              选择题库范围和模式后即可开始练习。系统会记录错题和待背题，方便你按弱项回刷。
-            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             {user ? (

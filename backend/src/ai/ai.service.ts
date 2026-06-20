@@ -182,7 +182,7 @@ export class AiService {
     };
     const correctAnswer = this.formatCorrectAnswer(question);
 
-    const prompt = `你是一名政治课老师，请为下面这道题生成适合学生复习的解析。
+    const prompt = `你是一名思政课老师，请为下面这道题生成适合学生复习的解析。
 
 教材：${question.book.name}
 题型：${typeMap[question.type] || question.type}
