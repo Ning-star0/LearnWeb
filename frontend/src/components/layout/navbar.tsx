@@ -16,7 +16,17 @@ import {
 export function Navbar() {
   const { user, logout, isAdmin } = useAuth();
   const pathname = usePathname();
+  const booksActive = pathname.startsWith('/books');
+  const questionsActive = pathname.startsWith('/questions');
   const practiceActive = pathname.startsWith('/practice');
+  const wrongActive = pathname.startsWith('/wrong');
+
+  const navItemClass = (active: boolean, hiddenClass = '') =>
+    `h-8 shrink-0 items-center gap-1 rounded-lg border px-3 text-sm font-medium transition ${hiddenClass} ${
+      active
+        ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-100'
+        : 'border-transparent hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700'
+    }`;
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur">
@@ -29,10 +39,10 @@ export function Navbar() {
 
         {/* 右侧导航 - 保持最小宽度 */}
         <nav className="flex items-center gap-1 sm:gap-3 min-w-0 shrink-0">
-          <Link href="/books" className="hidden items-center gap-1 text-sm hover:underline sm:flex">
+          <Link href="/books" className={navItemClass(booksActive, 'hidden sm:flex')}>
             <BookOpen className="size-4" /><span className="hidden md:inline">教材</span>
           </Link>
-          <Link href="/questions" className="hidden items-center gap-1 text-sm hover:underline sm:flex">
+          <Link href="/questions" className={navItemClass(questionsActive, 'hidden sm:flex')}>
             <Search className="size-4" /><span className="hidden md:inline">题库</span>
           </Link>
 
@@ -40,15 +50,11 @@ export function Navbar() {
             <>
               <Link
                 href="/practice/select"
-                className={`inline-flex h-8 shrink-0 items-center rounded-lg border px-3 text-sm font-medium transition ${
-                  practiceActive
-                    ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-100'
-                    : 'border-transparent hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700'
-                }`}
+                className={navItemClass(practiceActive, 'inline-flex')}
               >
                 刷题
               </Link>
-              <Link href="/wrong" className="hidden items-center gap-1 text-sm hover:underline lg:flex">
+              <Link href="/wrong" className={navItemClass(wrongActive, 'hidden lg:flex')}>
                 <Target className="size-4" /><span>错题本</span>
               </Link>
 

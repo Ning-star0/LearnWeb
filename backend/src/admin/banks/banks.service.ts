@@ -85,7 +85,7 @@ export class BanksService {
     this.validateQuestionPayload(data.questions);
 
     // 防并发导入
-    const lockKey = `bank-import:admin:${adminId}`;
+    const lockKey = `bank-import:book:${data.bookId}`;
     const locked = await this.redisService.lock(lockKey, 300);
     if (!locked) {
       throw new BadRequestException('已有题库正在导入，请等待当前导入完成');
@@ -104,6 +104,8 @@ export class BanksService {
 
       // 分批导入题目
       let imported = 0;
+      let skippedDuplicates = 0;
+      let processed = 0;
       const questions = data.questions;
 
       for (let i = 0; i < questions.length; i += BATCH_SIZE) {
@@ -113,51 +115,76 @@ export class BanksService {
         await this.prisma.$transaction(
           async (tx) => {
             for (const q of batch) {
-              // 去重：基于 stem + bookId + type 生成 contentHash
-              const contentHash = crypto
-                .createHash('sha256')
-                .update(`${q.stem}|${data.bookId}|${q.type}`)
-                .digest('hex');
+              const contentHash = this.createContentHash(q.stem, q.type);
+              const legacyContentHash = this.createLegacyContentHash(
+                q.stem,
+                data.bookId,
+                q.type,
+              );
 
               // 检查重复
               const duplicate = await tx.question.findFirst({
-                where: { contentHash, bookId: data.bookId },
-              });
-              if (duplicate) continue; // 跳过重复题
-
-              await tx.question.create({
-                data: {
-                  bankId: bank.id,
+                where: {
                   bookId: data.bookId,
-                  orderNo: q.orderNo,
-                  type: q.type as any,
-                  stem: q.stem,
-                  contentHash,
-                  answerRaw: q.answerRaw,
-                  answerJson: q.answerJson,
-                  isPublished: true,
-                  options: {
-                    create: q.options.map((o) => ({
-                      label: o.label,
-                      content: o.content,
-                      orderNo: o.orderNo,
-                    })),
-                  },
+                  OR: [
+                    { contentHash },
+                    { contentHash: legacyContentHash },
+                    { type: q.type as any, stem: q.stem },
+                  ],
                 },
               });
-              imported++;
+              if (duplicate) {
+                skippedDuplicates++;
+                processed++;
+                continue;
+              }
+
+              try {
+                await tx.question.create({
+                  data: {
+                    bankId: bank.id,
+                    bookId: data.bookId,
+                    orderNo: q.orderNo,
+                    type: q.type as any,
+                    stem: q.stem,
+                    contentHash,
+                    answerRaw: q.answerRaw,
+                    answerJson: q.answerJson,
+                    isPublished: true,
+                    options: {
+                      create: q.options.map((o) => ({
+                        label: o.label,
+                        content: o.content,
+                        orderNo: o.orderNo,
+                      })),
+                    },
+                  },
+                });
+                imported++;
+              } catch (e: any) {
+                if (e?.code === 'P2002') {
+                  skippedDuplicates++;
+                } else {
+                  throw e;
+                }
+              } finally {
+                processed++;
+              }
             }
           },
           { timeout: 60000 }, // 每批 60 秒超时
         );
 
-        // 更新导入进度到 Redis（可选：供前端轮询）
-        const progress = Math.round((imported / questions.length) * 100);
+        const progress = Math.round((processed / questions.length) * 100);
         await this.redisService.set(
           `bank-import-progress:${bank.id}`,
           String(progress),
           300,
         );
+      }
+
+      if (imported === 0 && skippedDuplicates > 0) {
+        await this.prisma.questionBank.delete({ where: { id: bank.id } });
       }
 
       // 写入管理日志
@@ -166,15 +193,16 @@ export class BanksService {
           adminId,
           action: 'UPLOAD_BANK',
           target: `Bank:${bank.id}`,
-          detail: `导入 ${imported} 题到教材 ${book.name}`,
+          detail: `导入 ${imported} 题到教材 ${book.name}，跳过重复 ${skippedDuplicates} 题`,
         },
       });
 
       return {
-        bankId: bank.id,
+        bankId: imported > 0 ? bank.id : null,
         name: bank.name,
         bookName: book.name,
         imported,
+        skippedDuplicates,
       };
     } catch (e: any) {
       // 提供明确的错误信息
@@ -189,6 +217,27 @@ export class BanksService {
   async getImportProgress(bankId: number) {
     const progress = await this.redisService.get(`bank-import-progress:${bankId}`);
     return { bankId, progress: progress ? parseInt(progress) : 100 };
+  }
+
+  private normalizeQuestionStem(stem: string) {
+    return stem
+      .normalize('NFKC')
+      .replace(/\s+/g, '')
+      .trim();
+  }
+
+  private createContentHash(stem: string, type: string) {
+    return crypto
+      .createHash('sha256')
+      .update(`${this.normalizeQuestionStem(stem)}|${type}`)
+      .digest('hex');
+  }
+
+  private createLegacyContentHash(stem: string, bookId: number, type: string) {
+    return crypto
+      .createHash('sha256')
+      .update(`${stem}|${bookId}|${type}`)
+      .digest('hex');
   }
 
   private validateQuestionPayload(questions: ParsedQuestion[]) {

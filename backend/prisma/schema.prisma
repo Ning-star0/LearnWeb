@@ -267,6 +267,7 @@ model Question {
   aiViewLogs       AiViewLog[]
   aiGenerationLogs AiGenerationLog[]
 
+  @@unique([bookId, contentHash])
   @@map("questions")
 }
 

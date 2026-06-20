@@ -256,6 +256,7 @@ export default function BankUploadPage() {
     setImporting(true);
     let importedFiles = 0;
     let importedQuestions = 0;
+    let skippedDuplicates = 0;
     let failedFiles = 0;
     setProgress({
       active: true,
@@ -289,6 +290,7 @@ export default function BankUploadPage() {
       if (res.code === 0) {
         importedFiles++;
         importedQuestions += res.data.imported || 0;
+        skippedDuplicates += res.data.skippedDuplicates || 0;
         setItems((current) =>
           current.map((entry) =>
             entry.id === item.id
@@ -316,9 +318,9 @@ export default function BankUploadPage() {
     setImporting(false);
     setProgress((current) => ({ ...current, active: false, currentFile: '' }));
     if (failedFiles) {
-      toast.warning(`导入完成：${importedFiles} 个成功，${failedFiles} 个失败`);
+      toast.warning(`导入完成：${importedFiles} 个成功，${failedFiles} 个失败，跳过重复 ${skippedDuplicates} 题`);
     } else {
-      toast.success(`导入成功：${importedFiles} 个题库，共 ${importedQuestions} 题`);
+      toast.success(`导入成功：${importedFiles} 个题库，共 ${importedQuestions} 题，跳过重复 ${skippedDuplicates} 题`);
     }
   };
 
