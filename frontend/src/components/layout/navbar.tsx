@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { BookOpen, ClipboardList, History, Home, Search, Target } from 'lucide-react';
+import { BookOpen, History, Home, Search, Target } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -16,52 +16,52 @@ export function Navbar() {
   const { user, logout, isAdmin } = useAuth();
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-3 px-4">
-        <Link href="/" className="flex items-center gap-2 font-semibold">
+    <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur">
+      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
+        {/* 左侧品牌 - 固定宽度避免偏移 */}
+        <Link href="/" className="flex shrink-0 items-center gap-2 font-semibold whitespace-nowrap">
           <Home className="size-4" />
           思政刷题系统
         </Link>
 
-        <nav className="flex items-center gap-2 sm:gap-3">
+        {/* 右侧导航 - 保持最小宽度 */}
+        <nav className="flex items-center gap-1 sm:gap-3 min-w-0 shrink-0">
           <Link href="/books" className="hidden items-center gap-1 text-sm hover:underline sm:flex">
-            <BookOpen className="size-4" /><span>教材</span>
+            <BookOpen className="size-4" /><span className="hidden md:inline">教材</span>
           </Link>
           <Link href="/questions" className="hidden items-center gap-1 text-sm hover:underline sm:flex">
-            <Search className="size-4" /><span>题库</span>
+            <Search className="size-4" /><span className="hidden md:inline">题库</span>
           </Link>
 
           {user ? (
             <>
-              <Link href="/practice/select">
-                <Button size="sm">
-                  <ClipboardList className="size-4" />
+              <Link href="/practice/select" className="shrink-0">
+                <Button size="sm" className="gap-1">
                   刷题
                 </Button>
               </Link>
-              <Link href="/wrong" className="hidden items-center gap-1 text-sm hover:underline md:flex">
-                <Target className="size-4" />
-                <span>错题本</span>
-              </Link>
-              <Link href="/review" className="hidden text-sm hover:underline md:inline">
-                待背题
+              <Link href="/wrong" className="hidden items-center gap-1 text-sm hover:underline lg:flex">
+                <Target className="size-4" /><span>错题本</span>
               </Link>
 
               <DropdownMenu>
-                <DropdownMenuTrigger>
+                <DropdownMenuTrigger className="shrink-0">
                   <Avatar className="h-8 w-8 cursor-pointer">
                     <AvatarFallback>{user.username[0]}</AvatarFallback>
                   </Avatar>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem>
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuItem asChild>
                     <Link href="/profile">个人中心</Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
+                  <DropdownMenuItem asChild>
                     <Link href="/history"><History className="inline size-4 mr-1" />做对的题</Link>
                   </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/review">待背题</Link>
+                  </DropdownMenuItem>
                   {isAdmin && (
-                    <DropdownMenuItem>
+                    <DropdownMenuItem asChild>
                       <Link href="/admin">管理后台</Link>
                     </DropdownMenuItem>
                   )}
@@ -71,10 +71,10 @@ export function Navbar() {
             </>
           ) : (
             <>
-              <Link href="/login">
+              <Link href="/login" className="shrink-0">
                 <Button variant="outline" size="sm">登录</Button>
               </Link>
-              <Link href="/register">
+              <Link href="/register" className="shrink-0">
                 <Button size="sm">注册</Button>
               </Link>
             </>
