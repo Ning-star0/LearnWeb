@@ -68,13 +68,6 @@ export default function LoginPage() {
               还没有账号？
               <Link href="/register" className="ml-1 font-medium text-blue-600 hover:underline">立即注册</Link>
             </p>
-            <details className="w-full">
-              <summary className="text-xs text-muted-foreground cursor-pointer text-center">测试账号</summary>
-              <div className="mt-2 rounded-lg bg-muted p-3 text-xs leading-relaxed">
-                <p>管理员：admin@example.com / Admin123456</p>
-                <p>用户：user@example.com / User123456</p>
-              </div>
-            </details>
           </CardFooter>
         </form>
       </Card>
