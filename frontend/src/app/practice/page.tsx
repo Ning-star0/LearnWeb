@@ -66,6 +66,7 @@ interface PracticeQuestion {
   difficulty?: string | null;
   score?: number | null;
   studyStatus?: 'remembered' | 'not_remembered' | 'unmarked';
+  quizStatus?: 'correct' | 'wrong' | 'uncertain' | 'unanswered';
   answerRaw?: string | null;
   answerJson?: unknown;
   book?: { name?: string };
@@ -217,7 +218,7 @@ function PracticePage() {
   }, [currentIndex, questions.length]);
 
   const jumpToQuestion = (index: number) => {
-    resetState();
+    // 不重置答案，保留用户已选内容
     setCurrentIndex(index);
   };
 
@@ -309,12 +310,24 @@ function PracticePage() {
       }
     }
 
+    const isUncertain = answerOverride === 'UNCERTAIN';
     const res = await api.post('/practice/submit', {
       questionId: currentQuestion.id,
       userAnswer,
     });
     setSubmitted(true);
-    setResult(res.data || res);
+    const submitResult = res.data || res;
+    setResult(submitResult);
+
+    // 记录答题状态
+    const quizStatus = isUncertain ? 'uncertain' as const
+      : submitResult.isCorrect ? 'correct' as const
+      : 'wrong' as const;
+    setQuestions((current) =>
+      current.map((q, i) =>
+        i === currentIndex ? { ...q, quizStatus } : q,
+      ),
+    );
   };
 
   const handleSingleAnswer = (label: string) => {
@@ -631,6 +644,17 @@ function PracticePage() {
               </CardContent>
             </Card>
           )}
+          {mode === 'quiz' && (
+            <Card className="shrink-0">
+              <CardContent className="p-3">
+                <QuizQuestionList
+                  questions={questions}
+                  currentIndex={currentIndex}
+                  onJump={jumpToQuestion}
+                />
+              </CardContent>
+            </Card>
+          )}
         </main>
 
         <aside className="hidden min-h-0 flex-col gap-3 lg:flex">
@@ -694,15 +718,7 @@ function PracticePage() {
                   <Button
                     variant="outline"
                     className="flex-1"
-                    onClick={() => {
-                      setQuizUncertain(true);
-                      setSubmitted(true);
-                      setResult({ isCorrect: false, correctAnswer: currentQuestion.answerJson });
-                      api.post('/practice/submit', {
-                        questionId: currentQuestion.id,
-                        userAnswer: 'UNCERTAIN',
-                      });
-                    }}
+                    onClick={() => handleSubmit('UNCERTAIN')}
                   >
                     <HelpCircle className="size-4 mr-1" />
                     不确定
@@ -947,6 +963,54 @@ function StudyQuestionList({
               onClick={() => onJump(index)}
               className={`flex h-7 min-w-7 items-center justify-center rounded-full border px-1.5 text-xs font-medium transition hover:border-blue-400 ${color}`}
               title={`第 ${index + 1} 题`}
+            >
+              {index + 1}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function QuizQuestionList({
+  questions,
+  currentIndex,
+  onJump,
+}: {
+  questions: PracticeQuestion[];
+  currentIndex: number;
+  onJump: (index: number) => void;
+}) {
+  const answered = questions.filter((q) => q.quizStatus && q.quizStatus !== 'unanswered').length;
+  return (
+    <div className="flex items-center gap-3">
+      <div className="hidden shrink-0 text-xs leading-5 text-muted-foreground sm:block">
+        <span className="font-medium text-foreground">题号</span>
+        <span className="ml-2 text-emerald-600">对 {questions.filter((q) => q.quizStatus === 'correct').length}</span>
+        <span className="ml-2 text-red-600">错 {questions.filter((q) => q.quizStatus === 'wrong').length}</span>
+        <span className="ml-2">余 {questions.filter((q) => !q.quizStatus || q.quizStatus === 'unanswered').length}</span>
+      </div>
+      <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto pb-1">
+        {questions.map((question, index) => {
+          const active = index === currentIndex;
+          const status = question.quizStatus || 'unanswered';
+          const color = active
+            ? 'border-blue-600 bg-blue-600 text-white'
+            : status === 'correct'
+              ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+              : status === 'wrong'
+                ? 'border-red-500 bg-red-50 text-red-700'
+                : status === 'uncertain'
+                  ? 'border-amber-500 bg-amber-50 text-amber-700'
+                  : 'border-border bg-background text-muted-foreground';
+          return (
+            <button
+              key={question.id}
+              type="button"
+              onClick={() => onJump(index)}
+              className={`flex h-7 min-w-7 items-center justify-center rounded-full border px-1.5 text-xs font-medium transition hover:border-blue-400 ${color}`}
+              title={`第 ${index + 1} 题${status === 'correct' ? ' ✓' : status === 'wrong' ? ' ✗' : status === 'uncertain' ? ' ?' : ''}`}
             >
               {index + 1}
             </button>

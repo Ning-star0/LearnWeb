@@ -14,7 +14,7 @@ const MAX_IMPORT_QUESTIONS = Number(process.env.QUESTION_IMPORT_MAX_QUESTIONS ||
 const MAX_STEM_LENGTH = Number(process.env.QUESTION_IMPORT_MAX_STEM || 50000);
 const MAX_ANSWER_LENGTH = Number(process.env.QUESTION_IMPORT_MAX_ANSWER || 10000);
 const MAX_OPTION_LENGTH = Number(process.env.QUESTION_IMPORT_MAX_OPTION || 10000);
-const BATCH_SIZE = 500; // 每批创建 500 道题
+const BATCH_SIZE = 100; // 每批创建 100 道题，减少单次事务压力
 
 @Injectable()
 export class BanksService {
@@ -188,7 +188,7 @@ export class BanksService {
               }
             }
           },
-          { timeout: 60000 }, // 每批 60 秒超时
+          { timeout: 120000 }, // 每批 120 秒超时
         );
 
         const progress = Math.round((processed / questions.length) * 100);
