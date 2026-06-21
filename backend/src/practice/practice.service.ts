@@ -16,9 +16,10 @@ export class PracticeService {
     type?: string;
     order?: string;
     limit?: number;
+    restart?: boolean;
     ids?: number[];
   }) {
-    const { userId, mode, scope, bookId, chapter, type, order, limit, ids } = params;
+    const { userId, mode, scope, bookId, chapter, type, order, limit, restart, ids } = params;
     const take = limit ? Math.min(limit, 5000) : undefined;
     const normalizedType = this.normalizeQuestionType(type);
 
@@ -78,9 +79,14 @@ export class PracticeService {
       questions = questions.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
     } else if (order === 'random') {
       this.shuffle(questions);
-    } else {
+    } else if (!restart) {
       questions = await this.rotateAfterLastAnswered(userId, questions);
     }
+
+    const studyStatusMap =
+      mode === 'study'
+        ? await this.getStudyStatusMap(userId, questions.map((question) => question.id))
+        : new Map<number, string>();
 
     // 背题模式：直接返回答案；答题模式：隐藏答案
     if (mode === 'quiz') {
@@ -91,7 +97,10 @@ export class PracticeService {
       }));
     }
 
-    return questions;
+    return questions.map((q) => ({
+      ...q,
+      studyStatus: studyStatusMap.get(q.id) || 'unmarked',
+    }));
   }
 
   private normalizeQuestionType(type?: string) {
@@ -111,6 +120,26 @@ export class PracticeService {
     const index = questions.findIndex((question) => question.id === latest.questionId);
     if (index < 0 || index >= questions.length - 1) return questions;
     return [...questions.slice(index + 1), ...questions.slice(0, index + 1)];
+  }
+
+  private async getStudyStatusMap(userId: number, questionIds: number[]) {
+    if (questionIds.length === 0) return new Map<number, string>();
+    const records = await this.prisma.answerRecord.findMany({
+      where: {
+        userId,
+        mode: 'STUDY',
+        questionId: { in: questionIds },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { questionId: true, action: true },
+    });
+    const map = new Map<number, string>();
+    for (const record of records) {
+      if (!map.has(record.questionId) && record.action) {
+        map.set(record.questionId, record.action);
+      }
+    }
+    return map;
   }
 
   async studyAction(

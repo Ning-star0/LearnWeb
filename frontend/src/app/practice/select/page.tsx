@@ -96,7 +96,7 @@ function PracticeSelectPage() {
     localStorage.setItem('preferredBookId', nextBookId);
   };
 
-  const startPractice = (mode: 'quiz' | 'study', scopeOverride = scope) => {
+  const startPractice = (mode: 'quiz' | 'study', scopeOverride = scope, options: { restart?: boolean } = {}) => {
     const params = new URLSearchParams();
     params.set('mode', mode);
     if (scopeOverride === 'book' && bookId) {
@@ -108,7 +108,8 @@ function PracticeSelectPage() {
       params.set('scope', scopeOverride);
     }
     if (type) params.set('type', type);
-    params.set('order', order || 'random');
+    params.set('order', mode === 'study' ? order || 'sequential' : order || 'random');
+    if (options.restart) params.set('restart', '1');
     router.push(`/practice?${params.toString()}`);
   };
 
@@ -144,10 +145,14 @@ function PracticeSelectPage() {
                   : '未选择教材时进入全部题库'}
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:flex">
+            <div className="grid gap-2 sm:flex">
               <Button onClick={() => startPractice('study')} size="lg">
                 <Brain className="size-4" />
                 开始背题
+              </Button>
+              <Button onClick={() => startPractice('study', scope, { restart: true })} size="lg" variant="outline">
+                <CheckCircle2 className="size-4" />
+                从头背
               </Button>
               <Button onClick={() => startPractice('quiz')} size="lg" variant="outline">
                 <Play className="size-4" />

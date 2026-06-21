@@ -65,6 +65,7 @@ interface PracticeQuestion {
   chapter?: string | null;
   difficulty?: string | null;
   score?: number | null;
+  studyStatus?: 'remembered' | 'not_remembered' | 'unmarked';
   answerRaw?: string | null;
   answerJson?: unknown;
   book?: { name?: string };
@@ -87,7 +88,8 @@ function PracticePage() {
   const chapter = searchParams.get('chapter') || '';
   const ids = searchParams.get('ids') || '';
   const type = normalizeTypeParam(searchParams.get('type'));
-  const order = searchParams.get('order') || 'random';
+  const order = searchParams.get('order') || (mode === 'study' ? 'sequential' : 'random');
+  const restart = searchParams.get('restart') || '';
 
   const [questions, setQuestions] = useState<PracticeQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -138,7 +140,8 @@ function PracticePage() {
     if (chapter) params.set('chapter', chapter);
     if (ids) params.set('ids', ids);
     if (type) params.set('type', type);
-    params.set('order', order);
+    params.set('order', mode === 'study' ? order || 'sequential' : order);
+    if (restart) params.set('restart', restart);
 
     api.get(`/practice/questions?${params.toString()}`)
       .then((res) => {
@@ -156,7 +159,7 @@ function PracticePage() {
         setLoadError('题目加载失败，请稍后重试');
       })
       .finally(() => setLoading(false));
-  }, [authLoading, user, mode, scope, bookId, chapter, ids, type, order, router]);
+  }, [authLoading, user, mode, scope, bookId, chapter, ids, type, order, restart, router]);
 
   const backToSelect = () => {
     const params = new URLSearchParams();
@@ -167,6 +170,7 @@ function PracticePage() {
     if (ids) params.set('ids', ids);
     if (type) params.set('type', type);
     params.set('order', order);
+    if (restart) params.set('restart', restart);
     router.push(`/practice/select?${params.toString()}`);
   };
 
@@ -175,6 +179,18 @@ function PracticePage() {
   const correctAnswer = submitted && result ? result.correctAnswer : currentQuestion?.answerJson;
   const canGoPrevious = currentIndex > 0;
   const isLastQuestion = currentIndex >= questions.length - 1;
+  const currentStudyStatus = studyAction || currentQuestion?.studyStatus || 'unmarked';
+  const studyCounts = useMemo(() => {
+    return questions.reduce(
+      (acc, question) => {
+        if (question.studyStatus === 'remembered') acc.remembered += 1;
+        else if (question.studyStatus === 'not_remembered') acc.notRemembered += 1;
+        else acc.unmarked += 1;
+        return acc;
+      },
+      { remembered: 0, notRemembered: 0, unmarked: 0 },
+    );
+  }, [questions]);
 
   const canSubmit = useMemo(() => {
     if (!currentQuestion || submitted) return false;
@@ -199,6 +215,11 @@ function PracticePage() {
       backToSelect();
     }
   }, [currentIndex, questions.length]);
+
+  const jumpToQuestion = (index: number) => {
+    resetState();
+    setCurrentIndex(index);
+  };
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -228,6 +249,11 @@ function PracticePage() {
 
   const handleStudyAction = async (action: 'remembered' | 'not_remembered') => {
     setStudyAction(action);
+    setQuestions((current) =>
+      current.map((question, index) =>
+        index === currentIndex ? { ...question, studyStatus: action } : question,
+      ),
+    );
     await api.post('/practice/study-action', {
       questionId: currentQuestion.id,
       action,
@@ -392,16 +418,16 @@ function PracticePage() {
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_460px]">
         <main className="min-h-0">
           <Card className="flex min-h-[calc(100dvh-9.5rem)] flex-col sm:min-h-[520px] lg:h-full lg:min-h-0">
-            <CardHeader className="shrink-0 border-b">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="mb-2 text-sm text-muted-foreground">第 {currentIndex + 1} / {questions.length} 题</div>
-                  <CardTitle className="text-lg leading-relaxed sm:text-xl">
-                    {currentQuestion.stem}
-                  </CardTitle>
-                </div>
-                <Badge className="shrink-0">{TYPE_MAP[currentQuestion.type]}</Badge>
+            <CardHeader className="shrink-0 border-b p-4 sm:p-5">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <Badge variant="secondary">第 {currentIndex + 1} / {questions.length} 题</Badge>
+                <Badge>{TYPE_MAP[currentQuestion.type]}</Badge>
+                {currentQuestion.chapter && <Badge variant="outline">{currentQuestion.chapter}</Badge>}
+                {currentQuestion.score ? <Badge variant="outline">{currentQuestion.score} 分</Badge> : null}
               </div>
+              <CardTitle className="whitespace-pre-wrap break-words text-base leading-7 sm:text-xl sm:leading-8">
+                {currentQuestion.stem}
+              </CardTitle>
             </CardHeader>
             <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto pt-3 sm:space-y-4 sm:pt-4">
               {(currentQuestion.type === 'SINGLE' || currentQuestion.type === 'MULTIPLE') && (
@@ -450,7 +476,7 @@ function PracticePage() {
                             className="size-4"
                           />
                         )}
-                        <span className="text-sm leading-relaxed">
+                        <span className="min-w-0 break-words text-sm leading-relaxed">
                           <span className="mr-2 font-semibold">{opt.label}.</span>
                           {opt.content}
                         </span>
@@ -532,19 +558,51 @@ function PracticePage() {
                       ? '请对照参考答案自查'
                       : result.isCorrect ? '回答正确' : '回答错误'}
                   </div>
-                  {currentQuestion.type === 'SHORT' && (
-                    <p className="mt-2 text-sm">参考答案：{currentQuestion.answerRaw || formatAnswer(currentQuestion.answerJson)}</p>
-                  )}
                   {!result.isCorrect && currentQuestion.type !== 'SHORT' && (
                     <p className="mt-2 text-sm">正确答案：{formatAnswer(result.correctAnswer)}</p>
                   )}
                 </div>
               )}
+
+              {mode === 'study' && (
+                <div className="rounded-lg border bg-muted/30 p-3 lg:hidden">
+                  <div className="mb-2 text-sm font-medium">是否已记住？</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button onClick={() => handleStudyAction('remembered')} variant={currentStudyStatus === 'remembered' ? 'default' : 'outline'}>
+                      <CheckCircle2 className="size-4" />
+                      已记住
+                    </Button>
+                    <Button onClick={() => handleStudyAction('not_remembered')} variant={currentStudyStatus === 'not_remembered' ? 'default' : 'outline'}>
+                      <Clock3 className="size-4" />
+                      未记住
+                    </Button>
+                  </div>
+                  {currentStudyStatus !== 'unmarked' && (
+                    <Button onClick={nextQuestion} className="mt-2 w-full">
+                      {isLastQuestion ? '完成' : '下一题'}
+                      <ArrowRight className="size-4" />
+                    </Button>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
+
+          {mode === 'study' && (
+            <Card className="mt-3 lg:hidden">
+              <CardContent className="p-3">
+                <StudyQuestionList
+                  questions={questions}
+                  currentIndex={currentIndex}
+                  counts={studyCounts}
+                  onJump={jumpToQuestion}
+                />
+              </CardContent>
+            </Card>
+          )}
         </main>
 
-        <aside className="hidden min-h-0 gap-3 lg:grid lg:grid-rows-[minmax(0,1fr)_auto]">
+        <aside className="hidden min-h-0 flex-col gap-3 lg:flex">
           <Card className="lg:order-last">
             <CardHeader className="hidden">
               <CardTitle className="flex items-center justify-between">
@@ -574,24 +632,24 @@ function PracticePage() {
               </div>
               <Separator className="hidden" />
 
-              {mode === 'study' && !studyAction && (
+              {mode === 'study' && (
                 <div className="grid gap-2">
-                  <Button onClick={() => handleStudyAction('remembered')} className="w-full">
+                  <div className="text-sm font-medium">是否已记住？</div>
+                  <Button onClick={() => handleStudyAction('remembered')} className="w-full" variant={currentStudyStatus === 'remembered' ? 'default' : 'outline'}>
                     <CheckCircle2 className="size-4" />
-                    记住了
+                    已记住
                   </Button>
-                  <Button onClick={() => handleStudyAction('not_remembered')} variant="outline" className="w-full">
+                  <Button onClick={() => handleStudyAction('not_remembered')} variant={currentStudyStatus === 'not_remembered' ? 'default' : 'outline'} className="w-full">
                     <Clock3 className="size-4" />
-                    没记住
+                    未记住
                   </Button>
+                  {currentStudyStatus !== 'unmarked' && (
+                    <Button onClick={nextQuestion} className="w-full">
+                      {isLastQuestion ? '完成' : '下一题'}
+                      <ArrowRight className="size-4" />
+                    </Button>
+                  )}
                 </div>
-              )}
-
-              {mode === 'study' && studyAction && (
-                <Button onClick={nextQuestion} className="w-full">
-                  {isLastQuestion ? '完成' : '下一题'}
-                  <ArrowRight className="size-4" />
-                </Button>
               )}
 
               {mode === 'quiz' && !submitted && (currentQuestion.type === 'MULTIPLE' || currentQuestion.type === 'SHORT') && (
@@ -725,6 +783,19 @@ function PracticePage() {
               )}
             </CardContent>
           </Card>
+
+          {mode === 'study' && (
+            <Card className="min-h-0">
+              <CardContent className="min-h-0 overflow-y-auto p-3">
+                <StudyQuestionList
+                  questions={questions}
+                  currentIndex={currentIndex}
+                  counts={studyCounts}
+                  onJump={jumpToQuestion}
+                />
+              </CardContent>
+            </Card>
+          )}
         </aside>
       </div>
 
@@ -813,6 +884,59 @@ function PracticeFilterSummary({
       <span className="font-medium">{type ? TYPE_MAP[type] || type : '全部题型'}</span>
       <span className="text-muted-foreground">排序</span>
       <span className="font-medium">{order === 'random' ? '随机排序' : '顺序排列'}</span>
+    </div>
+  );
+}
+
+function StudyQuestionList({
+  questions,
+  currentIndex,
+  counts,
+  onJump,
+}: {
+  questions: PracticeQuestion[];
+  currentIndex: number;
+  counts: { remembered: number; notRemembered: number; unmarked: number };
+  onJump: (index: number) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <div className="flex items-center justify-between text-sm">
+          <span className="font-medium">背题目录</span>
+          <span className="text-muted-foreground">{questions.length} 题</span>
+        </div>
+        <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+          <div className="rounded-lg bg-emerald-50 p-2 text-emerald-700">已记住 {counts.remembered}</div>
+          <div className="rounded-lg bg-red-50 p-2 text-red-700">未记住 {counts.notRemembered}</div>
+          <div className="rounded-lg bg-muted p-2 text-muted-foreground">未标记 {counts.unmarked}</div>
+        </div>
+      </div>
+      <div className="grid max-h-64 grid-cols-8 gap-2 overflow-y-auto pr-1 sm:grid-cols-10 lg:max-h-80 lg:grid-cols-6">
+        {questions.map((question, index) => {
+          const active = index === currentIndex;
+          const status = question.studyStatus || 'unmarked';
+          const color =
+            active
+              ? 'border-blue-600 bg-blue-600 text-white'
+              : status === 'remembered'
+                ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                : status === 'not_remembered'
+                  ? 'border-red-500 bg-red-50 text-red-700'
+                  : 'border-border bg-background text-muted-foreground';
+          return (
+            <button
+              key={question.id}
+              type="button"
+              onClick={() => onJump(index)}
+              className={`flex aspect-square items-center justify-center rounded-full border text-xs font-medium transition hover:border-blue-400 ${color}`}
+              title={`第 ${index + 1} 题`}
+            >
+              {index + 1}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

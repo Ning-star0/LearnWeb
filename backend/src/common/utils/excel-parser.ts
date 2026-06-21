@@ -114,11 +114,13 @@ function parseRow(row: any[], index: number): ParsedQuestion | null {
       ? cleanCellText(row[1])
       : cleanCellText(row[3]);
   const fifthColumn = format === 'legacy-simple' ? '' : cleanCellText(row[4]);
-  const stem =
+  const scoreRaw = format === 'legacy-simple' ? '' : cleanCellText(row[6]);
+  const parsedScore = parseScore(scoreRaw);
+  const rawStem =
     format === 'legacy-simple'
       ? cleanCellText(row[2])
       : cleanCellText(row[5]);
-  const scoreRaw = format === 'legacy-simple' ? '' : cleanCellText(row[6]);
+  const stem = removeDuplicateScore(rawStem, parsedScore);
   const answerColumn =
     format === 'legacy-simple'
       ? cleanCellText(row[3])
@@ -140,7 +142,7 @@ function parseRow(row: any[], index: number): ParsedQuestion | null {
       difficulty,
       courseObjective: format === 'course-objective' ? fifthColumn : undefined,
       preface: format === 'preface' ? fifthColumn : undefined,
-      score: parseScore(scoreRaw),
+      score: parsedScore,
       answerRaw: '',
       answerJson: null,
       options: [],
@@ -201,7 +203,7 @@ function parseRow(row: any[], index: number): ParsedQuestion | null {
     difficulty: difficulty || undefined,
     courseObjective: format === 'course-objective' ? fifthColumn || undefined : undefined,
     preface: format === 'preface' ? fifthColumn || undefined : undefined,
-    score: parseScore(scoreRaw),
+    score: parsedScore,
     gradingMethod: isManualShort ? '手动评分' : undefined,
     answerRaw,
     answerJson,
@@ -272,6 +274,16 @@ function normalizeChapter(knowledgePoint: string) {
 function parseScore(raw: string) {
   const match = raw.match(/\d+(?:\.\d+)?/);
   return match ? Number(match[0]) : undefined;
+}
+
+function removeDuplicateScore(stem: string, score?: number) {
+  if (score === undefined) return stem;
+  const escaped = String(score).replace('.', '\\.');
+  return stem
+    .replace(new RegExp(`^[（(]?\\s*${escaped}\\s*分\\s*[）)]?\\s*`), '')
+    .replace(new RegExp(`\\s*[（(]\\s*${escaped}\\s*分\\s*[）)]\\s*$`), '')
+    .replace(new RegExp(`\\s+${escaped}\\s*分\\s*$`), '')
+    .trim();
 }
 
 function parseAnswer(

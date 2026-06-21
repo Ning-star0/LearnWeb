@@ -34,6 +34,7 @@ export class PracticeController {
     @Query('order') order?: string,
     @Query('limit') limit?: string,
     @Query('ids') ids?: string,
+    @Query('restart') restart?: string,
   ) {
     return this.practiceService.getQuestions({
       userId,
@@ -44,6 +45,7 @@ export class PracticeController {
       type,
       order: order || 'sequential',
       limit: limit ? parseInt(limit) : undefined,
+      restart: restart === '1' || restart === 'true',
       ids: ids
         ? Array.from(new Set(ids.split(',').map((id) => parseInt(id)).filter((id) => Number.isFinite(id))))
         : undefined,
