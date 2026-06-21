@@ -12,7 +12,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent } from '@/components/ui/card';
 
 interface Book { id: number; name: string; }
-interface Question { id: number; type: string; stem: string; book: Book; options: { label: string; content: string }[]; }
+interface Chapter { name: string; count: number; }
+interface Question {
+  id: number;
+  type: string;
+  stem: string;
+  chapter?: string | null;
+  difficulty?: string | null;
+  courseObjective?: string | null;
+  score?: number | null;
+  book: Book;
+  options: { label: string; content: string }[];
+  userStatus?: 'correct' | 'wrong' | 'unanswered';
+}
 
 const TYPE_LABEL: Record<string, string> = { SINGLE: '单选', MULTIPLE: '多选', JUDGE: '判断', SHORT: '简答' };
 
@@ -23,7 +35,9 @@ function QuestionsPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [total, setTotal] = useState(0);
   const [books, setBooks] = useState<Book[]>([]);
+  const [chapters, setChapters] = useState<Chapter[]>([]);
   const [bookId, setBookId] = useState(searchParams.get('bookId') || '');
+  const [chapter, setChapter] = useState(searchParams.get('chapter') || '');
   const [type, setType] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -31,17 +45,34 @@ function QuestionsPage() {
   useEffect(() => {
     const params = new URLSearchParams();
     if (bookId) params.set('bookId', bookId);
+    if (chapter) params.set('chapter', chapter);
     if (type) params.set('type', type);
     if (search) params.set('search', search);
     params.set('page', String(page));
-    params.set('pageSize', '20');
+    params.set('pageSize', '50');
     api.get(`/questions?${params}`).then((res) => {
       if (res.code === 0) { setQuestions(res.data.items); setTotal(res.data.total); }
     });
     api.get('/books').then((res) => {
       if (res.code === 0) setBooks(res.data);
     });
-  }, [bookId, type, search, page]);
+  }, [bookId, chapter, type, search, page]);
+
+  useEffect(() => {
+    if (!bookId) {
+      setChapters([]);
+      setChapter('');
+      return;
+    }
+    api.get(`/books/${bookId}/chapters`).then((res) => {
+      if (res.code !== 0) return;
+      const list = res.data || [];
+      setChapters(list);
+      if (chapter && !list.some((item: Chapter) => item.name === chapter)) {
+        setChapter('');
+      }
+    });
+  }, [bookId, chapter]);
 
   const startPracticeWithIds = (ids: number[]) => {
     router.push(`/practice?ids=${ids.join(',')}&mode=quiz`);
@@ -59,12 +90,21 @@ function QuestionsPage() {
       </div>
 
       <div className="flex gap-2 mb-4 flex-wrap">
-        <Select value={bookId || '_all'} onValueChange={(v) => { setBookId(v && v !== '_all' ? v : ''); setPage(1); }}>
+        <Select value={bookId || '_all'} onValueChange={(v) => { setBookId(v && v !== '_all' ? v : ''); setChapter(''); setPage(1); }}>
           <SelectTrigger className="w-48"><SelectValue placeholder="全部教材" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="_all">全部教材</SelectItem>
             {books.map((b) => (
               <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={chapter || '_all'} onValueChange={(v) => { setChapter(v && v !== '_all' ? v : ''); setPage(1); }} disabled={!bookId || chapters.length === 0}>
+          <SelectTrigger className="w-40"><SelectValue placeholder="全部章节" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="_all">全部章节</SelectItem>
+            {chapters.map((item) => (
+              <SelectItem key={item.name} value={item.name}>{item.name}（{item.count}）</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -91,7 +131,11 @@ function QuestionsPage() {
             <CardContent className="p-4">
               <div className="flex items-start gap-3">
                 <div className="flex gap-2 shrink-0">
-                  <Badge variant="outline">{TYPE_LABEL[q.type]}</Badge>
+                  {q.userStatus === 'correct' && <span className="mt-1 size-3 rounded-full bg-emerald-500 ring-2 ring-emerald-100" />}
+                  {q.userStatus === 'wrong' && <span className="mt-1 size-3 rounded-full bg-red-500 ring-2 ring-red-100" />}
+                  <Badge variant="outline">{TYPE_LABEL[q.type] || q.type}</Badge>
+                  {q.chapter && <Badge variant="outline">{q.chapter}</Badge>}
+                  {q.difficulty && <Badge variant="outline">{q.difficulty}</Badge>}
                   <Badge variant="secondary">{q.book.name}</Badge>
                 </div>
                 <div className="flex-1 min-w-0">
@@ -115,8 +159,10 @@ function QuestionsPage() {
 
       <div className="flex justify-between mt-4">
         <Button variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>上一页</Button>
-        <span className="text-sm text-muted-foreground self-center">共 {total} 题</span>
-        <Button variant="outline" disabled={questions.length < 20} onClick={() => setPage(page + 1)}>下一页</Button>
+        <span className="text-sm text-muted-foreground self-center">
+          第 {page} 页 / 共 {Math.max(1, Math.ceil(total / 50))} 页，{total} 题
+        </span>
+        <Button variant="outline" disabled={page >= Math.ceil(total / 50)} onClick={() => setPage(page + 1)}>下一页</Button>
       </div>
     </div>
   );

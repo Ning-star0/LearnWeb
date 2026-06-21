@@ -14,4 +14,9 @@ export class BooksController {
   async findOne(@Param('id', ParseIntPipe) id: number) {
     return this.booksService.findOne(id);
   }
+
+  @Get(':id/chapters')
+  async findChapters(@Param('id', ParseIntPipe) id: number) {
+    return this.booksService.findChapters(id);
+  }
 }

@@ -15,6 +15,11 @@ interface Book {
   _count: { questions: number };
 }
 
+interface Chapter {
+  name: string;
+  count: number;
+}
+
 const TYPE_OPTIONS = [
   { value: '', label: '全部' },
   { value: 'SINGLE', label: '单选' },
@@ -35,8 +40,10 @@ function PracticeSelectPage() {
   const initialBookId = searchParams.get('bookId') || '';
   const [books, setBooks] = useState<Book[]>([]);
   const [bookId, setBookId] = useState(initialBookId);
+  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [chapter, setChapter] = useState(searchParams.get('chapter') || '');
   const [type, setType] = useState(normalizeTypeParam(searchParams.get('type')));
-  const [order, setOrder] = useState(searchParams.get('order') || 'random');
+  const [order, setOrder] = useState(searchParams.get('order') || 'sequential');
   const [scope, setScope] = useState(searchParams.get('scope') || 'book');
 
   useEffect(() => {
@@ -59,6 +66,22 @@ function PracticeSelectPage() {
     });
   }, [initialBookId, bookId]);
 
+  useEffect(() => {
+    if (!bookId) {
+      setChapters([]);
+      setChapter('');
+      return;
+    }
+    api.get(`/books/${bookId}/chapters`).then((res) => {
+      if (res.code !== 0) return;
+      const list = res.data || [];
+      setChapters(list);
+      if (chapter && !list.some((item: Chapter) => item.name === chapter)) {
+        setChapter('');
+      }
+    });
+  }, [bookId, chapter]);
+
   const selectedBook = useMemo(
     () => books.find((book) => String(book.id) === bookId),
     [books, bookId],
@@ -67,6 +90,7 @@ function PracticeSelectPage() {
   const rememberBook = (nextBookId: string) => {
     setBookId(nextBookId);
     setScope('book');
+    setChapter('');
     localStorage.setItem('preferredBookId', nextBookId);
   };
 
@@ -76,6 +100,7 @@ function PracticeSelectPage() {
     if (scopeOverride === 'book' && bookId) {
       params.set('scope', 'book');
       params.set('bookId', bookId);
+      if (chapter) params.set('chapter', chapter);
       localStorage.setItem('preferredBookId', bookId);
     } else {
       params.set('scope', scopeOverride);
@@ -105,6 +130,7 @@ function PracticeSelectPage() {
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <Badge>今日学习</Badge>
                 <Badge variant="outline">{order === 'random' ? '随机' : '顺序'}</Badge>
+                {chapter && <Badge variant="outline">{chapter}</Badge>}
                 <Badge variant="outline">{TYPE_OPTIONS.find((item) => item.value === type)?.label || '全部'}</Badge>
               </div>
               <h1 className="truncate text-xl font-semibold sm:text-2xl">
@@ -137,7 +163,7 @@ function PracticeSelectPage() {
                   <BookOpen className="size-4" />
                   教材
                 </h2>
-                <Button variant="ghost" size="sm" onClick={() => { setScope('all'); setBookId(''); }}>
+                <Button variant="ghost" size="sm" onClick={() => { setScope('all'); setBookId(''); setChapter(''); }}>
                   全部题库
                 </Button>
               </div>
@@ -163,6 +189,48 @@ function PracticeSelectPage() {
               </div>
             </CardContent>
           </Card>
+
+          {scope === 'book' && chapters.length > 0 && (
+            <Card>
+              <CardContent className="p-4">
+                <h2 className="mb-3 flex items-center gap-2 text-sm font-medium">
+                  <BookOpen className="size-4" />
+                  章节
+                </h2>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setChapter('')}
+                    className={`rounded-lg border px-3 py-2 text-sm transition ${
+                      !chapter
+                        ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-100'
+                        : 'border-border hover:border-blue-300 hover:bg-blue-50/50'
+                    }`}
+                  >
+                    全部章节
+                  </button>
+                  {chapters.map((item) => {
+                    const active = chapter === item.name;
+                    return (
+                      <button
+                        key={item.name}
+                        type="button"
+                        onClick={() => setChapter(item.name)}
+                        className={`rounded-lg border px-3 py-2 text-sm transition ${
+                          active
+                            ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-100'
+                            : 'border-border hover:border-blue-300 hover:bg-blue-50/50'
+                        }`}
+                      >
+                        {item.name}
+                        <span className="ml-2 text-xs text-muted-foreground">{item.count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardContent className="p-4">
@@ -235,7 +303,7 @@ function PracticeSelectPage() {
                   })}
                 </div>
               </div>
-              <Button variant="ghost" className="w-full" onClick={() => { setScope('all'); setBookId(''); }}>
+              <Button variant="ghost" className="w-full" onClick={() => { setScope('all'); setBookId(''); setChapter(''); }}>
                 不限教材
               </Button>
             </div>

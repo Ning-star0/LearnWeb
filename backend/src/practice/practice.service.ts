@@ -12,50 +12,56 @@ export class PracticeService {
     mode: string; // study | quiz
     scope: string; // all | book | wrong | review
     bookId?: number;
+    chapter?: string;
     type?: string;
     order?: string;
     limit?: number;
+    ids?: number[];
   }) {
-    const { userId, mode, scope, bookId, type, order, limit } = params;
-    const take = Math.min(limit || 50, 100);
+    const { userId, mode, scope, bookId, chapter, type, order, limit, ids } = params;
+    const take = limit ? Math.min(limit, 5000) : undefined;
     const normalizedType = this.normalizeQuestionType(type);
 
-    let questionIds: number[] | null = null;
+    const explicitIds = ids?.length ? ids : null;
+    let questionIds: number[] | null = explicitIds;
 
     // 确定题目范围
-    switch (scope) {
-      case 'book':
-        if (!bookId) throw new BadRequestException('请选择教材');
-        break;
-      case 'wrong':
-        const wrongs = await this.prisma.wrongQuestion.findMany({
-          where: { userId, mastered: false },
-          select: { questionId: true },
-        });
-        questionIds = wrongs.map((w) => w.questionId);
-        if (questionIds.length === 0) return [];
-        break;
-      case 'review':
-        const reviews = await this.prisma.reviewQuestion.findMany({
-          where: { userId },
-          select: { questionId: true },
-        });
-        questionIds = reviews.map((r) => r.questionId);
-        if (questionIds.length === 0) return [];
-        break;
-      default:
-        // all
-        break;
+    if (!questionIds) {
+      switch (scope) {
+        case 'book':
+          if (!bookId) throw new BadRequestException('请选择教材');
+          break;
+        case 'wrong':
+          const wrongs = await this.prisma.wrongQuestion.findMany({
+            where: { userId, mastered: false },
+            select: { questionId: true },
+          });
+          questionIds = wrongs.map((w) => w.questionId);
+          if (questionIds.length === 0) return [];
+          break;
+        case 'review':
+          const reviews = await this.prisma.reviewQuestion.findMany({
+            where: { userId },
+            select: { questionId: true },
+          });
+          questionIds = reviews.map((r) => r.questionId);
+          if (questionIds.length === 0) return [];
+          break;
+        default:
+          // all
+          break;
+      }
     }
 
     // 构建查询条件
     const where: any = { isPublished: true };
     if (bookId) where.bookId = bookId;
+    if (chapter) where.chapter = chapter;
     if (normalizedType) where.type = normalizedType;
     if (questionIds !== null) where.id = { in: questionIds };
 
     // 查询题目
-    const questions = await this.prisma.question.findMany({
+    let questions = await this.prisma.question.findMany({
       where,
       include: {
         options: { orderBy: { orderNo: 'asc' } },
@@ -67,9 +73,13 @@ export class PracticeService {
       take,
     });
 
-    // 随机排序
-    if (order === 'random') {
+    if (explicitIds) {
+      const orderMap = new Map(explicitIds.map((id, index) => [id, index]));
+      questions = questions.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
+    } else if (order === 'random') {
       this.shuffle(questions);
+    } else {
+      questions = await this.rotateAfterLastAnswered(userId, questions);
     }
 
     // 背题模式：直接返回答案；答题模式：隐藏答案
@@ -88,6 +98,19 @@ export class PracticeService {
     if (!type || type === '_all' || type === 'all') return undefined;
     const normalized = type.toUpperCase();
     return QUESTION_TYPES.has(normalized) ? normalized : undefined;
+  }
+
+  private async rotateAfterLastAnswered(userId: number, questions: any[]) {
+    if (questions.length <= 1) return questions;
+    const latest = await this.prisma.answerRecord.findFirst({
+      where: { userId, questionId: { in: questions.map((question) => question.id) } },
+      orderBy: { createdAt: 'desc' },
+      select: { questionId: true },
+    });
+    if (!latest) return questions;
+    const index = questions.findIndex((question) => question.id === latest.questionId);
+    if (index < 0 || index >= questions.length - 1) return questions;
+    return [...questions.slice(index + 1), ...questions.slice(0, index + 1)];
   }
 
   async studyAction(
@@ -188,7 +211,7 @@ export class PracticeService {
     return {
       isCorrect,
       correctAnswer:
-        type === 'SHORT' ? question.answerJson : question.answerJson,
+        type === 'SHORT' ? question.answerRaw || question.answerJson : question.answerJson,
       explanation: question.explanation,
     };
   }

@@ -1,6 +1,7 @@
 import { Controller, Get, Query, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../common/guards/optional-jwt-auth.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Controller('questions')
@@ -12,25 +13,29 @@ export class QuestionsController {
   @UseGuards(OptionalJwtAuthGuard)
   async findAll(
     @Query('bookId') bookId?: string,
+    @Query('chapter') chapter?: string,
     @Query('type') type?: string,
     @Query('search') search?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('mode') mode?: string, // 'wrong' | 'correct' | 'all'
+    @CurrentUser('id') userId?: number,
   ) {
     const where: any = { isPublished: true };
     if (bookId) where.bookId = parseInt(bookId);
+    if (chapter) where.chapter = chapter;
     if (type) where.type = type;
     if (search) where.stem = { contains: search };
 
     const p = page ? parseInt(page) : 1;
-    const ps = Math.min(pageSize ? parseInt(pageSize) : 30, 100);
+    const ps = Math.min(pageSize ? parseInt(pageSize) : 50, 100);
 
     const [items, total] = await Promise.all([
       this.prisma.question.findMany({
         where,
         select: {
           id: true, type: true, stem: true,
+          chapter: true, knowledgePoint: true, difficulty: true, courseObjective: true, score: true,
           book: { select: { id: true, name: true } },
           options: { select: { label: true, content: true }, orderBy: { orderNo: 'asc' } },
           answerJson: mode === 'study', // study mode shows answer
@@ -42,7 +47,36 @@ export class QuestionsController {
       this.prisma.question.count({ where }),
     ]);
 
-    return { items, total, page: p, pageSize: ps };
+    if (!userId || items.length === 0) {
+      return { items, total, page: p, pageSize: ps };
+    }
+
+    const records = await this.prisma.answerRecord.findMany({
+      where: {
+        userId,
+        mode: 'QUIZ',
+        questionId: { in: items.map((item) => item.id) },
+        isCorrect: { not: null },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { questionId: true, isCorrect: true },
+    });
+    const statusMap = new Map<number, 'correct' | 'wrong'>();
+    for (const record of records) {
+      if (!statusMap.has(record.questionId)) {
+        statusMap.set(record.questionId, record.isCorrect === true ? 'correct' : 'wrong');
+      }
+    }
+
+    return {
+      items: items.map((item) => ({
+        ...item,
+        userStatus: statusMap.get(item.id) || 'unanswered',
+      })),
+      total,
+      page: p,
+      pageSize: ps,
+    };
   }
 
   /** 单题详情 */

@@ -247,6 +247,13 @@ model Question {
   orderNo       Int
   type          QuestionType
   stem          String
+  knowledgePoint String?
+  chapter       String?
+  difficulty    String?
+  courseObjective String?
+  preface       String?
+  score         Float?
+  gradingMethod String?
   answerRaw     String?
   answerJson    Json?
   explanation   String?
