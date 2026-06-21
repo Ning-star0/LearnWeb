@@ -61,6 +61,32 @@ export class PracticeService {
     if (normalizedType) where.type = normalizedType;
     if (questionIds !== null) where.id = { in: questionIds };
 
+    // 排除已做对和已背熟的题（全部题库和按教材模式）
+    if (scope === 'all' || scope === 'book') {
+      const [correctIds, rememberedIds] = await Promise.all([
+        this.prisma.answerRecord.findMany({
+          where: { userId, isCorrect: true },
+          select: { questionId: true },
+          distinct: ['questionId'],
+        }),
+        this.prisma.answerRecord.findMany({
+          where: { userId, mode: 'STUDY', action: 'remembered' },
+          select: { questionId: true },
+          distinct: ['questionId'],
+        }),
+      ]);
+      const excludeIds = new Set([
+        ...correctIds.map((r) => r.questionId),
+        ...rememberedIds.map((r) => r.questionId),
+      ]);
+      if (excludeIds.size > 0) {
+        const idArray = [...excludeIds];
+        where.id = where.id
+          ? { in: (where.id.in as number[]).filter((id: number) => !excludeIds.has(id)) }
+          : { notIn: idArray };
+      }
+    }
+
     // 查询题目
     let questions = await this.prisma.question.findMany({
       where,
