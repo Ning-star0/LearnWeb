@@ -96,7 +96,7 @@ export class PracticeService {
         aiExplanation:
           mode === 'study' ? { select: { id: true, status: true } } : undefined,
       },
-      orderBy: order === 'random' ? undefined : [{ orderNo: 'asc' }, { id: 'asc' }],
+      orderBy: order === 'random' ? undefined : { orderNo: 'asc' },
       take,
     });
 
@@ -105,8 +105,18 @@ export class PracticeService {
       questions = questions.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
     } else if (order === 'random') {
       this.shuffle(questions);
-    } else if (!restart) {
-      questions = await this.rotateAfterLastAnswered(userId, questions);
+    } else {
+      // 顺序模式：先按题型排（单选→多选→判断→简答），再按 orderNo
+      const typeOrder: Record<string, number> = { SINGLE: 0, MULTIPLE: 1, JUDGE: 2, SHORT: 3 };
+      questions.sort((a, b) => {
+        const ta = typeOrder[a.type] ?? 99;
+        const tb = typeOrder[b.type] ?? 99;
+        if (ta !== tb) return ta - tb;
+        return (a.orderNo ?? 0) - (b.orderNo ?? 0);
+      });
+      if (!restart) {
+        questions = await this.rotateAfterLastAnswered(userId, questions);
+      }
     }
 
     const studyStatusMap =

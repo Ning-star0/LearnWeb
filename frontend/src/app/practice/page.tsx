@@ -1024,22 +1024,22 @@ function QuizQuestionList({
 /** 分离材料与问题，材料用衬线字体浅色展示 */
 function StemContent({ stem }: { stem: string }) {
   // 尝试按常见分隔符拆分
-  const patterns = [
-    /^(.+?)[\n\r]+(?:问题|问)[：:]\s*(.+)$/s,   // 材料\n问题：
-    /【材料】\s*(.+?)【问题】\s*(.+)/s,            // 【材料】...【问题】...
-    /^(材料[：:].+?)[\n\r]+(.+)$/s,               // 材料：...\n...
+  const patterns: { regex: RegExp; materialIdx: number; questionIdx: number }[] = [
+    { regex: /^([\s\S]+?)[\n\r]+(?:问题|问)[：:]\s*([\s\S]+)$/, materialIdx: 1, questionIdx: 2 },
+    { regex: /【材料】\s*([\s\S]+?)【问题】\s*([\s\S]+)/, materialIdx: 1, questionIdx: 2 },
+    { regex: /^(材料[：:][\s\S]+?)[\n\r]+([\s\S]+)$/, materialIdx: 1, questionIdx: 2 },
   ];
 
-  for (const pattern of patterns) {
-    const match = stem.match(pattern);
+  for (const { regex, materialIdx, questionIdx } of patterns) {
+    const match = stem.match(regex);
     if (match) {
       return (
         <div className="space-y-3">
           <div className="rounded-lg border bg-muted/40 p-3 text-sm leading-7 text-muted-foreground font-serif italic">
-            {match[1].trim()}
+            {match[materialIdx].trim()}
           </div>
           <h3 className="whitespace-pre-wrap break-words text-base leading-7 font-medium sm:text-lg">
-            {match[2].trim()}
+            {match[questionIdx].trim()}
           </h3>
         </div>
       );
