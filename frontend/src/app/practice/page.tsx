@@ -466,9 +466,7 @@ function PracticePage() {
                 {currentQuestion.chapter && <Badge variant="outline">{currentQuestion.chapter}</Badge>}
                 {currentQuestion.score ? <Badge variant="outline">{currentQuestion.score} 分</Badge> : null}
               </div>
-              <CardTitle className="whitespace-pre-wrap break-words text-base leading-7 sm:text-xl sm:leading-8">
-                {currentQuestion.stem}
-              </CardTitle>
+              <StemContent stem={currentQuestion.stem} />
             </CardHeader>
             <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto pt-3 sm:space-y-4 sm:pt-4">
               {(currentQuestion.type === 'SINGLE' || currentQuestion.type === 'MULTIPLE') && (
@@ -1020,6 +1018,39 @@ function QuizQuestionList({
         </div>
       </div>
     </div>
+  );
+}
+
+/** 分离材料与问题，材料用衬线字体浅色展示 */
+function StemContent({ stem }: { stem: string }) {
+  // 尝试按常见分隔符拆分
+  const patterns = [
+    /^(.+?)[\n\r]+(?:问题|问)[：:]\s*(.+)$/s,   // 材料\n问题：
+    /【材料】\s*(.+?)【问题】\s*(.+)/s,            // 【材料】...【问题】...
+    /^(材料[：:].+?)[\n\r]+(.+)$/s,               // 材料：...\n...
+  ];
+
+  for (const pattern of patterns) {
+    const match = stem.match(pattern);
+    if (match) {
+      return (
+        <div className="space-y-3">
+          <div className="rounded-lg border bg-muted/40 p-3 text-sm leading-7 text-muted-foreground font-serif italic">
+            {match[1].trim()}
+          </div>
+          <h3 className="whitespace-pre-wrap break-words text-base leading-7 font-medium sm:text-lg">
+            {match[2].trim()}
+          </h3>
+        </div>
+      );
+    }
+  }
+
+  // 无材料：直接显示
+  return (
+    <h3 className="whitespace-pre-wrap break-words text-base leading-7 sm:text-xl sm:leading-8 font-medium">
+      {stem}
+    </h3>
   );
 }
 
