@@ -62,6 +62,9 @@ interface PracticeQuestion {
   id: number;
   type: string;
   stem: string;
+  chapter?: string | null;
+  difficulty?: string | null;
+  score?: number | null;
   answerRaw?: string | null;
   answerJson?: unknown;
   book?: { name?: string };
@@ -81,6 +84,7 @@ function PracticePage() {
   const mode = searchParams.get('mode') || 'study';
   const scope = searchParams.get('scope') || 'all';
   const bookId = searchParams.get('bookId') || '';
+  const chapter = searchParams.get('chapter') || '';
   const ids = searchParams.get('ids') || '';
   const type = normalizeTypeParam(searchParams.get('type'));
   const order = searchParams.get('order') || 'random';
@@ -131,6 +135,7 @@ function PracticePage() {
     params.set('mode', mode);
     params.set('scope', scope);
     if (bookId) params.set('bookId', bookId);
+    if (chapter) params.set('chapter', chapter);
     if (ids) params.set('ids', ids);
     if (type) params.set('type', type);
     params.set('order', order);
@@ -151,13 +156,14 @@ function PracticePage() {
         setLoadError('题目加载失败，请稍后重试');
       })
       .finally(() => setLoading(false));
-  }, [authLoading, user, mode, scope, bookId, ids, type, order, router]);
+  }, [authLoading, user, mode, scope, bookId, chapter, ids, type, order, router]);
 
   const backToSelect = () => {
     const params = new URLSearchParams();
     params.set('mode', mode);
     params.set('scope', scope);
     if (bookId) params.set('bookId', bookId);
+    if (chapter) params.set('chapter', chapter);
     if (ids) params.set('ids', ids);
     if (type) params.set('type', type);
     params.set('order', order);
@@ -344,6 +350,7 @@ function PracticePage() {
             <div className="hidden flex-wrap items-center gap-2 sm:flex">
               <Badge variant="secondary">{MODE_MAP[mode] || mode}</Badge>
               <Badge variant="outline">{TYPE_MAP[currentQuestion.type]}</Badge>
+              {currentQuestion.chapter && <Badge variant="outline">{currentQuestion.chapter}</Badge>}
               <Badge variant="outline" className="max-w-48 truncate">{currentQuestion.book?.name}</Badge>
             </div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">

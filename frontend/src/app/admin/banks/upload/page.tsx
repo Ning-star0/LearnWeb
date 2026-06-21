@@ -23,6 +23,13 @@ interface ParsedQuestion {
   orderNo: number;
   type: 'SINGLE' | 'MULTIPLE' | 'JUDGE' | 'SHORT';
   stem: string;
+  knowledgePoint?: string;
+  chapter?: string;
+  difficulty?: string;
+  courseObjective?: string;
+  preface?: string;
+  score?: number;
+  gradingMethod?: string;
   answerRaw: string;
   answerJson: unknown;
   options: { label: string; content: string; orderNo: number }[];
@@ -437,9 +444,9 @@ export default function BankUploadPage() {
 
           <div className="rounded-lg border bg-muted/40 p-4 text-sm leading-relaxed text-muted-foreground">
             <p className="font-medium text-foreground">Excel 格式</p>
-            <p className="mt-2">第 1 行为表头；从第 2 行开始读取。</p>
-            <p className="mt-2">A列题序，B列题型，C列题目，D列答案，E列开始为选项。</p>
-            <p className="mt-2">题型可写：单选、多选、判断、简答。答案可写 A/B/C，也兼容 1/2/3。</p>
+            <p className="mt-2">支持旧格式：A题序、B题型、C题目、D答案、E后为选项。</p>
+            <p className="mt-2">支持 2021/2024 格式：A题序、B知识点/章节、C难度、D题型、E题前说明或课程目标、F题目、G分值、H答案、I后为选项。</p>
+            <p className="mt-2">2021 主观题“手动评分填空题 + 简答题”会自动转为简答题；2024 主观题 H 列会作为完整参考答案。</p>
             <p className="mt-2">一次最多选择 {MAX_BATCH_FILES} 个文件；单次导入最多 {MAX_IMPORT_QUESTIONS} 题。</p>
           </div>
         </aside>
@@ -527,9 +534,11 @@ function UploadFileCard({
           )}
 
           <div className="overflow-hidden rounded-lg border">
-            <div className="grid grid-cols-[4rem_5rem_1fr_8rem] bg-muted px-3 py-2 text-xs font-medium text-muted-foreground">
+            <div className="grid grid-cols-[4rem_5rem_6rem_5rem_1fr_8rem] bg-muted px-3 py-2 text-xs font-medium text-muted-foreground">
               <span>行号</span>
               <span>题型</span>
+              <span>章节</span>
+              <span>难度</span>
               <span>题目</span>
               <span>答案</span>
             </div>
@@ -537,10 +546,12 @@ function UploadFileCard({
               {item.result.questions.slice(0, 80).map((question) => (
                 <div
                   key={`${question.rawRow}-${question.orderNo}`}
-                  className="grid grid-cols-[4rem_5rem_1fr_8rem] gap-2 border-t px-3 py-2 text-sm"
+                  className="grid grid-cols-[4rem_5rem_6rem_5rem_1fr_8rem] gap-2 border-t px-3 py-2 text-sm"
                 >
                   <span className="text-muted-foreground">{question.rawRow}</span>
                   <span>{TYPE_LABEL[question.type]}</span>
+                  <span className="truncate text-muted-foreground">{question.chapter || '-'}</span>
+                  <span className="truncate text-muted-foreground">{question.difficulty || '-'}</span>
                   <span className="line-clamp-2">{question.stem}</span>
                   <span className="truncate text-muted-foreground">{question.answerRaw}</span>
                 </div>

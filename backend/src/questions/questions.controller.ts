@@ -13,6 +13,7 @@ export class QuestionsController {
   @UseGuards(OptionalJwtAuthGuard)
   async findAll(
     @Query('bookId') bookId?: string,
+    @Query('chapter') chapter?: string,
     @Query('type') type?: string,
     @Query('search') search?: string,
     @Query('page') page?: string,
@@ -22,6 +23,7 @@ export class QuestionsController {
   ) {
     const where: any = { isPublished: true };
     if (bookId) where.bookId = parseInt(bookId);
+    if (chapter) where.chapter = chapter;
     if (type) where.type = type;
     if (search) where.stem = { contains: search };
 
@@ -33,6 +35,7 @@ export class QuestionsController {
         where,
         select: {
           id: true, type: true, stem: true,
+          chapter: true, knowledgePoint: true, difficulty: true, courseObjective: true, score: true,
           book: { select: { id: true, name: true } },
           options: { select: { label: true, content: true }, orderBy: { orderNo: 'asc' } },
           answerJson: mode === 'study', // study mode shows answer

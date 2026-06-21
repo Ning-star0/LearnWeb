@@ -18,6 +18,14 @@ class QuestionItem {
   @IsString()
   stem: string;
 
+  knowledgePoint?: string;
+  chapter?: string;
+  difficulty?: string;
+  courseObjective?: string;
+  preface?: string;
+  score?: number;
+  gradingMethod?: string;
+
   @IsString()
   answerRaw: string;
 

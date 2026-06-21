@@ -12,12 +12,13 @@ export class PracticeService {
     mode: string; // study | quiz
     scope: string; // all | book | wrong | review
     bookId?: number;
+    chapter?: string;
     type?: string;
     order?: string;
     limit?: number;
     ids?: number[];
   }) {
-    const { userId, mode, scope, bookId, type, order, limit, ids } = params;
+    const { userId, mode, scope, bookId, chapter, type, order, limit, ids } = params;
     const take = limit ? Math.min(limit, 5000) : undefined;
     const normalizedType = this.normalizeQuestionType(type);
 
@@ -55,6 +56,7 @@ export class PracticeService {
     // 构建查询条件
     const where: any = { isPublished: true };
     if (bookId) where.bookId = bookId;
+    if (chapter) where.chapter = chapter;
     if (normalizedType) where.type = normalizedType;
     if (questionIds !== null) where.id = { in: questionIds };
 
