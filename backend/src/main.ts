@@ -26,6 +26,15 @@ async function bootstrap() {
   app.useGlobalFilters(new PrismaExceptionFilter());
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new ResponseInterceptor());
+
+  // GET 请求缓存头
+  server.use((req, _res, next) => {
+    if (req.method === 'GET') {
+      _res.setHeader('Cache-Control', 'private, max-age=60');
+    }
+    next();
+  });
+
   app.enableCors();
 
   const port = process.env.PORT || 3000;
