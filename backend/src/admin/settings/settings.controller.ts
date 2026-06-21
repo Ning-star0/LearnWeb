@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Post, Param, Body, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Controller, Delete, Get, Put, Post, Param, Body, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AdminSettingsService } from './settings.service';
 import { AdminGuard } from '../../common/guards/admin.guard';
@@ -35,6 +35,14 @@ export class AdminSettingsController {
     @Body() body: { title: string; content: string; enabled?: boolean; pinned?: boolean },
   ) {
     return this.settingsService.publishAnnouncement(adminId, body);
+  }
+
+  @Delete('announcement/:id')
+  async deleteAnnouncement(
+    @Param('id') id: string,
+    @CurrentUser('id') adminId: number,
+  ) {
+    return this.settingsService.deleteAnnouncement(adminId, id);
   }
 
   /** 上传收款二维码 */

@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Upload, Image } from 'lucide-react';
+import { Upload, Image, Trash2 } from 'lucide-react';
 
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<any[]>([]);
@@ -63,6 +63,13 @@ export default function AdminSettingsPage() {
     setQrUploading(false);
   };
 
+  const refreshAnnouncements = async () => {
+    api.clearCache('/settings/announcement');
+    api.clearCache('/settings/announcements');
+    const res = await api.get('/settings/announcements', { cache: 'no-store' });
+    if (res.code === 0) setAnnouncements(res.data || []);
+  };
+
   const saveAnnouncement = async () => {
     if (announcementSaving) return;
     setAnnouncementSaving(true);
@@ -74,15 +81,22 @@ export default function AdminSettingsPage() {
     });
     if (res.code === 0) {
       toast.success('公告已发布');
-      api.clearCache('/settings/announcement');
-      api.clearCache('/settings/announcements');
-      api.get('/settings/announcements', { cache: 'no-store' }).then((listRes) => {
-        if (listRes.code === 0) setAnnouncements(listRes.data || []);
-      });
+      refreshAnnouncements();
     } else {
       toast.error(res.message || '保存失败');
     }
     setAnnouncementSaving(false);
+  };
+
+  const deleteAnnouncement = async (id: string) => {
+    if (!confirm('确定删除这条公告？删除后首页和公告中心都不会再展示。')) return;
+    const res = await api.delete(`/admin/settings/announcement/${encodeURIComponent(id)}`);
+    if (res.code === 0) {
+      toast.success('公告已删除');
+      refreshAnnouncements();
+    } else {
+      toast.error(res.message || '删除失败');
+    }
   };
 
   return (
@@ -164,10 +178,19 @@ export default function AdminSettingsPage() {
               {announcements.slice(0, 20).map((item) => (
                 <div key={item.id} className="rounded-lg border p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="font-medium">{item.title}</div>
-                    <div className="flex gap-2 text-xs text-muted-foreground">
+                    <div className="min-w-0 font-medium">{item.title}</div>
+                    <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
                       {item.pinned && <span className="rounded border px-2 py-0.5">置顶</span>}
                       <span>{new Date(item.createdAt).toLocaleString()}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-red-600 hover:text-red-700"
+                        onClick={() => deleteAnnouncement(item.id)}
+                      >
+                        <Trash2 className="size-3.5" />
+                        删除
+                      </Button>
                     </div>
                   </div>
                   <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-sm text-muted-foreground">{item.content}</p>

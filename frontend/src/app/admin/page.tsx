@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState<any>(null);
+  const [showSessions, setShowSessions] = useState(false);
+  const sessionsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.get('/admin/dashboard').then((res) => {
@@ -15,6 +17,11 @@ export default function AdminDashboard() {
   }, []);
 
   if (!stats) return <p>加载中...</p>;
+
+  const openSessions = () => {
+    setShowSessions(true);
+    window.setTimeout(() => sessionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  };
 
   return (
     <div>
@@ -32,9 +39,21 @@ export default function AdminDashboard() {
           ['在线用户', stats.onlineUserCount],
           ['登录会话', stats.activeSessionCount],
         ].map(([label, value]) => (
-          <Card key={label}>
+          <Card
+            key={label}
+            role={label === '在线用户' ? 'button' : undefined}
+            tabIndex={label === '在线用户' ? 0 : undefined}
+            onClick={label === '在线用户' ? openSessions : undefined}
+            onKeyDown={label === '在线用户' ? (event) => {
+              if (event.key === 'Enter' || event.key === ' ') openSessions();
+            } : undefined}
+            className={label === '在线用户' ? 'cursor-pointer transition hover:border-blue-300 hover:bg-blue-50/50' : undefined}
+          >
             <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{label}</CardTitle></CardHeader>
-            <CardContent><p className="text-3xl font-bold">{value}</p></CardContent>
+            <CardContent>
+              <p className="text-3xl font-bold">{value}</p>
+              {label === '在线用户' && <p className="mt-2 text-xs text-blue-600">点击查看名单</p>}
+            </CardContent>
           </Card>
         ))}
       </div>
@@ -60,8 +79,17 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      <Card className="mt-6">
-        <CardHeader><CardTitle className="text-lg">当前登录会话</CardTitle></CardHeader>
+      <Card ref={sessionsRef} className={`mt-6 ${showSessions ? 'border-blue-300 ring-1 ring-blue-100' : ''}`}>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between text-lg">
+            当前登录会话
+            {!showSessions && (
+              <button type="button" className="text-sm font-normal text-blue-600" onClick={openSessions}>
+                查看谁在线
+              </button>
+            )}
+          </CardTitle>
+        </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

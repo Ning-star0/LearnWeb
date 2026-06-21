@@ -150,4 +150,62 @@ export class AdminSettingsService {
 
     return nextItem;
   }
+
+  async deleteAnnouncement(adminId: number, id: string) {
+    const current = await this.prisma.systemSetting.findUnique({
+      where: { key: 'announcementItems' },
+    });
+    if (!current?.value) {
+      throw new BadRequestException('公告不存在');
+    }
+
+    let items: any[] = [];
+    try {
+      const parsed = JSON.parse(current.value);
+      if (Array.isArray(parsed)) items = parsed;
+    } catch {}
+
+    const target = items.find((item) => item.id === id);
+    if (!target) {
+      throw new BadRequestException('公告不存在');
+    }
+
+    const nextItems = items.filter((item) => item.id !== id);
+    await this.prisma.systemSetting.update({
+      where: { key: 'announcementItems' },
+      data: { value: JSON.stringify(nextItems) },
+    });
+
+    const nextCurrent = nextItems.find((item) => item.enabled && item.pinned)
+      || nextItems.find((item) => item.enabled);
+
+    await Promise.all([
+      this.prisma.systemSetting.upsert({
+        where: { key: 'announcementEnabled' },
+        update: { value: nextCurrent ? String(nextCurrent.enabled !== false) : 'false' },
+        create: { key: 'announcementEnabled', value: nextCurrent ? String(nextCurrent.enabled !== false) : 'false' },
+      }),
+      this.prisma.systemSetting.upsert({
+        where: { key: 'announcementTitle' },
+        update: { value: nextCurrent?.title || '' },
+        create: { key: 'announcementTitle', value: nextCurrent?.title || '' },
+      }),
+      this.prisma.systemSetting.upsert({
+        where: { key: 'announcementContent' },
+        update: { value: nextCurrent?.content || '' },
+        create: { key: 'announcementContent', value: nextCurrent?.content || '' },
+      }),
+    ]);
+
+    await this.prisma.adminLog.create({
+      data: {
+        adminId,
+        action: 'DELETE_ANNOUNCEMENT',
+        target: `Announcement:${id}`,
+        detail: `删除公告: ${target.title}`,
+      },
+    });
+
+    return { deleted: true };
+  }
 }
