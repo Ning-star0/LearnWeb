@@ -96,7 +96,7 @@ export class PracticeService {
         aiExplanation:
           mode === 'study' ? { select: { id: true, status: true } } : undefined,
       },
-      orderBy: order === 'random' ? undefined : { orderNo: 'asc' },
+      orderBy: order === 'random' ? undefined : [{ orderNo: 'asc' }, { id: 'asc' }],
       take,
     });
 
