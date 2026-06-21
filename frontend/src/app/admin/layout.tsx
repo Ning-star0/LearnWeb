@@ -11,6 +11,7 @@ const MENU = [
   { href: '/admin', label: 'Dashboard' },
   { href: '/admin/users', label: '用户管理' },
   { href: '/admin/banks', label: '题库管理' },
+  { href: '/admin/questions', label: '题目管理' },
   { href: '/admin/feedback', label: '反馈管理' },
   { href: '/admin/payments', label: '付款审核' },
   { href: '/admin/security', label: '安全风控' },

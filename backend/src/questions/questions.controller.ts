@@ -1,6 +1,7 @@
-import { Controller, Get, Query, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Put, Query, Param, ParseIntPipe, Body, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../common/guards/optional-jwt-auth.guard';
+import { AdminGuard } from '../common/guards/admin.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -88,8 +89,41 @@ export class QuestionsController {
       include: {
         options: { orderBy: { orderNo: 'asc' } },
         book: { select: { id: true, name: true } },
+        bank: { select: { id: true, name: true } },
         aiExplanation: { select: { id: true, status: true } },
       },
     });
+  }
+
+  /** 管理端：编辑题目 */
+  @Put(':id')
+  @UseGuards(AdminGuard)
+  async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { stem?: string; type?: string; answerRaw?: string; options?: { label: string; content: string }[] },
+  ) {
+    const { stem, type, answerRaw, options } = body;
+
+    if (options) {
+      // 删除旧选项，重新创建
+      await this.prisma.option.deleteMany({ where: { questionId: id } });
+      await this.prisma.option.createMany({
+        data: options.map((o, i) => ({
+          questionId: id, label: o.label, content: o.content, orderNo: i,
+        })),
+      });
+    }
+
+    const updated = await this.prisma.question.update({
+      where: { id },
+      data: {
+        ...(stem ? { stem } : {}),
+        ...(type ? { type: type as any } : {}),
+        ...(answerRaw ? { answerRaw } : {}),
+      },
+      include: { options: { orderBy: { orderNo: 'asc' } }, book: { select: { id: true, name: true } } },
+    });
+
+    return { code: 0, data: updated };
   }
 }
