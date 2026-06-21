@@ -14,6 +14,7 @@ export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [announcementPinned, setAnnouncementPinned] = useState(false);
+  const [announcementSaving, setAnnouncementSaving] = useState(false);
   const [qrUploading, setQrUploading] = useState(false);
   const qrFileRef = useRef<HTMLInputElement>(null);
 
@@ -21,7 +22,7 @@ export default function AdminSettingsPage() {
     api.get('/admin/settings').then((res) => {
       if (res.code === 0) setSettings(res.data);
     });
-    api.get('/settings/announcements').then((res) => {
+    api.get('/settings/announcements', { cache: 'no-store' }).then((res) => {
       if (res.code === 0) setAnnouncements(res.data || []);
     });
   }, []);
@@ -63,6 +64,8 @@ export default function AdminSettingsPage() {
   };
 
   const saveAnnouncement = async () => {
+    if (announcementSaving) return;
+    setAnnouncementSaving(true);
     const res = await api.post('/admin/settings/announcement', {
       title: getValue('announcementTitle'),
       content: getValue('announcementContent'),
@@ -71,12 +74,15 @@ export default function AdminSettingsPage() {
     });
     if (res.code === 0) {
       toast.success('公告已发布');
-      api.get('/settings/announcements').then((listRes) => {
+      api.clearCache('/settings/announcement');
+      api.clearCache('/settings/announcements');
+      api.get('/settings/announcements', { cache: 'no-store' }).then((listRes) => {
         if (listRes.code === 0) setAnnouncements(listRes.data || []);
       });
     } else {
       toast.error(res.message || '保存失败');
     }
+    setAnnouncementSaving(false);
   };
 
   return (
@@ -145,7 +151,9 @@ export default function AdminSettingsPage() {
               rows={9}
             />
           </div>
-          <Button onClick={saveAnnouncement} className="w-fit">发布公告</Button>
+          <Button onClick={saveAnnouncement} disabled={announcementSaving} className="w-fit">
+            {announcementSaving ? '发布中...' : '发布公告'}
+          </Button>
 
           <div className="border-t pt-4">
             <h3 className="mb-3 text-sm font-medium">历史公告</h3>

@@ -97,6 +97,19 @@ export class AdminSettingsService {
       pinned: Boolean(data.pinned),
       createdAt: new Date().toISOString(),
     };
+    const latest = items[0];
+    if (
+      latest &&
+      latest.title === nextItem.title &&
+      latest.content === nextItem.content &&
+      Boolean(latest.enabled) === nextItem.enabled &&
+      Boolean(latest.pinned) === nextItem.pinned &&
+      latest.createdAt &&
+      Date.now() - new Date(latest.createdAt).getTime() < 60_000
+    ) {
+      return latest;
+    }
+
     const nextItems = [
       nextItem,
       ...items.map((item) => ({ ...item, pinned: data.pinned ? false : Boolean(item.pinned) })),

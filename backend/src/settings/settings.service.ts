@@ -64,7 +64,7 @@ export class SettingsService {
       content: legacy.content,
       enabled: legacy.enabled,
       pinned: false,
-      createdAt: new Date(0).toISOString(),
+      createdAt: legacy.createdAt,
     }];
   }
 
@@ -80,6 +80,10 @@ export class SettingsService {
 
     const storedTitle = map.get('announcementTitle');
     const storedContent = map.get('announcementContent');
+    const latestUpdatedAt = settings
+      .map((item) => item.updatedAt)
+      .filter(Boolean)
+      .sort((a, b) => b.getTime() - a.getTime())[0];
 
     return {
       enabled: (map.get('announcementEnabled') || ANNOUNCEMENT_DEFAULTS.announcementEnabled) !== 'false',
@@ -87,6 +91,7 @@ export class SettingsService {
       content: storedContent === OLD_ANNOUNCEMENT_CONTENT || storedContent === PREVIOUS_ANNOUNCEMENT_CONTENT
         ? ANNOUNCEMENT_DEFAULTS.announcementContent
         : storedContent || ANNOUNCEMENT_DEFAULTS.announcementContent,
+      createdAt: (latestUpdatedAt || new Date()).toISOString(),
     };
   }
 }

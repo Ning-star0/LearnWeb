@@ -109,9 +109,11 @@ class ApiClient {
       delete headers['Content-Type'];
     }
 
-    // GET 请求优先从缓存读取
     const method = (options.method || 'GET').toUpperCase();
-    if (method === 'GET' && typeof window !== 'undefined') {
+    const skipLocalCache = method === 'GET' && options.cache === 'no-store';
+
+    // GET 请求优先从缓存读取。no-store 用于后台发布后的强制刷新。
+    if (method === 'GET' && typeof window !== 'undefined' && !skipLocalCache) {
       const cached = await this.getFromCache(path);
       if (cached) return cached;
     }
@@ -138,7 +140,7 @@ class ApiClient {
     const data = await res.json();
 
     // 缓存成功的 GET 响应
-    if (method === 'GET' && data?.code === 0 && typeof window !== 'undefined') {
+    if (method === 'GET' && data?.code === 0 && typeof window !== 'undefined' && !skipLocalCache) {
       await this.saveToCache(path, data);
     } else if (method !== 'GET' && data?.code === 0 && typeof window !== 'undefined') {
       this.clearMutationCache(path);
@@ -286,8 +288,8 @@ class ApiClient {
     return bytes;
   }
 
-  get(path: string) {
-    return this.fetch(path);
+  get(path: string, options: RequestInit = {}) {
+    return this.fetch(path, options);
   }
 
   post(path: string, body?: any) {
