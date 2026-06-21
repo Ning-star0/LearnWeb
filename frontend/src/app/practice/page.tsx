@@ -937,37 +937,38 @@ function StudyQuestionList({
   onJump: (index: number) => void;
 }) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3 max-w-full">
       <div className="hidden shrink-0 text-xs leading-5 text-muted-foreground sm:block">
         <span className="font-medium text-foreground">目录</span>
         <span className="ml-2 text-emerald-600">记 {counts.remembered}</span>
         <span className="ml-2 text-red-600">未 {counts.notRemembered}</span>
         <span className="ml-2">空 {counts.unmarked}</span>
       </div>
-      <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto pb-1">
-        {questions.map((question, index) => {
-          const active = index === currentIndex;
-          const status = question.studyStatus || 'unmarked';
-          const color =
-            active
+      <div className="flex-1 overflow-x-auto pb-1 -mx-1 px-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="flex gap-1.5 w-max">
+          {questions.map((question, index) => {
+            const active = index === currentIndex;
+            const status = question.studyStatus || 'unmarked';
+            const color = active
               ? 'border-blue-600 bg-blue-600 text-white'
               : status === 'remembered'
                 ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
                 : status === 'not_remembered'
                   ? 'border-red-500 bg-red-50 text-red-700'
                   : 'border-border bg-background text-muted-foreground';
-          return (
-            <button
-              key={question.id}
-              type="button"
-              onClick={() => onJump(index)}
-              className={`flex h-7 min-w-7 items-center justify-center rounded-full border px-1.5 text-xs font-medium transition hover:border-blue-400 ${color}`}
-              title={`第 ${index + 1} 题`}
-            >
-              {index + 1}
-            </button>
-          );
-        })}
+            return (
+              <button
+                key={question.id}
+                type="button"
+                onClick={() => onJump(index)}
+                className={`shrink-0 flex h-7 w-7 items-center justify-center rounded-full border text-xs font-medium transition hover:border-blue-400 ${color}`}
+                title={`第 ${index + 1} 题`}
+              >
+                {index + 1}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -982,40 +983,41 @@ function QuizQuestionList({
   currentIndex: number;
   onJump: (index: number) => void;
 }) {
-  const answered = questions.filter((q) => q.quizStatus && q.quizStatus !== 'unanswered').length;
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3 max-w-full">
       <div className="hidden shrink-0 text-xs leading-5 text-muted-foreground sm:block">
         <span className="font-medium text-foreground">题号</span>
         <span className="ml-2 text-emerald-600">对 {questions.filter((q) => q.quizStatus === 'correct').length}</span>
         <span className="ml-2 text-red-600">错 {questions.filter((q) => q.quizStatus === 'wrong').length}</span>
         <span className="ml-2">余 {questions.filter((q) => !q.quizStatus || q.quizStatus === 'unanswered').length}</span>
       </div>
-      <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto pb-1">
-        {questions.map((question, index) => {
-          const active = index === currentIndex;
-          const status = question.quizStatus || 'unanswered';
-          const color = active
-            ? 'border-blue-600 bg-blue-600 text-white'
-            : status === 'correct'
-              ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-              : status === 'wrong'
-                ? 'border-red-500 bg-red-50 text-red-700'
-                : status === 'uncertain'
-                  ? 'border-amber-500 bg-amber-50 text-amber-700'
-                  : 'border-border bg-background text-muted-foreground';
-          return (
-            <button
-              key={question.id}
-              type="button"
-              onClick={() => onJump(index)}
-              className={`flex h-7 min-w-7 items-center justify-center rounded-full border px-1.5 text-xs font-medium transition hover:border-blue-400 ${color}`}
-              title={`第 ${index + 1} 题${status === 'correct' ? ' ✓' : status === 'wrong' ? ' ✗' : status === 'uncertain' ? ' ?' : ''}`}
-            >
-              {index + 1}
-            </button>
-          );
-        })}
+      <div className="flex-1 overflow-x-auto pb-1 -mx-1 px-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="flex gap-1.5 w-max">
+          {questions.map((question, index) => {
+            const active = index === currentIndex;
+            const status = question.quizStatus || 'unanswered';
+            const color = active
+              ? 'border-blue-600 bg-blue-600 text-white'
+              : status === 'correct'
+                ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                : status === 'wrong'
+                  ? 'border-red-500 bg-red-50 text-red-700'
+                  : status === 'uncertain'
+                    ? 'border-amber-500 bg-amber-50 text-amber-700'
+                    : 'border-border bg-background text-muted-foreground';
+            return (
+              <button
+                key={question.id}
+                type="button"
+                onClick={() => onJump(index)}
+                className={`shrink-0 flex h-7 w-7 items-center justify-center rounded-full border text-xs font-medium transition hover:border-blue-400 ${color}`}
+                title={`第 ${index + 1} 题${status === 'correct' ? ' ✓' : status === 'wrong' ? ' ✗' : status === 'uncertain' ? ' ?' : ''}`}
+              >
+                {index + 1}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
