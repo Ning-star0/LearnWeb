@@ -37,9 +37,9 @@ export default function LoginPage() {
         <CardHeader className="text-center pb-4">
           <Link href="/" className="inline-flex items-center gap-2 text-xl font-bold mx-auto">
             <GraduationCap className="size-7 text-blue-600" />
-            思政刷题系统
+            思政学习系统
           </Link>
-          <CardDescription className="mt-2">登录后开始刷题</CardDescription>
+          <CardDescription className="mt-2">登录后开始学习</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">

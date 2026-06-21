@@ -56,7 +56,7 @@ export default function AdminBanksPage() {
         <div>
           <h1 className="text-2xl font-semibold">题库管理</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            学生刷题使用的是按教材汇总后的统一题库池；下方列表是每次导入形成的批次。
+            学生学习使用的是按教材汇总后的统一题库池；下方列表是每次导入形成的批次。
           </p>
         </div>
         <Link href="/admin/banks/upload">

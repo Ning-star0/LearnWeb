@@ -66,7 +66,7 @@ export default function ReviewPage() {
         <div className="rounded-lg border bg-muted/40 p-8 text-center">
           <CheckCircle2 className="mx-auto mb-3 size-8 text-muted-foreground" />
           <p className="font-medium">暂无待背题</p>
-          <p className="mt-1 text-sm text-muted-foreground">刷题时遇到不熟的题，点“没记住”后会出现在这里。</p>
+          <p className="mt-1 text-sm text-muted-foreground">学习时遇到不熟的题，点“没记住”后会出现在这里。</p>
         </div>
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">

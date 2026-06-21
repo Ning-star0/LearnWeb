@@ -71,7 +71,7 @@ function PaymentContent() {
           <Info className="size-5 text-blue-500 mt-0.5 shrink-0" />
           <div className="text-sm text-blue-800">
             <p className="font-medium mb-1">关于 AI 解析功能</p>
-            <p className="leading-relaxed">AI 解析调用大模型 API（DeepSeek），每次调用都会产生费用。如果大量用户同时使用，成本会非常高，我们暂时无法承担。因此采用了订阅制来控制成本。基础刷题功能永久免费。</p>
+            <p className="leading-relaxed">AI 解析调用大模型 API（DeepSeek），每次调用都会产生费用。如果大量用户同时使用，成本会非常高，我们暂时无法承担。因此采用了订阅制来控制成本。基础学习功能永久免费。</p>
           </div>
         </div>
       )}

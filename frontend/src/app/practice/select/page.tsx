@@ -117,7 +117,7 @@ function PracticeSelectPage() {
   if (!user) {
     return (
       <div className="mx-auto max-w-lg px-4 py-16 text-center">
-        <h1 className="text-2xl font-semibold">登录后开始刷题</h1>
+        <h1 className="text-2xl font-semibold">登录后开始学习</h1>
         <p className="mt-2 text-sm text-muted-foreground">系统会记录错题和待背题。</p>
         <Button className="mt-6" onClick={() => router.push('/login')}>去登录</Button>
       </div>

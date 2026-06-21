@@ -43,7 +43,7 @@ export default function BooksPage() {
           <Badge variant="secondary" className="mb-2">教材题库</Badge>
           <h1 className="text-2xl font-semibold tracking-normal">选择教材</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            点击教材卡片即可选择，之后今日学习和刷题入口会一直使用这本教材。当前 {books.length} 本教材，共 {totalQuestions} 题。
+            点击教材卡片即可选择，之后首页和学习入口会一直使用这本教材。当前 {books.length} 本教材，共 {totalQuestions} 题。
           </p>
         </div>
         <Link href={preferredBookId ? `/practice/select?scope=book&bookId=${preferredBookId}` : '/practice/select?scope=all'}>

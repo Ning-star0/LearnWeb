@@ -712,7 +712,7 @@ function PracticePage() {
 
               {mode === 'quiz' && submitted && (
                 <Button onClick={nextQuestion} className="w-full">
-                  {isLastQuestion ? '完成刷题' : '下一题'}
+                  {isLastQuestion ? '完成学习' : '下一题'}
                   <ArrowRight className="size-4" />
                 </Button>
               )}
@@ -810,7 +810,7 @@ function PracticePage() {
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
                   <h3 className="font-medium text-amber-800 mb-2">支持项目，解锁 AI 解析功能</h3>
                   <p className="text-sm text-amber-700 mb-3">
-                    试用次数已用完。基础刷题、背题、查看正确答案功能永久免费，支持者可继续查看 AI 解析。
+                    试用次数已用完。基础学习、背题、查看正确答案功能永久免费，支持者可继续查看 AI 解析。
                   </p>
                   <Button variant="outline" size="sm" onClick={() => setShowSupporterPrompt(false)}>我知道了</Button>
                 </div>
@@ -849,7 +849,7 @@ function PracticePage() {
             )}
             {showSupporterPrompt && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800">
-                试用次数已用完。基础刷题、背题、查看正确答案功能永久免费，支持者可继续查看 AI 解析。
+                试用次数已用完。基础学习、背题、查看正确答案功能永久免费，支持者可继续查看 AI 解析。
               </div>
             )}
           </CardContent>
@@ -863,7 +863,7 @@ function PracticePage() {
           </DialogHeader>
           <div className="space-y-3 text-sm leading-relaxed text-muted-foreground">
             <p>AI 解析属于付费支持功能，可先试用 {trialDialog.remaining} 次。试用会消耗次数，次数用完后需要支持项目后继续使用。</p>
-            <p>基础刷题、背题和查看正确答案功能永久免费。</p>
+            <p>基础学习、背题和查看正确答案功能永久免费。</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setTrialDialog((current) => ({ ...current, open: false }))}>

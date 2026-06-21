@@ -41,7 +41,7 @@ export function Navbar() {
         {/* 左侧品牌 - 固定宽度避免偏移 */}
         <Link href="/" className="flex shrink-0 items-center gap-2 font-semibold whitespace-nowrap">
           <Home className="size-4" />
-          思政刷题系统
+          思政学习系统
         </Link>
 
         {/* 右侧导航 - 保持最小宽度 */}
@@ -62,7 +62,7 @@ export function Navbar() {
                 href="/practice/select"
                 className={navItemClass(practiceActive, 'inline-flex')}
               >
-                刷题
+                学习
               </Link>
               <Link href="/wrong" className={navItemClass(wrongActive, 'hidden lg:flex')}>
                 <Target className="size-4" /><span>错题本</span>
