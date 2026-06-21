@@ -247,7 +247,8 @@ function PracticePage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [previousQuestion, nextQuestion]);
 
-  const handleStudyAction = async (action: 'remembered' | 'not_remembered') => {
+  const handleStudyAction = useCallback(async (action: 'remembered' | 'not_remembered') => {
+    if (!currentQuestion) return;
     setStudyAction(action);
     setQuestions((current) =>
       current.map((question, index) =>
@@ -258,7 +259,34 @@ function PracticePage() {
       questionId: currentQuestion.id,
       action,
     });
-  };
+  }, [currentIndex, currentQuestion]);
+
+  useEffect(() => {
+    if (mode !== 'study') return;
+    const handleStudyKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName;
+      if (
+        tagName === 'INPUT' ||
+        tagName === 'TEXTAREA' ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      if (event.key === '1') {
+        event.preventDefault();
+        handleStudyAction('remembered');
+      }
+      if (event.key === '2') {
+        event.preventDefault();
+        handleStudyAction('not_remembered');
+      }
+    };
+
+    window.addEventListener('keydown', handleStudyKeyDown);
+    return () => window.removeEventListener('keydown', handleStudyKeyDown);
+  }, [mode, handleStudyAction]);
 
   const handleSubmit = async (answerOverride?: unknown) => {
     if (!currentQuestion || submitted) return;
@@ -416,8 +444,8 @@ function PracticePage() {
       </div>
 
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_460px]">
-        <main className="min-h-0">
-          <Card className="flex min-h-[calc(100dvh-9.5rem)] flex-col sm:min-h-[520px] lg:h-full lg:min-h-0">
+        <main className="flex min-h-0 flex-col gap-3">
+          <Card className="flex min-h-[calc(100dvh-9.5rem)] flex-col sm:min-h-[520px] lg:min-h-0 lg:flex-1">
             <CardHeader className="shrink-0 border-b p-4 sm:p-5">
               <div className="mb-3 flex flex-wrap items-center gap-2">
                 <Badge variant="secondary">第 {currentIndex + 1} / {questions.length} 题</Badge>
@@ -570,11 +598,11 @@ function PracticePage() {
                   <div className="grid grid-cols-2 gap-2">
                     <Button onClick={() => handleStudyAction('remembered')} variant={currentStudyStatus === 'remembered' ? 'default' : 'outline'}>
                       <CheckCircle2 className="size-4" />
-                      已记住
+                      已记住 1
                     </Button>
                     <Button onClick={() => handleStudyAction('not_remembered')} variant={currentStudyStatus === 'not_remembered' ? 'default' : 'outline'}>
                       <Clock3 className="size-4" />
-                      未记住
+                      未记住 2
                     </Button>
                   </div>
                   {currentStudyStatus !== 'unmarked' && (
@@ -583,13 +611,16 @@ function PracticePage() {
                       <ArrowRight className="size-4" />
                     </Button>
                   )}
+                  <div className="mt-2 text-center text-xs text-muted-foreground">
+                    键盘：1 已记住，2 未记住，方向键切题
+                  </div>
                 </div>
               )}
             </CardContent>
           </Card>
 
           {mode === 'study' && (
-            <Card className="mt-3 lg:hidden">
+            <Card className="shrink-0">
               <CardContent className="p-3">
                 <StudyQuestionList
                   questions={questions}
@@ -637,11 +668,11 @@ function PracticePage() {
                   <div className="text-sm font-medium">是否已记住？</div>
                   <Button onClick={() => handleStudyAction('remembered')} className="w-full" variant={currentStudyStatus === 'remembered' ? 'default' : 'outline'}>
                     <CheckCircle2 className="size-4" />
-                    已记住
+                    已记住 1
                   </Button>
                   <Button onClick={() => handleStudyAction('not_remembered')} variant={currentStudyStatus === 'not_remembered' ? 'default' : 'outline'} className="w-full">
                     <Clock3 className="size-4" />
-                    未记住
+                    未记住 2
                   </Button>
                   {currentStudyStatus !== 'unmarked' && (
                     <Button onClick={nextQuestion} className="w-full">
@@ -649,6 +680,9 @@ function PracticePage() {
                       <ArrowRight className="size-4" />
                     </Button>
                   )}
+                  <div className="rounded-lg border bg-muted/40 p-2 text-center text-xs text-muted-foreground">
+                    键盘：1 已记住，2 未记住，方向键切题
+                  </div>
                 </div>
               )}
 
@@ -712,7 +746,7 @@ function PracticePage() {
             </CardContent>
           </Card>
 
-          <Card className="min-h-0 border-blue-200 bg-blue-50/40 lg:order-first">
+          <Card className="flex min-h-0 flex-1 flex-col border-blue-200 bg-blue-50/40 lg:order-first">
             <CardHeader className="shrink-0 border-b border-blue-100 pb-3">
               <CardTitle className="flex items-center justify-between gap-2 text-base">
                 <span className="flex items-center gap-2">
@@ -724,7 +758,7 @@ function PracticePage() {
                 </Button>
               </CardTitle>
             </CardHeader>
-            <CardContent className="min-h-0 overflow-y-auto p-4 text-sm">
+            <CardContent className="min-h-0 flex-1 overflow-y-auto p-4 text-sm">
               {!aiExplanation && !showSupporterPrompt && (
                 <div className="rounded-lg border border-blue-100 bg-white/70 p-4 text-sm leading-relaxed text-muted-foreground">
                   <Brain className="mr-1 inline size-4" />
@@ -783,19 +817,6 @@ function PracticePage() {
               )}
             </CardContent>
           </Card>
-
-          {mode === 'study' && (
-            <Card className="min-h-0">
-              <CardContent className="min-h-0 overflow-y-auto p-3">
-                <StudyQuestionList
-                  questions={questions}
-                  currentIndex={currentIndex}
-                  counts={studyCounts}
-                  onJump={jumpToQuestion}
-                />
-              </CardContent>
-            </Card>
-          )}
         </aside>
       </div>
 
@@ -900,19 +921,14 @@ function StudyQuestionList({
   onJump: (index: number) => void;
 }) {
   return (
-    <div className="space-y-3">
-      <div>
-        <div className="flex items-center justify-between text-sm">
-          <span className="font-medium">背题目录</span>
-          <span className="text-muted-foreground">{questions.length} 题</span>
-        </div>
-        <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
-          <div className="rounded-lg bg-emerald-50 p-2 text-emerald-700">已记住 {counts.remembered}</div>
-          <div className="rounded-lg bg-red-50 p-2 text-red-700">未记住 {counts.notRemembered}</div>
-          <div className="rounded-lg bg-muted p-2 text-muted-foreground">未标记 {counts.unmarked}</div>
-        </div>
+    <div className="flex items-center gap-3">
+      <div className="hidden shrink-0 text-xs leading-5 text-muted-foreground sm:block">
+        <span className="font-medium text-foreground">目录</span>
+        <span className="ml-2 text-emerald-600">记 {counts.remembered}</span>
+        <span className="ml-2 text-red-600">未 {counts.notRemembered}</span>
+        <span className="ml-2">空 {counts.unmarked}</span>
       </div>
-      <div className="grid max-h-64 grid-cols-8 gap-2 overflow-y-auto pr-1 sm:grid-cols-10 lg:max-h-80 lg:grid-cols-6">
+      <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto pb-1">
         {questions.map((question, index) => {
           const active = index === currentIndex;
           const status = question.studyStatus || 'unmarked';
@@ -929,7 +945,7 @@ function StudyQuestionList({
               key={question.id}
               type="button"
               onClick={() => onJump(index)}
-              className={`flex aspect-square items-center justify-center rounded-full border text-xs font-medium transition hover:border-blue-400 ${color}`}
+              className={`flex h-7 min-w-7 items-center justify-center rounded-full border px-1.5 text-xs font-medium transition hover:border-blue-400 ${color}`}
               title={`第 ${index + 1} 题`}
             >
               {index + 1}
