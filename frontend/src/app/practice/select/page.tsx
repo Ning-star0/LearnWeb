@@ -86,6 +86,8 @@ function PracticeSelectPage() {
     () => books.find((book) => String(book.id) === bookId),
     [books, bookId],
   );
+  const selectedChapter = chapters.find((item) => item.name === chapter);
+  const selectedQuestionCount = selectedChapter?.count ?? selectedBook?._count.questions ?? 0;
 
   const rememberBook = (nextBookId: string) => {
     setBookId(nextBookId);
@@ -128,7 +130,7 @@ function PracticeSelectPage() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
               <div className="mb-2 flex flex-wrap items-center gap-2">
-                <Badge>今日学习</Badge>
+                <Badge>学习范围</Badge>
                 <Badge variant="outline">{order === 'random' ? '随机' : '顺序'}</Badge>
                 {chapter && <Badge variant="outline">{chapter}</Badge>}
                 <Badge variant="outline">{TYPE_OPTIONS.find((item) => item.value === type)?.label || '全部'}</Badge>
@@ -137,17 +139,19 @@ function PracticeSelectPage() {
                 {selectedBook ? selectedBook.name : '全部题库'}
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                {selectedBook ? `${selectedBook._count.questions} 题，已设为默认教材` : '未选择教材时进入全部题库'}
+                {selectedBook
+                  ? `${chapter || '全部章节'} · 约 ${selectedQuestionCount} 题`
+                  : '未选择教材时进入全部题库'}
               </p>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:flex">
-              <Button onClick={() => startPractice('quiz')} size="lg">
-                <Play className="size-4" />
-                开始答题
-              </Button>
-              <Button onClick={() => startPractice('study')} size="lg" variant="outline">
+              <Button onClick={() => startPractice('study')} size="lg">
                 <Brain className="size-4" />
                 开始背题
+              </Button>
+              <Button onClick={() => startPractice('quiz')} size="lg" variant="outline">
+                <Play className="size-4" />
+                开始答题
               </Button>
             </div>
           </div>
@@ -228,6 +232,14 @@ function PracticeSelectPage() {
                     );
                   })}
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {scope === 'book' && selectedBook && chapters.length === 0 && (
+            <Card>
+              <CardContent className="p-4 text-sm leading-relaxed text-muted-foreground">
+                当前教材还没有章节数据。可以先刷全部题；如果要按章节学习，请在管理端重新上传带“知识点/章节”的新版 Excel，重复题会自动补齐章节，不会重复新增。
               </CardContent>
             </Card>
           )}

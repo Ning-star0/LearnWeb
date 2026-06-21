@@ -105,6 +105,7 @@ export class BanksService {
       // 分批导入题目
       let imported = 0;
       let skippedDuplicates = 0;
+      let updatedDuplicates = 0;
       let processed = 0;
       const questions = data.questions;
 
@@ -134,6 +135,14 @@ export class BanksService {
                 },
               });
               if (duplicate) {
+                const metadata = this.buildDuplicateMetadataUpdate(q);
+                if (Object.keys(metadata).length > 0) {
+                  await tx.question.update({
+                    where: { id: duplicate.id },
+                    data: metadata,
+                  });
+                  updatedDuplicates++;
+                }
                 skippedDuplicates++;
                 processed++;
                 continue;
@@ -200,7 +209,7 @@ export class BanksService {
           adminId,
           action: 'UPLOAD_BANK',
           target: `Bank:${bank.id}`,
-          detail: `导入 ${imported} 题到教材 ${book.name}，跳过重复 ${skippedDuplicates} 题`,
+          detail: `导入 ${imported} 题到教材 ${book.name}，跳过重复 ${skippedDuplicates} 题，更新重复题元数据 ${updatedDuplicates} 题`,
         },
       });
 
@@ -210,6 +219,7 @@ export class BanksService {
         bookName: book.name,
         imported,
         skippedDuplicates,
+        updatedDuplicates,
       };
     } catch (e: any) {
       // 提供明确的错误信息
@@ -245,6 +255,20 @@ export class BanksService {
       .createHash('sha256')
       .update(`${stem}|${bookId}|${type}`)
       .digest('hex');
+  }
+
+  private buildDuplicateMetadataUpdate(q: ParsedQuestion) {
+    const data: Record<string, any> = {};
+    if (q.knowledgePoint) data.knowledgePoint = q.knowledgePoint;
+    if (q.chapter) data.chapter = q.chapter;
+    if (q.difficulty) data.difficulty = q.difficulty;
+    if (q.courseObjective) data.courseObjective = q.courseObjective;
+    if (q.preface) data.preface = q.preface;
+    if (q.score !== undefined) data.score = q.score;
+    if (q.gradingMethod) data.gradingMethod = q.gradingMethod;
+    if (q.answerRaw) data.answerRaw = q.answerRaw;
+    if (q.answerJson !== undefined && q.answerJson !== null) data.answerJson = q.answerJson;
+    return data;
   }
 
   private validateQuestionPayload(questions: ParsedQuestion[]) {

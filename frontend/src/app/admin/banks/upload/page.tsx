@@ -10,7 +10,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 
 interface Book {
@@ -264,6 +263,7 @@ export default function BankUploadPage() {
     let importedFiles = 0;
     let importedQuestions = 0;
     let skippedDuplicates = 0;
+    let updatedDuplicates = 0;
     let failedFiles = 0;
     setProgress({
       active: true,
@@ -298,6 +298,7 @@ export default function BankUploadPage() {
         importedFiles++;
         importedQuestions += res.data.imported || 0;
         skippedDuplicates += res.data.skippedDuplicates || 0;
+        updatedDuplicates += res.data.updatedDuplicates || 0;
         setItems((current) =>
           current.map((entry) =>
             entry.id === item.id
@@ -325,9 +326,9 @@ export default function BankUploadPage() {
     setImporting(false);
     setProgress((current) => ({ ...current, active: false, currentFile: '' }));
     if (failedFiles) {
-      toast.warning(`导入完成：${importedFiles} 个成功，${failedFiles} 个失败，跳过重复 ${skippedDuplicates} 题`);
+      toast.warning(`导入完成：${importedFiles} 个成功，${failedFiles} 个失败，跳过重复 ${skippedDuplicates} 题，更新重复题 ${updatedDuplicates} 题`);
     } else {
-      toast.success(`导入成功：${importedFiles} 个题库，共 ${importedQuestions} 题，跳过重复 ${skippedDuplicates} 题`);
+      toast.success(`导入成功：${importedFiles} 个题库，共新增 ${importedQuestions} 题，跳过重复 ${skippedDuplicates} 题，更新重复题 ${updatedDuplicates} 题`);
     }
   };
 
@@ -364,18 +365,23 @@ export default function BankUploadPage() {
             <CardContent className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>教材</Label>
-                <Select value={bookId} onValueChange={(value) => setBookId(value || '')}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="选择教材" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {books.map((book) => (
-                      <SelectItem key={book.id} value={String(book.id)}>
-                        {book.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <select
+                  value={bookId}
+                  onChange={(event) => setBookId(event.target.value)}
+                  className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
+                >
+                  <option value="">选择教材</option>
+                  {books.map((book) => (
+                    <option key={book.id} value={String(book.id)}>
+                      {book.name}
+                    </option>
+                  ))}
+                </select>
+                {selectedBook && (
+                  <p className="text-xs text-muted-foreground">
+                    当前选择：{selectedBook.name}，已有 {selectedBook._count?.questions || 0} 题。
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -432,6 +438,9 @@ export default function BankUploadPage() {
               <StatusRow label="可导入" value={`${importableItems.length} 个题库`} />
               <StatusRow label="错误" value={`${totals.errors} 个`} />
               <StatusRow label="题量上限" value={`${MAX_IMPORT_QUESTIONS} 题/次`} />
+              <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs leading-relaxed text-blue-800">
+                重复题不会新增数量；如果新版 Excel 带有章节、难度、课程目标，系统会用这些信息更新已有题目。
+              </p>
               {progress.total > 0 && (
                 <ProgressPanel progress={progress} />
               )}

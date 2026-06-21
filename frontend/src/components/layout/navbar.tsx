@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useRouter } from 'next/navigation';
-import { Bell, BookOpen, History, Home, MessageSquare, Search, Target } from 'lucide-react';
+import { Bell, BookMarked, BookOpen, History, Home, LogOut, MessageSquare, Search, ShieldCheck, Target, UserCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -74,25 +74,43 @@ export function Navbar() {
                     <AvatarFallback>{user.username[0]}</AvatarFallback>
                   </Avatar>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuContent align="end" className="w-44">
                   <DropdownMenuItem>
-                    <Link href="/profile" className="w-full">个人中心</Link>
+                    <Link href="/profile" className="flex w-full items-center gap-2">
+                      <UserCircle className="size-4" />
+                      个人中心
+                    </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem>
-                    <Link href="/history" className="w-full"><History className="inline size-4 mr-1" />做对的题</Link>
+                    <Link href="/history" className="flex w-full items-center gap-2">
+                      <History className="size-4" />
+                      做对的题
+                    </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem>
-                    <Link href="/review" className="w-full">待背题</Link>
+                    <Link href="/review" className="flex w-full items-center gap-2">
+                      <BookMarked className="size-4" />
+                      待背题
+                    </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem>
-                    <Link href="/feedback" className="w-full"><MessageSquare className="inline size-4 mr-1" />反馈</Link>
+                    <Link href="/feedback" className="flex w-full items-center gap-2">
+                      <MessageSquare className="size-4" />
+                      反馈
+                    </Link>
                   </DropdownMenuItem>
                   {isAdmin && (
                     <DropdownMenuItem>
-                      <Link href="/admin" className="w-full">管理后台</Link>
+                      <Link href="/admin" className="flex w-full items-center gap-2">
+                        <ShieldCheck className="size-4" />
+                        管理后台
+                      </Link>
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuItem onClick={handleLogout}>退出登录</DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleLogout} className="flex items-center gap-2">
+                    <LogOut className="size-4" />
+                    退出登录
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
