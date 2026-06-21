@@ -32,6 +32,7 @@ export class PracticeController {
     @Query('type') type?: string,
     @Query('order') order?: string,
     @Query('limit') limit?: string,
+    @Query('ids') ids?: string,
   ) {
     return this.practiceService.getQuestions({
       userId,
@@ -40,7 +41,10 @@ export class PracticeController {
       bookId: bookId ? parseInt(bookId) : undefined,
       type,
       order: order || 'sequential',
-      limit: limit ? parseInt(limit) : 50,
+      limit: limit ? parseInt(limit) : undefined,
+      ids: ids
+        ? Array.from(new Set(ids.split(',').map((id) => parseInt(id)).filter((id) => Number.isFinite(id))))
+        : undefined,
     });
   }
 

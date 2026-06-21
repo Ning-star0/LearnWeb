@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent } from '@/components/ui/card';
 
 interface Book { id: number; name: string; }
-interface Question { id: number; type: string; stem: string; book: Book; options: { label: string; content: string }[]; }
+interface Question { id: number; type: string; stem: string; book: Book; options: { label: string; content: string }[]; userStatus?: 'correct' | 'wrong' | 'unanswered'; }
 
 const TYPE_LABEL: Record<string, string> = { SINGLE: '单选', MULTIPLE: '多选', JUDGE: '判断', SHORT: '简答' };
 
@@ -34,7 +34,7 @@ function QuestionsPage() {
     if (type) params.set('type', type);
     if (search) params.set('search', search);
     params.set('page', String(page));
-    params.set('pageSize', '20');
+    params.set('pageSize', '50');
     api.get(`/questions?${params}`).then((res) => {
       if (res.code === 0) { setQuestions(res.data.items); setTotal(res.data.total); }
     });
@@ -91,7 +91,9 @@ function QuestionsPage() {
             <CardContent className="p-4">
               <div className="flex items-start gap-3">
                 <div className="flex gap-2 shrink-0">
-                  <Badge variant="outline">{TYPE_LABEL[q.type]}</Badge>
+                  {q.userStatus === 'correct' && <span className="mt-1 size-3 rounded-full bg-emerald-500 ring-2 ring-emerald-100" />}
+                  {q.userStatus === 'wrong' && <span className="mt-1 size-3 rounded-full bg-red-500 ring-2 ring-red-100" />}
+                  <Badge variant="outline">{TYPE_LABEL[q.type] || q.type}</Badge>
                   <Badge variant="secondary">{q.book.name}</Badge>
                 </div>
                 <div className="flex-1 min-w-0">
@@ -115,8 +117,10 @@ function QuestionsPage() {
 
       <div className="flex justify-between mt-4">
         <Button variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>上一页</Button>
-        <span className="text-sm text-muted-foreground self-center">共 {total} 题</span>
-        <Button variant="outline" disabled={questions.length < 20} onClick={() => setPage(page + 1)}>下一页</Button>
+        <span className="text-sm text-muted-foreground self-center">
+          第 {page} 页 / 共 {Math.max(1, Math.ceil(total / 50))} 页，{total} 题
+        </span>
+        <Button variant="outline" disabled={page >= Math.ceil(total / 50)} onClick={() => setPage(page + 1)}>下一页</Button>
       </div>
     </div>
   );

@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, Suspense } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, ArrowRight, Brain, Check, CheckCircle2, ChevronLeft, Clock3, HelpCircle, Keyboard, Sparkles, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Brain, Check, CheckCircle2, ChevronLeft, Clock3, HelpCircle, Keyboard, MessageSquare, Sparkles, XCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -80,6 +81,7 @@ function PracticePage() {
   const mode = searchParams.get('mode') || 'study';
   const scope = searchParams.get('scope') || 'all';
   const bookId = searchParams.get('bookId') || '';
+  const ids = searchParams.get('ids') || '';
   const type = normalizeTypeParam(searchParams.get('type'));
   const order = searchParams.get('order') || 'random';
 
@@ -129,9 +131,9 @@ function PracticePage() {
     params.set('mode', mode);
     params.set('scope', scope);
     if (bookId) params.set('bookId', bookId);
+    if (ids) params.set('ids', ids);
     if (type) params.set('type', type);
     params.set('order', order);
-    params.set('limit', '50');
 
     api.get(`/practice/questions?${params.toString()}`)
       .then((res) => {
@@ -149,13 +151,14 @@ function PracticePage() {
         setLoadError('题目加载失败，请稍后重试');
       })
       .finally(() => setLoading(false));
-  }, [authLoading, user, mode, scope, bookId, type, order, router]);
+  }, [authLoading, user, mode, scope, bookId, ids, type, order, router]);
 
   const backToSelect = () => {
     const params = new URLSearchParams();
     params.set('mode', mode);
     params.set('scope', scope);
     if (bookId) params.set('bookId', bookId);
+    if (ids) params.set('ids', ids);
     if (type) params.set('type', type);
     params.set('order', order);
     router.push(`/practice/select?${params.toString()}`);
@@ -366,6 +369,12 @@ function PracticePage() {
             <Sparkles className="size-4" />
             AI
           </Button>
+          <Link href={`/feedback?questionId=${currentQuestion.id}`}>
+            <Button variant="outline" size="sm">
+              <MessageSquare className="size-4" />
+              反馈
+            </Button>
+          </Link>
           <Button variant="outline" size="sm" onClick={nextQuestion}>
             {isLastQuestion ? '完成' : '下一题'}
             <ArrowRight className="size-4" />
@@ -486,7 +495,9 @@ function PracticePage() {
                   {(mode === 'study' || submitted) && (
                     <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
                       <p className="mb-2 text-sm font-medium">参考答案</p>
-                      <p className="text-sm leading-relaxed">{currentQuestion.answerRaw || formatAnswer(currentQuestion.answerJson)}</p>
+                      <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                        {currentQuestion.answerRaw || formatAnswer(submitted && result ? result.correctAnswer : currentQuestion.answerJson)}
+                      </p>
                     </div>
                   )}
                   {mode === 'quiz' && !submitted && (
@@ -620,6 +631,12 @@ function PracticePage() {
                 <Sparkles className="size-4" />
                 {aiLoading ? '加载中...' : '查看 AI 解析'}
               </Button>
+              <Link href={`/feedback?questionId=${currentQuestion.id}`} className="block">
+                <Button variant="outline" className="w-full">
+                  <MessageSquare className="size-4" />
+                  反馈此题
+                </Button>
+              </Link>
             </CardContent>
           </Card>
 

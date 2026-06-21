@@ -36,7 +36,7 @@ function PracticeSelectPage() {
   const [books, setBooks] = useState<Book[]>([]);
   const [bookId, setBookId] = useState(initialBookId);
   const [type, setType] = useState(normalizeTypeParam(searchParams.get('type')));
-  const [order, setOrder] = useState(searchParams.get('order') || 'random');
+  const [order, setOrder] = useState(searchParams.get('order') || 'sequential');
   const [scope, setScope] = useState(searchParams.get('scope') || 'book');
 
   useEffect(() => {
