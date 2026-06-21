@@ -155,6 +155,7 @@ model User {
   handledRiskFlags       UserRiskFlag[]     @relation("HandledRiskFlags")
   trialUsages            TrialUsage[]
   paymentProofs          PaymentProof[]
+  bookmarks              UserBookmark[]
   reviewedPaymentProofs  PaymentProof[]     @relation("ReviewedPaymentProofs")
 
   @@map("users")
@@ -273,6 +274,7 @@ model Question {
   feedbacks        Feedback[]
   aiViewLogs       AiViewLog[]
   aiGenerationLogs AiGenerationLog[]
+  bookmarks        UserBookmark[]
 
   @@unique([bookId, contentHash])
   @@map("questions")
@@ -570,6 +572,23 @@ model AiGenerationLog {
   question Question @relation(fields: [questionId], references: [id])
 
   @@map("ai_generation_logs")
+}
+
+// ============================================================
+// 24. UserBookmark — 用户收藏表
+// ============================================================
+
+model UserBookmark {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  questionId Int
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id])
+  question Question @relation(fields: [questionId], references: [id])
+
+  @@unique([userId, questionId])
+  @@map("user_bookmarks")
 }
 
 // ============================================================

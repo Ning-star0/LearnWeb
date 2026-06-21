@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, ArrowRight, Brain, Check, CheckCircle2, ChevronLeft, Clock3, HelpCircle, Keyboard, MessageSquare, Sparkles, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookmarkPlus, BookmarkCheck, Brain, Check, CheckCircle2, ChevronLeft, Clock3, HelpCircle, Keyboard, MessageSquare, Sparkles, XCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -107,6 +107,8 @@ function PracticePage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [studyAction, setStudyAction] = useState<string | null>(null);
   const [quizUncertain, setQuizUncertain] = useState(false);
+  const [bookmarked, setBookmarked] = useState(false);
+  const [bookmarks, setBookmarks] = useState<Set<number>>(new Set());
   const [trialDialog, setTrialDialog] = useState<{ open: boolean; remaining: number }>({
     open: false,
     remaining: 5,
@@ -160,7 +162,45 @@ function PracticePage() {
         setLoadError('题目加载失败，请稍后重试');
       })
       .finally(() => setLoading(false));
+
+    // 恢复上次进度
+    const saved = localStorage.getItem(`practice:${mode}:${scope}`);
+    if (saved) {
+      try {
+        const { index } = JSON.parse(saved);
+        if (index < questions.length) setCurrentIndex(index);
+      } catch {}
+    }
   }, [authLoading, user, mode, scope, bookId, chapter, ids, type, order, restart, router]);
+
+  // 退出时保存进度
+  useEffect(() => {
+    const saveProgress = () => {
+      localStorage.setItem(`practice:${mode}:${scope}`, JSON.stringify({ index: currentIndex }));
+    };
+    window.addEventListener('beforeunload', saveProgress);
+    return () => { saveProgress(); window.removeEventListener('beforeunload', saveProgress); };
+  }, [mode, scope, currentIndex]);
+
+  const toggleBookmark = async (qid: number) => {
+    if (bookmarks.has(qid)) {
+      await api.delete(`/bookmarks/${qid}`);
+      setBookmarks((prev) => { const next = new Set(prev); next.delete(qid); return next; });
+    } else {
+      await api.post(`/bookmarks/${qid}`);
+      setBookmarks((prev) => new Set(prev).add(qid));
+    }
+  };
+
+  // 加载收藏列表
+  useEffect(() => {
+    if (!user) return;
+    api.get('/bookmarks').then((res) => {
+      if (res.code === 0 && Array.isArray(res.data)) {
+        setBookmarks(new Set(res.data.map((b: any) => b.questionId)));
+      }
+    });
+  }, [user]);
 
   const backToSelect = () => {
     const params = new URLSearchParams();
@@ -465,6 +505,9 @@ function PracticePage() {
                 <Badge>{TYPE_MAP[currentQuestion.type]}</Badge>
                 {currentQuestion.chapter && <Badge variant="outline">{currentQuestion.chapter}</Badge>}
                 {currentQuestion.score ? <Badge variant="outline">{currentQuestion.score} 分</Badge> : null}
+                <button onClick={() => toggleBookmark(currentQuestion.id)} className="ml-auto">
+                  {bookmarks.has(currentQuestion.id) ? <BookmarkCheck className="size-4 text-blue-500" /> : <BookmarkPlus className="size-4 text-muted-foreground hover:text-blue-500" />}
+                </button>
               </div>
               <StemContent stem={currentQuestion.stem} />
             </CardHeader>
