@@ -56,7 +56,9 @@ export default function HomePage() {
     setShowAnnouncement(false);
   };
 
-  const preferredBook = books.find((b) => b._count.questions > 0);
+  const preferredBookId = typeof window !== 'undefined' ? localStorage.getItem('preferredBookId') : '';
+  const preferredBook = books.find((book) => String(book.id) === preferredBookId && book._count.questions > 0)
+    || books.find((book) => book._count.questions > 0);
   const todayHref = preferredBook
     ? `/practice?mode=quiz&scope=book&bookId=${preferredBook.id}&order=sequential`
     : '/practice?mode=quiz&scope=all&order=sequential';
@@ -72,7 +74,7 @@ export default function HomePage() {
             </div>
             <h1 className="text-2xl font-semibold tracking-normal sm:text-3xl">今日学习</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              {preferredBook ? `默认教材：${preferredBook.name}` : '默认进入全部题库随机练习'}
+              {preferredBook ? `默认教材：${preferredBook.name}` : '默认进入全部题库顺序练习'}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
