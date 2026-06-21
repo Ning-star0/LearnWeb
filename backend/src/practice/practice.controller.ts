@@ -17,7 +17,14 @@ export class PracticeController {
     @CurrentUser('id') userId: number,
     @Query() query: any,
   ) {
-    return this.practiceService.getQuestions({ userId, ...query });
+    return this.practiceService.getQuestions({
+      userId,
+      ...query,
+      bookId: parseOptionalInt(query.bookId),
+      limit: parseOptionalInt(query.limit),
+      restart: query.restart === true || query.restart === 'true' || query.restart === '1',
+      ids: parseIds(query.ids),
+    });
   }
 
   @Post('practice/study-action')
@@ -138,4 +145,22 @@ export class PracticeController {
       orderBy: { createdAt: 'desc' },
     });
   }
+}
+
+function parseOptionalInt(value: unknown) {
+  if (value === undefined || value === null || value === '' || value === '_all') return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parseIds(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => parseIds(item) || []);
+  }
+  if (typeof value !== 'string' || !value.trim()) return undefined;
+  const ids = value
+    .split(',')
+    .map((item) => Number(item.trim()))
+    .filter((item) => Number.isInteger(item) && item > 0);
+  return ids.length > 0 ? ids : undefined;
 }

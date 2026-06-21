@@ -8,7 +8,7 @@ import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 
 interface Book { id: number; name: string; }
@@ -78,6 +78,10 @@ function QuestionsPage() {
     router.push(`/practice?ids=${ids.join(',')}&mode=quiz`);
   };
 
+  const selectedBookLabel = books.find((book) => String(book.id) === bookId)?.name || '全部教材';
+  const selectedChapterLabel = chapter || '全部章节';
+  const selectedTypeLabel = type ? `${TYPE_LABEL[type] || type}题` : '全部题型';
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
       <div className="flex items-center justify-between mb-4">
@@ -91,7 +95,9 @@ function QuestionsPage() {
 
       <div className="flex gap-2 mb-4 flex-wrap">
         <Select value={bookId || '_all'} onValueChange={(v) => { setBookId(v && v !== '_all' ? v : ''); setChapter(''); setPage(1); }}>
-          <SelectTrigger className="w-48"><SelectValue placeholder="全部教材" /></SelectTrigger>
+          <SelectTrigger className="w-48">
+            <span className="truncate">{selectedBookLabel}</span>
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="_all">全部教材</SelectItem>
             {books.map((b) => (
@@ -100,7 +106,9 @@ function QuestionsPage() {
           </SelectContent>
         </Select>
         <Select value={chapter || '_all'} onValueChange={(v) => { setChapter(v && v !== '_all' ? v : ''); setPage(1); }} disabled={!bookId || chapters.length === 0}>
-          <SelectTrigger className="w-40"><SelectValue placeholder="全部章节" /></SelectTrigger>
+          <SelectTrigger className="w-40">
+            <span className="truncate">{selectedChapterLabel}</span>
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="_all">全部章节</SelectItem>
             {chapters.map((item) => (
@@ -109,7 +117,9 @@ function QuestionsPage() {
           </SelectContent>
         </Select>
         <Select value={type || '_all'} onValueChange={(v) => { setType(v && v !== '_all' ? v : ''); setPage(1); }}>
-          <SelectTrigger className="w-36"><SelectValue placeholder="全部题型" /></SelectTrigger>
+          <SelectTrigger className="w-36">
+            <span className="truncate">{selectedTypeLabel}</span>
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="_all">全部题型</SelectItem>
             <SelectItem value="SINGLE">单选题</SelectItem>
