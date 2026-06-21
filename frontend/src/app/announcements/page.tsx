@@ -26,7 +26,7 @@ export default function AnnouncementsPage() {
       <div className="mb-5">
         <Badge variant="secondary" className="mb-2">公告</Badge>
         <h1 className="text-2xl font-semibold">公告中心</h1>
-        <p className="mt-1 text-sm text-muted-foreground">查看当前公告和历史公告。</p>
+        <p className="mt-1 text-sm text-muted-foreground">查看当前公告内容，了解系统主要学习功能。</p>
       </div>
 
       <Card>
@@ -48,7 +48,7 @@ export default function AnnouncementsPage() {
       </Card>
 
       <div className="mt-4 rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
-        历史公告会在管理员发布多条公告后展示；当前系统使用后台公告设置作为最新公告来源。
+        当前公告由管理员在后台系统设置中维护。用户在首页确认已阅读后，首页会折叠为公告标题入口。
       </div>
     </div>
   );

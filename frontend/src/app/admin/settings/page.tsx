@@ -76,6 +76,9 @@ export default function AdminSettingsPage() {
           <CardTitle>首页公告</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <p className="rounded-lg border bg-muted/40 p-3 text-sm leading-relaxed text-muted-foreground">
+            公告会在首页弹窗展示一次，用户点击“我已阅读”后首页只保留标题入口；公告中心用于查看当前公告内容。
+          </p>
           <div className="grid gap-2">
             <Label>是否显示</Label>
             <div className="flex gap-2">
@@ -108,7 +111,7 @@ export default function AdminSettingsPage() {
               id="announcementContent"
               value={getValue('announcementContent')}
               onChange={(e) => setValue('announcementContent', e.target.value)}
-              rows={6}
+              rows={9}
             />
           </div>
           <Button onClick={saveAnnouncement} className="w-fit">保存公告</Button>

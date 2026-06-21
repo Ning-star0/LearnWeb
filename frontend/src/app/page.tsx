@@ -31,12 +31,26 @@ interface Announcement {
 export default function HomePage() {
   const { user } = useAuth();
   const [books, setBooks] = useState<Book[]>([]);
+  const [selectedBookId, setSelectedBookId] = useState('');
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   const [showAnnouncement, setShowAnnouncement] = useState(false);
   const [announcementRead, setAnnouncementRead] = useState(false);
 
   useEffect(() => {
-    api.get('/books').then((res) => { if (res.code === 0) setBooks(res.data); });
+    api.get('/books').then((res) => {
+      if (res.code !== 0) return;
+      const list = res.data as Book[];
+      const storedBookId = localStorage.getItem('preferredBookId') || '';
+      const storedBook = list.find((book) => String(book.id) === storedBookId && book._count.questions > 0);
+      const fallbackBook = list.find((book) => book._count.questions > 0);
+      const nextBookId = String((storedBook || fallbackBook)?.id || '');
+
+      setBooks(list);
+      setSelectedBookId(nextBookId);
+      if (nextBookId && nextBookId !== storedBookId) {
+        localStorage.setItem('preferredBookId', nextBookId);
+      }
+    });
     api.get('/settings/announcement').then((res) => {
       if (res.code !== 0 || !res.data?.enabled) return;
       const data = res.data as Announcement;
@@ -56,8 +70,7 @@ export default function HomePage() {
     setShowAnnouncement(false);
   };
 
-  const preferredBookId = typeof window !== 'undefined' ? localStorage.getItem('preferredBookId') : '';
-  const preferredBook = books.find((book) => String(book.id) === preferredBookId && book._count.questions > 0)
+  const preferredBook = books.find((book) => String(book.id) === selectedBookId && book._count.questions > 0)
     || books.find((book) => book._count.questions > 0);
   const todayHref = preferredBook
     ? `/practice?mode=quiz&scope=book&bookId=${preferredBook.id}&order=sequential`
@@ -74,7 +87,7 @@ export default function HomePage() {
             </div>
             <h1 className="text-2xl font-semibold tracking-normal sm:text-3xl">今日学习</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              {preferredBook ? `默认教材：${preferredBook.name}` : '默认进入全部题库顺序练习'}
+              {preferredBook ? `当前选择教材：${preferredBook.name}` : '当前未选择教材，可先进入全部题库顺序练习'}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
