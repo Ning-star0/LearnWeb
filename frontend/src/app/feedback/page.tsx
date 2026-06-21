@@ -55,6 +55,7 @@ function FeedbackPage() {
   const [content, setContent] = useState('');
   const [items, setItems] = useState<FeedbackItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [retryAfter, setRetryAfter] = useState(0);
 
   const loadFeedbacks = async () => {
     const res = await api.get('/feedback/my');
@@ -69,6 +70,14 @@ function FeedbackPage() {
     }
     loadFeedbacks();
   }, [loading, user, router]);
+
+  useEffect(() => {
+    if (retryAfter <= 0) return;
+    const timer = window.setInterval(() => {
+      setRetryAfter((current) => Math.max(0, current - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [retryAfter]);
 
   const submit = async () => {
     if (!title.trim() || !content.trim()) {
@@ -89,6 +98,11 @@ function FeedbackPage() {
       setContent('');
       loadFeedbacks();
     } else {
+      if (res.retryAfter) {
+        setRetryAfter(Number(res.retryAfter));
+        toast.error(`提交太频繁，请 ${res.retryAfter} 秒后再试`);
+        return;
+      }
       toast.error(res.message || '提交失败');
     }
   };
@@ -151,9 +165,9 @@ function FeedbackPage() {
             />
             <div className="text-right text-xs text-muted-foreground">{content.length} / 2000</div>
           </div>
-          <Button onClick={submit} disabled={submitting} className="w-full sm:w-auto">
+          <Button onClick={submit} disabled={submitting || retryAfter > 0} className="w-full sm:w-auto">
             <Send className="size-4" />
-            {submitting ? '提交中...' : '提交反馈'}
+            {submitting ? '提交中...' : retryAfter > 0 ? `${retryAfter} 秒后可再反馈` : '提交反馈'}
           </Button>
         </CardContent>
       </Card>

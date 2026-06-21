@@ -94,6 +94,12 @@ export function Navbar() {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem>
+                    <Link href="/bookmarks" className="flex w-full items-center gap-2">
+                      <BookMarked className="size-4" />
+                      已收藏
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
                     <Link href="/feedback" className="flex w-full items-center gap-2">
                       <MessageSquare className="size-4" />
                       反馈

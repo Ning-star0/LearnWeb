@@ -12,12 +12,17 @@ import { Upload, Image } from 'lucide-react';
 
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<any[]>([]);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [announcementPinned, setAnnouncementPinned] = useState(false);
   const [qrUploading, setQrUploading] = useState(false);
   const qrFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     api.get('/admin/settings').then((res) => {
       if (res.code === 0) setSettings(res.data);
+    });
+    api.get('/settings/announcements').then((res) => {
+      if (res.code === 0) setAnnouncements(res.data || []);
     });
   }, []);
 
@@ -58,26 +63,33 @@ export default function AdminSettingsPage() {
   };
 
   const saveAnnouncement = async () => {
-    const results = await Promise.all(
-      announcementKeys.map((key) => {
-        const item = settings.find((s) => s.key === key);
-        return api.put(`/admin/settings/${key}`, { value: item?.value || '' });
-      }),
-    );
-    if (results.every((res) => res.code === 0)) toast.success('公告已保存');
+    const res = await api.post('/admin/settings/announcement', {
+      title: getValue('announcementTitle'),
+      content: getValue('announcementContent'),
+      enabled: getValue('announcementEnabled') !== 'false',
+      pinned: announcementPinned,
+    });
+    if (res.code === 0) {
+      toast.success('公告已发布');
+      api.get('/settings/announcements').then((listRes) => {
+        if (listRes.code === 0) setAnnouncements(listRes.data || []);
+      });
+    } else {
+      toast.error(res.message || '保存失败');
+    }
   };
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold mb-4">系统设置</h1>
 
-      <Card className="max-w-2xl">
+      <Card className="max-w-3xl">
         <CardHeader>
           <CardTitle>首页公告</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="rounded-lg border bg-muted/40 p-3 text-sm leading-relaxed text-muted-foreground">
-            公告会在首页弹窗展示一次，用户点击“我已阅读”后首页只保留标题入口；公告中心用于查看当前公告内容。
+            每次保存会发布成一条历史公告。首页优先展示未读公告；全部已读时只展示置顶公告或最新公告。
           </p>
           <div className="grid gap-2">
             <Label>是否显示</Label>
@@ -98,6 +110,25 @@ export default function AdminSettingsPage() {
             </div>
           </div>
           <div className="grid gap-2">
+            <Label>首页优先级</Label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={announcementPinned ? 'default' : 'outline'}
+                onClick={() => setAnnouncementPinned(true)}
+              >
+                置顶
+              </Button>
+              <Button
+                type="button"
+                variant={!announcementPinned ? 'default' : 'outline'}
+                onClick={() => setAnnouncementPinned(false)}
+              >
+                普通
+              </Button>
+            </div>
+          </div>
+          <div className="grid gap-2">
             <Label htmlFor="announcementTitle">公告标题</Label>
             <Input
               id="announcementTitle"
@@ -114,7 +145,28 @@ export default function AdminSettingsPage() {
               rows={9}
             />
           </div>
-          <Button onClick={saveAnnouncement} className="w-fit">保存公告</Button>
+          <Button onClick={saveAnnouncement} className="w-fit">发布公告</Button>
+
+          <div className="border-t pt-4">
+            <h3 className="mb-3 text-sm font-medium">历史公告</h3>
+            <div className="space-y-2">
+              {announcements.length === 0 && (
+                <p className="text-sm text-muted-foreground">暂无历史公告。</p>
+              )}
+              {announcements.slice(0, 20).map((item) => (
+                <div key={item.id} className="rounded-lg border p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="font-medium">{item.title}</div>
+                    <div className="flex gap-2 text-xs text-muted-foreground">
+                      {item.pinned && <span className="rounded border px-2 py-0.5">置顶</span>}
+                      <span>{new Date(item.createdAt).toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-sm text-muted-foreground">{item.content}</p>
+                </div>
+              ))}
+            </div>
+          </div>
         </CardContent>
       </Card>
 

@@ -29,6 +29,14 @@ export class AdminSettingsController {
     return this.settingsService.update(adminId, key, value);
   }
 
+  @Post('announcement')
+  async publishAnnouncement(
+    @CurrentUser('id') adminId: number,
+    @Body() body: { title: string; content: string; enabled?: boolean; pinned?: boolean },
+  ) {
+    return this.settingsService.publishAnnouncement(adminId, body);
+  }
+
   /** 上传收款二维码 */
   @Post('qrcode')
   @UseInterceptors(FileInterceptor('file'))

@@ -291,6 +291,7 @@ export default function BankUploadPage() {
       const res = await api.post('/admin/banks/import', {
         bookId: item.result.bookId,
         name: item.bankName.trim(),
+        sourceFile: item.file.name,
         questions: item.result.questions,
       });
 

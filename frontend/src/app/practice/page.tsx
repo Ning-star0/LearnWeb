@@ -78,6 +78,17 @@ interface SubmitResult {
   correctAnswer?: unknown;
 }
 
+interface AnswerState {
+  selectedOption?: string;
+  selectedOptions?: string[];
+  judgeAnswer?: boolean | null;
+  shortAnswer?: string;
+  submitted?: boolean;
+  result?: SubmitResult | null;
+  studyAction?: string | null;
+  quizUncertain?: boolean;
+}
+
 function PracticePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -109,6 +120,7 @@ function PracticePage() {
   const [quizUncertain, setQuizUncertain] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
   const [bookmarks, setBookmarks] = useState<Set<number>>(new Set());
+  const [answerStates, setAnswerStates] = useState<Record<number, AnswerState>>({});
   const [trialDialog, setTrialDialog] = useState<{ open: boolean; remaining: number }>({
     open: false,
     remaining: 5,
@@ -125,6 +137,28 @@ function PracticePage() {
     setStudyAction(null);
     setShowSupporterPrompt(false);
     setQuizUncertain(false);
+  };
+
+  const sessionKey = `practice:${mode}:${scope}:${bookId || 'all'}:${chapter || 'all'}:${type || 'all'}:${ids || 'all'}:${order}`;
+
+  const applyAnswerState = (state?: AnswerState) => {
+    setSelectedOption(state?.selectedOption || '');
+    setSelectedOptions(state?.selectedOptions || []);
+    setJudgeAnswer(state?.judgeAnswer ?? null);
+    setShortAnswer(state?.shortAnswer || '');
+    setSubmitted(Boolean(state?.submitted));
+    setResult(state?.result || null);
+    setStudyAction(state?.studyAction || null);
+    setQuizUncertain(Boolean(state?.quizUncertain));
+    setAiExplanation(null);
+    setShowSupporterPrompt(false);
+  };
+
+  const saveAnswerState = (questionId: number, patch: AnswerState) => {
+    setAnswerStates((current) => ({
+      ...current,
+      [questionId]: { ...(current[questionId] || {}), ...patch },
+    }));
   };
 
   useEffect(() => {
@@ -149,9 +183,21 @@ function PracticePage() {
     api.get(`/practice/questions?${params.toString()}`)
       .then((res) => {
         if (res.code === 0) {
-          setQuestions(res.data);
-          setCurrentIndex(0);
-          resetState();
+          const list = res.data || [];
+          let savedIndex = 0;
+          let savedAnswers: Record<number, AnswerState> = {};
+          const saved = localStorage.getItem(sessionKey);
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (parsed.index < list.length) savedIndex = parsed.index;
+              if (parsed.answers && typeof parsed.answers === 'object') savedAnswers = parsed.answers;
+            } catch {}
+          }
+          setQuestions(list);
+          setAnswerStates(savedAnswers);
+          setCurrentIndex(savedIndex);
+          applyAnswerState(savedAnswers[list[savedIndex]?.id]);
         } else {
           setQuestions([]);
           setLoadError(res.message || '题目加载失败');
@@ -163,24 +209,17 @@ function PracticePage() {
       })
       .finally(() => setLoading(false));
 
-    // 恢复上次进度
-    const saved = localStorage.getItem(`practice:${mode}:${scope}`);
-    if (saved) {
-      try {
-        const { index } = JSON.parse(saved);
-        if (index < questions.length) setCurrentIndex(index);
-      } catch {}
-    }
-  }, [authLoading, user, mode, scope, bookId, chapter, ids, type, order, restart, router]);
+  }, [authLoading, user, mode, scope, bookId, chapter, ids, type, order, restart, router, sessionKey]);
 
   // 退出时保存进度
   useEffect(() => {
     const saveProgress = () => {
       localStorage.setItem(`practice:${mode}:${scope}`, JSON.stringify({ index: currentIndex }));
+      localStorage.setItem(sessionKey, JSON.stringify({ index: currentIndex, answers: answerStates }));
     };
     window.addEventListener('beforeunload', saveProgress);
     return () => { saveProgress(); window.removeEventListener('beforeunload', saveProgress); };
-  }, [mode, scope, currentIndex]);
+  }, [mode, scope, currentIndex, answerStates, sessionKey]);
 
   const toggleBookmark = async (qid: number) => {
     if (bookmarks.has(qid)) {
@@ -218,6 +257,11 @@ function PracticePage() {
   const currentQuestion = questions[currentIndex];
   const progress = questions.length > 0 ? Math.round(((currentIndex + 1) / questions.length) * 100) : 0;
   const correctAnswer = submitted && result ? result.correctAnswer : currentQuestion?.answerJson;
+
+  useEffect(() => {
+    if (!currentQuestion) return;
+    applyAnswerState(answerStates[currentQuestion.id]);
+  }, [currentQuestion?.id]);
   const canGoPrevious = currentIndex > 0;
   const isLastQuestion = currentIndex >= questions.length - 1;
   const currentStudyStatus = studyAction || currentQuestion?.studyStatus || 'unmarked';
@@ -291,6 +335,7 @@ function PracticePage() {
   const handleStudyAction = useCallback(async (action: 'remembered' | 'not_remembered') => {
     if (!currentQuestion) return;
     setStudyAction(action);
+    saveAnswerState(currentQuestion.id, { studyAction: action });
     setQuestions((current) =>
       current.map((question, index) =>
         index === currentIndex ? { ...question, studyStatus: action } : question,
@@ -358,6 +403,15 @@ function PracticePage() {
     setSubmitted(true);
     const submitResult = res.data || res;
     setResult(submitResult);
+    saveAnswerState(currentQuestion.id, {
+      selectedOption: currentQuestion.type === 'SINGLE' ? String(userAnswer || '') : selectedOption,
+      selectedOptions: currentQuestion.type === 'MULTIPLE' && Array.isArray(userAnswer) ? userAnswer : selectedOptions,
+      judgeAnswer: currentQuestion.type === 'JUDGE' ? Boolean(userAnswer) : judgeAnswer,
+      shortAnswer,
+      submitted: true,
+      result: submitResult,
+      quizUncertain: isUncertain,
+    });
 
     // 记录答题状态
     const quizStatus = isUncertain ? 'uncertain' as const
@@ -373,12 +427,14 @@ function PracticePage() {
   const handleSingleAnswer = (label: string) => {
     if (submitted || mode === 'study') return;
     setSelectedOption(label);
+    if (currentQuestion) saveAnswerState(currentQuestion.id, { selectedOption: label });
     handleSubmit(label);
   };
 
   const handleJudgeAnswer = (value: boolean) => {
     if (submitted || mode === 'study') return;
     setJudgeAnswer(value);
+    if (currentQuestion) saveAnswerState(currentQuestion.id, { judgeAnswer: value });
     handleSubmit(value);
   };
 
@@ -539,7 +595,9 @@ function PracticePage() {
                             checked={selected}
                             onCheckedChange={(checked) => {
                               if (!submitted && mode !== 'study') {
-                                setSelectedOptions(checked ? [...selectedOptions, opt.label] : selectedOptions.filter((item) => item !== opt.label));
+                                const next = checked ? [...selectedOptions, opt.label] : selectedOptions.filter((item) => item !== opt.label);
+                                setSelectedOptions(next);
+                                saveAnswerState(currentQuestion.id, { selectedOptions: next });
                               }
                             }}
                             disabled={submitted || mode === 'study'}
@@ -619,7 +677,10 @@ function PracticePage() {
                     <Textarea
                       placeholder="输入你的答案，提交后对照参考答案自查。"
                       value={shortAnswer}
-                      onChange={(event) => setShortAnswer(event.target.value)}
+                      onChange={(event) => {
+                        setShortAnswer(event.target.value);
+                        saveAnswerState(currentQuestion.id, { shortAnswer: event.target.value });
+                      }}
                       rows={7}
                     />
                   )}

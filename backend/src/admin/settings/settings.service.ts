@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 
 const OLD_ANNOUNCEMENT_CONTENT =
@@ -65,5 +66,75 @@ export class AdminSettingsService {
     });
 
     return updated;
+  }
+
+  async publishAnnouncement(
+    adminId: number,
+    data: { title: string; content: string; enabled?: boolean; pinned?: boolean },
+  ) {
+    const title = data.title?.trim();
+    const content = data.content?.trim();
+    if (!title || !content) {
+      throw new BadRequestException('公告标题和内容不能为空');
+    }
+
+    const current = await this.prisma.systemSetting.findUnique({
+      where: { key: 'announcementItems' },
+    });
+    let items: any[] = [];
+    if (current?.value) {
+      try {
+        const parsed = JSON.parse(current.value);
+        if (Array.isArray(parsed)) items = parsed;
+      } catch {}
+    }
+
+    const nextItem = {
+      id: randomUUID(),
+      title,
+      content,
+      enabled: data.enabled !== false,
+      pinned: Boolean(data.pinned),
+      createdAt: new Date().toISOString(),
+    };
+    const nextItems = [
+      nextItem,
+      ...items.map((item) => ({ ...item, pinned: data.pinned ? false : Boolean(item.pinned) })),
+    ].slice(0, 100);
+
+    await this.prisma.systemSetting.upsert({
+      where: { key: 'announcementItems' },
+      update: { value: JSON.stringify(nextItems) },
+      create: { key: 'announcementItems', value: JSON.stringify(nextItems) },
+    });
+
+    await Promise.all([
+      this.prisma.systemSetting.upsert({
+        where: { key: 'announcementEnabled' },
+        update: { value: String(nextItem.enabled) },
+        create: { key: 'announcementEnabled', value: String(nextItem.enabled) },
+      }),
+      this.prisma.systemSetting.upsert({
+        where: { key: 'announcementTitle' },
+        update: { value: title },
+        create: { key: 'announcementTitle', value: title },
+      }),
+      this.prisma.systemSetting.upsert({
+        where: { key: 'announcementContent' },
+        update: { value: content },
+        create: { key: 'announcementContent', value: content },
+      }),
+    ]);
+
+    await this.prisma.adminLog.create({
+      data: {
+        adminId,
+        action: 'PUBLISH_ANNOUNCEMENT',
+        target: `Announcement:${nextItem.id}`,
+        detail: `发布公告: ${title}`,
+      },
+    });
+
+    return nextItem;
   }
 }

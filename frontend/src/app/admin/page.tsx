@@ -29,6 +29,8 @@ export default function AdminDashboard() {
           ['错题总数', stats.wrongCount],
           ['AI 解析', stats.aiCount],
           ['支持者', stats.supporterCount],
+          ['在线用户', stats.onlineUserCount],
+          ['登录会话', stats.activeSessionCount],
         ].map(([label, value]) => (
           <Card key={label}>
             <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{label}</CardTitle></CardHeader>
@@ -57,6 +59,44 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="mt-6">
+        <CardHeader><CardTitle className="text-lg">当前登录会话</CardTitle></CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-muted-foreground">
+                  <th className="py-2 pr-3">用户</th>
+                  <th className="py-2 pr-3">角色</th>
+                  <th className="py-2 pr-3">IP</th>
+                  <th className="py-2 pr-3">登录时间</th>
+                  <th className="py-2 pr-3">过期时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.activeSessions?.map((session: any) => (
+                  <tr key={session.id} className="border-b last:border-0">
+                    <td className="py-2 pr-3">
+                      <div className="font-medium">{session.user?.username}</div>
+                      <div className="text-xs text-muted-foreground">{session.user?.email}</div>
+                    </td>
+                    <td className="py-2 pr-3">{session.user?.role}</td>
+                    <td className="py-2 pr-3">{session.ip || '-'}</td>
+                    <td className="py-2 pr-3">{new Date(session.createdAt).toLocaleString()}</td>
+                    <td className="py-2 pr-3">{new Date(session.expiresAt).toLocaleString()}</td>
+                  </tr>
+                ))}
+                {(!stats.activeSessions || stats.activeSessions.length === 0) && (
+                  <tr>
+                    <td colSpan={5} className="py-4 text-center text-muted-foreground">暂无有效登录会话</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

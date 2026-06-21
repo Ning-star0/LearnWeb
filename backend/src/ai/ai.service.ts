@@ -214,7 +214,7 @@ ${optionsText}
     let tokensOut = 0;
     try {
       const result = await this.callAiApi(model, prompt);
-      content = result.content;
+      content = this.normalizeAiJsonContent(result.content);
       tokensIn = result.tokensIn;
       tokensOut = result.tokensOut;
     } catch (e: any) {
@@ -465,6 +465,7 @@ ${optionsText}
       },
       body: JSON.stringify({
         model,
+        response_format: { type: 'json_object' },
         messages: [
           {
             role: 'system',
@@ -486,5 +487,36 @@ ${optionsText}
       tokensIn: data.usage?.prompt_tokens || 0,
       tokensOut: data.usage?.completion_tokens || 0,
     };
+  }
+
+  private normalizeAiJsonContent(content: string) {
+    const trimmed = String(content || '').trim();
+    try {
+      return JSON.stringify(JSON.parse(trimmed));
+    } catch {}
+
+    const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]?.trim();
+    if (fenced) {
+      try {
+        return JSON.stringify(JSON.parse(fenced));
+      } catch {}
+    }
+
+    const start = trimmed.indexOf('{');
+    const end = trimmed.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      const jsonText = trimmed.slice(start, end + 1);
+      try {
+        return JSON.stringify(JSON.parse(jsonText));
+      } catch {}
+    }
+
+    return JSON.stringify({
+      knowledgePoint: '',
+      correctReason: trimmed || 'AI 解析返回格式异常，请管理员重新生成。',
+      wrongReason: '',
+      memoryTip: '',
+      similarJudge: '',
+    });
   }
 }

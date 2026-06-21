@@ -39,10 +39,11 @@ export class RateLimitGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest();
 
-    // SUPER_ADMIN 跳过所有限流（除非显式禁用）
+    // 管理员跳过应用层限流（除非显式禁用），保证后台操作优先可用。
     if (config.skipSuperAdmin !== false) {
       const user = request.user;
-      if (user?.role === 'SUPER_ADMIN') return true;
+      const role = user?.role || this.getRoleFromAuthorization(request);
+      if (role === 'ADMIN' || role === 'SUPER_ADMIN') return true;
     }
 
     const key = this.buildKey(config, request);
@@ -72,5 +73,21 @@ export class RateLimitGuard implements CanActivate {
     }
     const ip = request.ip || request.connection?.remoteAddress || 'unknown';
     return `rl:${config.keyPrefix}:${ip}`;
+  }
+
+  private getRoleFromAuthorization(request: any): string | undefined {
+    const header = request.headers?.authorization || '';
+    const token = typeof header === 'string' && header.startsWith('Bearer ')
+      ? header.slice('Bearer '.length)
+      : '';
+    const payload = token.split('.')[1];
+    if (!payload) return undefined;
+    try {
+      const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+      const decoded = JSON.parse(Buffer.from(normalized, 'base64').toString('utf8'));
+      return decoded?.role;
+    } catch {
+      return undefined;
+    }
   }
 }

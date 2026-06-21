@@ -7,6 +7,10 @@ import * as crypto from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../common/redis/redis.service';
 import { parseExcel, ParsedQuestion } from '../../common/utils/excel-parser';
+import {
+  normalizeQuestionAnswer,
+  shuffleOptionsAndAnswer,
+} from '../../common/utils/question-answer';
 
 // 放宽限制，更大的文件和更多题目
 const MAX_PARSE_ROWS = Number(process.env.QUESTION_IMPORT_MAX_ROWS || 50000);
@@ -64,6 +68,7 @@ export class BanksService {
     data: {
       bookId: number;
       name: string;
+      sourceFile?: string;
       questions: ParsedQuestion[];
     },
   ) {
@@ -98,6 +103,7 @@ export class BanksService {
           userId: adminId,
           bookId: data.bookId,
           name: data.name,
+          sourceFile: data.sourceFile,
           isPublic: true,
         },
       });
@@ -148,6 +154,12 @@ export class BanksService {
                 continue;
               }
 
+              const randomized = shuffleOptionsAndAnswer(
+                q.type,
+                q.options,
+                q.answerJson,
+              );
+
               try {
                 await tx.question.create({
                   data: {
@@ -164,11 +176,11 @@ export class BanksService {
                     score: q.score,
                     gradingMethod: q.gradingMethod,
                     contentHash,
-                    answerRaw: q.answerRaw,
-                    answerJson: q.answerJson,
+                    answerRaw: randomized.answerRaw || q.answerRaw,
+                    answerJson: randomized.answerJson as any,
                     isPublished: true,
                     options: {
-                      create: q.options.map((o) => ({
+                      create: randomized.options.map((o) => ({
                         label: o.label,
                         content: o.content,
                         orderNo: o.orderNo,
@@ -266,8 +278,6 @@ export class BanksService {
     if (q.preface) data.preface = q.preface;
     if (q.score !== undefined) data.score = q.score;
     if (q.gradingMethod) data.gradingMethod = q.gradingMethod;
-    if (q.answerRaw) data.answerRaw = q.answerRaw;
-    if (q.answerJson !== undefined && q.answerJson !== null) data.answerJson = q.answerJson;
     return data;
   }
 
@@ -290,6 +300,10 @@ export class BanksService {
             `第 ${q.rawRow} 行选项 ${option.label} 过长（${option.content.length}/${MAX_OPTION_LENGTH} 字）`,
           );
         }
+      }
+      const normalized = normalizeQuestionAnswer(q.answerRaw || '', q.type, q.options);
+      if (normalized.errors.length > 0) {
+        errors.push(`第 ${q.rawRow} 行答案错误：${normalized.errors.join('，')}`);
       }
     }
     if (errors.length > 0) {

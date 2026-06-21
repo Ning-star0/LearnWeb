@@ -20,6 +20,7 @@ export class AdminController {
       supporterCount,
       recentBanks,
       recentUsers,
+      activeSessions,
     ] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.book.count(),
@@ -45,7 +46,21 @@ export class AdminController {
         orderBy: { createdAt: 'desc' },
         take: 5,
       }),
+      this.prisma.session.findMany({
+        where: { revokedAt: null, expiresAt: { gt: new Date() } },
+        select: {
+          id: true,
+          ip: true,
+          userAgent: true,
+          createdAt: true,
+          expiresAt: true,
+          user: { select: { id: true, username: true, email: true, role: true } },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 100,
+      }),
     ]);
+    const onlineUserIds = new Set(activeSessions.map((session) => session.user.id));
 
     return {
       userCount,
@@ -56,6 +71,9 @@ export class AdminController {
       wrongCount,
       aiCount,
       supporterCount,
+      onlineUserCount: onlineUserIds.size,
+      activeSessionCount: activeSessions.length,
+      activeSessions,
       recentBanks,
       recentUsers,
     };

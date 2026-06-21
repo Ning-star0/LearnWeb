@@ -23,18 +23,22 @@ interface Book {
 }
 
 interface Announcement {
+  id: string;
   enabled: boolean;
   title: string;
   content: string;
+  pinned?: boolean;
+  createdAt?: string;
 }
 
 export default function HomePage() {
   const { user } = useAuth();
   const [books, setBooks] = useState<Book[]>([]);
   const [selectedBookId, setSelectedBookId] = useState('');
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   const [showAnnouncement, setShowAnnouncement] = useState(false);
-  const [announcementRead, setAnnouncementRead] = useState(false);
+  const [readAnnouncementIds, setReadAnnouncementIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     api.get('/books').then((res) => {
@@ -51,23 +55,36 @@ export default function HomePage() {
         localStorage.setItem('preferredBookId', nextBookId);
       }
     });
-    api.get('/settings/announcement').then((res) => {
-      if (res.code !== 0 || !res.data?.enabled) return;
-      const data = res.data as Announcement;
-      const key = `announcementRead:${data.title}:${data.content}`;
-      const read = localStorage.getItem(key) === 'true';
-      setAnnouncement(data);
-      setAnnouncementRead(read);
-      if (!read) setShowAnnouncement(true);
+    api.get('/settings/announcements').then((res) => {
+      if (res.code !== 0 || !Array.isArray(res.data)) return;
+      const list = (res.data as Announcement[]).filter((item) => item.enabled);
+      const readIds = new Set(
+        list
+          .filter((item) => localStorage.getItem(`announcementRead:${item.id}`) === 'true')
+          .map((item) => item.id),
+      );
+      const unread = list.filter((item) => !readIds.has(item.id));
+      const displayList = unread.length > 0
+        ? unread
+        : list.filter((item) => item.pinned).slice(0, 1).concat(list.filter((item) => !item.pinned).slice(0, 1)).slice(0, 1);
+      setAnnouncements(displayList);
+      setAnnouncement(displayList[0] || null);
+      setReadAnnouncementIds(readIds);
+      if (unread.length > 0 && displayList[0]) setShowAnnouncement(true);
     });
   }, []);
 
   const markAnnouncementRead = () => {
     if (announcement) {
-      localStorage.setItem(`announcementRead:${announcement.title}:${announcement.content}`, 'true');
+      localStorage.setItem(`announcementRead:${announcement.id}`, 'true');
+      setReadAnnouncementIds((current) => new Set(current).add(announcement.id));
     }
-    setAnnouncementRead(true);
-    setShowAnnouncement(false);
+    const nextUnread = announcements.find((item) => item.id !== announcement?.id && !readAnnouncementIds.has(item.id));
+    if (nextUnread) {
+      setAnnouncement(nextUnread);
+    } else {
+      setShowAnnouncement(false);
+    }
   };
 
   const preferredBook = books.find((book) => String(book.id) === selectedBookId && book._count.questions > 0)
@@ -104,25 +121,33 @@ export default function HomePage() {
         </div>
       </section>
 
-      {announcement && (
+      {announcements.length > 0 && (
         <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50/60 p-3 text-sm text-blue-800">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <button
-              type="button"
-              onClick={() => setShowAnnouncement(true)}
-              className="flex min-w-0 items-center gap-2 text-left font-medium"
-            >
-              <Bell className="size-4 shrink-0" />
-              <span className="truncate">{announcement.title}</span>
-              {announcementRead && <Badge variant="outline" className="bg-white text-blue-700">已读</Badge>}
-            </button>
+          <div className="flex flex-col gap-2">
+            {announcements.map((item) => {
+              const read = readAnnouncementIds.has(item.id);
+              return (
+                <div key={item.id} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <button
+                    type="button"
+                    onClick={() => { setAnnouncement(item); setShowAnnouncement(true); }}
+                    className="flex min-w-0 items-center gap-2 text-left font-medium"
+                  >
+                    <Bell className="size-4 shrink-0" />
+                    <span className="truncate">{item.title}</span>
+                    {item.pinned && <Badge variant="outline" className="bg-white text-blue-700">置顶</Badge>}
+                    {read && <Badge variant="outline" className="bg-white text-blue-700">已读</Badge>}
+                  </button>
+                  {!read && (
+                    <p className="line-clamp-2 text-xs leading-relaxed text-blue-700/80 sm:hidden">{item.content}</p>
+                  )}
+                </div>
+              );
+            })}
             <Link href="/announcements" className="text-xs font-medium text-blue-700 hover:text-blue-900">
               查看历史公告
             </Link>
           </div>
-          {!announcementRead && (
-            <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-blue-700/80">{announcement.content}</p>
-          )}
         </div>
       )}
 

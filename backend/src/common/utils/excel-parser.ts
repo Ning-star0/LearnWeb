@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { normalizeQuestionAnswer } from './question-answer';
 
 export interface ParsedQuestion {
   orderNo: number;
@@ -189,7 +190,8 @@ function parseRow(row: any[], index: number): ParsedQuestion | null {
   }
 
   // 解析答案
-  const { answerRaw, answerJson } = parseAnswer(answerColumn, type, options);
+  const parsedAnswer = normalizeQuestionAnswer(answerColumn, type, options);
+  errors.push(...parsedAnswer.errors);
   const isManualShort =
     type === 'SHORT' &&
     (typeRaw.includes('手动评分') || fifthColumn.includes('简答'));
@@ -205,8 +207,8 @@ function parseRow(row: any[], index: number): ParsedQuestion | null {
     preface: format === 'preface' ? fifthColumn || undefined : undefined,
     score: parsedScore,
     gradingMethod: isManualShort ? '手动评分' : undefined,
-    answerRaw,
-    answerJson,
+    answerRaw: parsedAnswer.answerRaw,
+    answerJson: parsedAnswer.answerJson,
     options,
     rawRow: index + 2,
     errors,
@@ -284,57 +286,4 @@ function removeDuplicateScore(stem: string, score?: number) {
     .replace(new RegExp(`\\s*[（(]\\s*${escaped}\\s*分\\s*[）)]\\s*$`), '')
     .replace(new RegExp(`\\s+${escaped}\\s*分\\s*$`), '')
     .trim();
-}
-
-function parseAnswer(
-  raw: string,
-  type: string,
-  options: { label: string; content: string }[],
-): { answerRaw: string; answerJson: any } {
-  const trimmed = raw.trim();
-
-  switch (type) {
-    case 'SINGLE': {
-      // 1 -> A, 2 -> B, 3 -> C, etc.
-      const optionLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-      const num = parseInt(trimmed);
-      if (!isNaN(num) && num >= 1 && num <= optionLabels.length) {
-        return { answerRaw: trimmed, answerJson: [optionLabels[num - 1]] };
-      }
-      return { answerRaw: trimmed, answerJson: [trimmed] };
-    }
-
-    case 'MULTIPLE': {
-      // 兼容 1,2,3 和 1，2，3（中文逗号）
-      const normalized = trimmed.replace(/，/g, ',');
-      const parts = normalized
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
-      const optionLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-      const labels = parts.map((p) => {
-        const num = parseInt(p);
-        if (!isNaN(num) && num >= 1 && num <= optionLabels.length) {
-          return optionLabels[num - 1];
-        }
-        return p;
-      });
-      return { answerRaw: trimmed, answerJson: labels };
-    }
-
-    case 'JUDGE': {
-      const lower = trimmed.toLowerCase();
-      if (lower === 'true' || lower === '正确' || lower === '对') {
-        return { answerRaw: trimmed, answerJson: true };
-      }
-      return { answerRaw: trimmed, answerJson: false };
-    }
-
-    case 'SHORT': {
-      return { answerRaw: trimmed, answerJson: trimmed };
-    }
-
-    default:
-      return { answerRaw: trimmed, answerJson: null };
-  }
 }

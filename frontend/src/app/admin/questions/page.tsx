@@ -2,10 +2,11 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Edit3, Save, Search, X } from 'lucide-react';
+import { Edit3, Save, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
@@ -65,11 +66,18 @@ function AdminQuestionsPage() {
     });
     if (res.code === 0) {
       toast.success('已保存');
+      api.clearCache('/questions');
       setEditing(null);
-      setQuestions((prev) => prev.map((q) => (q.id === editing.id ? { ...q, stem: editStem } : q)));
+      setQuestions((prev) => prev.map((q) => (q.id === editing.id ? { ...q, ...res.data } : q)));
     } else {
       toast.error(res.message || '保存失败');
     }
+  };
+
+  const formatAnswer = (value: unknown) => {
+    if (Array.isArray(value)) return value.join(', ');
+    if (typeof value === 'boolean') return value ? '正确' : '错误';
+    return String(value ?? '');
   };
 
   return (
@@ -91,18 +99,28 @@ function AdminQuestionsPage() {
             {Object.entries(TYPE_LABEL).map(([k, v]) => (<SelectItem key={k} value={k}>{v}</SelectItem>))}
           </SelectContent>
         </Select>
-        <Input placeholder="搜索题干..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} className="max-w-xs" />
+        <div className="relative w-full max-w-sm">
+          <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" />
+          <Input placeholder="搜索题干..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} className="pl-9" />
+        </div>
       </div>
 
       <div className="space-y-2">
         {questions.map((q) => (
           <Card key={q.id} className="p-3">
-            <div className="flex items-start gap-2">
-              <div className="flex gap-1 shrink-0">
+            <div className="flex items-start gap-3">
+              <div className="flex flex-wrap gap-1 shrink-0">
                 <Badge variant="outline">{TYPE_LABEL[q.type]}</Badge>
                 <Badge variant="secondary">{q.book?.name}</Badge>
               </div>
-              <p className="text-sm flex-1 line-clamp-2">{q.stem}</p>
+              <div className="min-w-0 flex-1 space-y-2">
+                <p className="text-sm line-clamp-2">{q.stem}</p>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <span>答案：{formatAnswer(q.answerJson ?? q.answerRaw)}</span>
+                  <span>题库：{q.bank?.name || '-'}</span>
+                  <span>文件：{q.bank?.sourceFile || '未记录'}</span>
+                </div>
+              </div>
               <Button size="sm" variant="ghost" onClick={() => openEditor(q)}>
                 <Edit3 className="size-3 mr-1" />编辑
               </Button>
@@ -125,13 +143,13 @@ function AdminQuestionsPage() {
               <div><Badge>{TYPE_LABEL[editing.type]}</Badge> <Badge variant="secondary">{editing.book?.name}</Badge></div>
               <div className="space-y-2">
                 <Label>题干</Label>
-                <Input value={editStem} onChange={(e) => setEditStem(e.target.value)} />
+                <Textarea value={editStem} onChange={(e) => setEditStem(e.target.value)} rows={5} />
               </div>
               {editing.type !== 'SHORT' && (
                 <div className="space-y-2">
                   <Label>选项</Label>
                   {editOptions.map((o, i) => (
-                    <div key={o.label} className="flex gap-2">
+                    <div key={`${o.label}-${i}`} className="flex gap-2">
                       <span className="w-8 text-center font-bold pt-2">{o.label}</span>
                       <Input value={o.content} onChange={(e) => {
                         const next = [...editOptions];
@@ -145,6 +163,9 @@ function AdminQuestionsPage() {
               <div className="space-y-2">
                 <Label>正确答案 {editing.type === 'JUDGE' ? '(True/False)' : editing.type === 'SHORT' ? '(参考答案文本)' : `(如: ${editing.type === 'MULTIPLE' ? 'A,B' : 'A'})`}</Label>
                 <Input value={editAnswer} onChange={(e) => setEditAnswer(e.target.value)} />
+                <p className="text-xs text-muted-foreground">
+                  保存时会同步更新判题用答案；客观题答案必须能对应上当前选项标签。
+                </p>
               </div>
               <Button onClick={saveQuestion} className="w-full"><Save className="size-4 mr-1" />保存修改</Button>
             </div>

@@ -10,7 +10,7 @@ export class FeedbackController {
   constructor(private feedbackService: FeedbackService) {}
 
   @Post()
-  @RateLimit({ points: 2, duration: 60, keyPrefix: 'feedback-submit' })
+  @RateLimit({ points: 1, duration: 10, keyPrefix: 'feedback-submit' })
   async create(
     @CurrentUser('id') userId: number,
     @Body()

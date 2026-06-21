@@ -9,4 +9,9 @@ export class SettingsController {
   async getAnnouncement() {
     return this.settingsService.getAnnouncement();
   }
+
+  @Get('announcements')
+  async getAnnouncements() {
+    return this.settingsService.getAnnouncements();
+  }
 }

@@ -14,11 +14,61 @@ const ANNOUNCEMENT_DEFAULTS = {
     '大家好，我创建这个网站，是希望把政治、思政课程复习中分散的题目整理到一个更方便使用的学习平台里。\n\n很多同学复习时会在 Excel、截图、文档和纸质资料之间来回查找题目，效率比较低，也不容易持续整理错题和不熟悉的内容。所以我做了这个系统，希望大家可以更方便地选择教材、章节和题型，进行背题、答题、错题复习，并在需要时查看 AI 解析。\n\n这个网站能帮助大家减少重复翻资料的时间，把更多精力放在理解知识点和巩固记忆上。无论是平时复习，还是期末备考，都可以用它来更系统地安排学习。\n\n目前网站还在不断优化中，功能和体验都会继续完善。如果你在使用过程中发现任何问题，或者有更好的建议，请及时通过反馈入口告诉我。',
 };
 
+export interface AnnouncementItem {
+  id: string;
+  title: string;
+  content: string;
+  enabled: boolean;
+  pinned: boolean;
+  createdAt: string;
+}
+
 @Injectable()
 export class SettingsService {
   constructor(private prisma: PrismaService) {}
 
   async getAnnouncement() {
+    const announcements = await this.getAnnouncements();
+    const visible = announcements.filter((item) => item.enabled);
+    const pinned = visible.find((item) => item.pinned);
+    return pinned || visible[0] || {
+      enabled: false,
+      title: '',
+      content: '',
+      pinned: false,
+      id: '',
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  async getAnnouncements(): Promise<AnnouncementItem[]> {
+    const history = await this.prisma.systemSetting.findUnique({
+      where: { key: 'announcementItems' },
+    });
+    if (history?.value) {
+      try {
+        const parsed = JSON.parse(history.value);
+        if (Array.isArray(parsed)) {
+          return parsed
+            .filter((item) => item?.title && item?.content)
+            .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || String(b.createdAt).localeCompare(String(a.createdAt)));
+        }
+      } catch {}
+    }
+
+    const legacy = await this.getLegacyAnnouncement();
+    if (!legacy.enabled) return [];
+    return [{
+      id: `legacy-${Buffer.from(`${legacy.title}:${legacy.content}`).toString('base64').slice(0, 16)}`,
+      title: legacy.title,
+      content: legacy.content,
+      enabled: legacy.enabled,
+      pinned: false,
+      createdAt: new Date(0).toISOString(),
+    }];
+  }
+
+  private async getLegacyAnnouncement() {
     const settings = await this.prisma.systemSetting.findMany({
       where: {
         key: {

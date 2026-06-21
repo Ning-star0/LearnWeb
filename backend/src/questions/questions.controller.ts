@@ -1,9 +1,10 @@
-import { Controller, Get, Put, Query, Param, ParseIntPipe, Body, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, ParseIntPipe, Put, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../common/guards/optional-jwt-auth.guard';
 import { AdminGuard } from '../common/guards/admin.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
+import { normalizeQuestionAnswer } from '../common/utils/question-answer';
 
 @Controller('questions')
 export class QuestionsController {
@@ -20,9 +21,11 @@ export class QuestionsController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('mode') mode?: string, // 'wrong' | 'correct' | 'all'
+    @CurrentUser() user?: any,
     @CurrentUser('id') userId?: number,
   ) {
-    const where: any = { isPublished: true };
+    const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+    const where: any = isAdmin ? {} : { isPublished: true };
     if (bookId) where.bookId = parseInt(bookId);
     if (chapter) where.chapter = chapter;
     if (type) where.type = type;
@@ -38,8 +41,10 @@ export class QuestionsController {
           id: true, type: true, stem: true,
           chapter: true, knowledgePoint: true, difficulty: true, courseObjective: true, score: true,
           book: { select: { id: true, name: true } },
+          bank: { select: { id: true, name: true, sourceFile: true } },
           options: { select: { label: true, content: true }, orderBy: { orderNo: 'asc' } },
-          answerJson: mode === 'study', // study mode shows answer
+          answerRaw: isAdmin,
+          answerJson: isAdmin || mode === 'study', // study/admin mode shows answer
         },
         orderBy: { createdAt: 'desc' },
         skip: (p - 1) * ps,
@@ -104,24 +109,50 @@ export class QuestionsController {
   ) {
     const { stem, type, answerRaw, options } = body;
 
-    if (options) {
-      // 删除旧选项，重新创建
-      await this.prisma.option.deleteMany({ where: { questionId: id } });
-      await this.prisma.option.createMany({
-        data: options.map((o, i) => ({
-          questionId: id, label: o.label, content: o.content, orderNo: i,
-        })),
-      });
+    const existing = await this.prisma.question.findUnique({
+      where: { id },
+      include: { options: { orderBy: { orderNo: 'asc' } } },
+    });
+    if (!existing) throw new BadRequestException('题目不存在');
+
+    const nextType = type || existing.type;
+    const nextOptions = options ?? existing.options.map((option) => ({
+      label: option.label,
+      content: option.content,
+    }));
+    const nextAnswerRaw = answerRaw !== undefined ? answerRaw : existing.answerRaw || '';
+    const normalizedAnswer = normalizeQuestionAnswer(nextAnswerRaw, nextType, nextOptions);
+    if (normalizedAnswer.errors.length > 0) {
+      throw new BadRequestException(normalizedAnswer.errors.join('；'));
     }
 
-    const updated = await this.prisma.question.update({
-      where: { id },
-      data: {
-        ...(stem ? { stem } : {}),
-        ...(type ? { type: type as any } : {}),
-        ...(answerRaw ? { answerRaw } : {}),
-      },
-      include: { options: { orderBy: { orderNo: 'asc' } }, book: { select: { id: true, name: true } } },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (options) {
+        await tx.option.deleteMany({ where: { questionId: id } });
+        await tx.option.createMany({
+          data: nextOptions.map((o, i) => ({
+            questionId: id,
+            label: o.label,
+            content: o.content,
+            orderNo: i + 1,
+          })),
+        });
+      }
+
+      return tx.question.update({
+        where: { id },
+        data: {
+          ...(stem !== undefined ? { stem } : {}),
+          ...(type !== undefined ? { type: type as any } : {}),
+          answerRaw: normalizedAnswer.answerRaw,
+          answerJson: normalizedAnswer.answerJson as any,
+        },
+        include: {
+          options: { orderBy: { orderNo: 'asc' } },
+          book: { select: { id: true, name: true } },
+          bank: { select: { id: true, name: true, sourceFile: true } },
+        },
+      });
     });
 
     return { code: 0, data: updated };
