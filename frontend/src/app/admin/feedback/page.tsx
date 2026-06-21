@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
@@ -20,6 +20,14 @@ const TYPE_LABELS: Record<string, string> = {
 const STATUS_COLORS: Record<string, string> = {
   PENDING: 'bg-yellow-100', PROCESSING: 'bg-blue-100',
   RESOLVED: 'bg-green-100', REJECTED: 'bg-gray-100', CLOSED: 'bg-gray-100',
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  PENDING: '待处理',
+  PROCESSING: '处理中',
+  RESOLVED: '已解决',
+  REJECTED: '已驳回',
+  CLOSED: '已关闭',
 };
 
 export default function AdminFeedbackPage() {
@@ -64,7 +72,11 @@ export default function AdminFeedbackPage() {
 
       <div className="flex gap-2 mb-4 flex-wrap">
         <Select value={type} onValueChange={(v) => setType(v || 'ALL')}>
-          <SelectTrigger className="w-40"><SelectValue placeholder="类型" /></SelectTrigger>
+          <SelectTrigger className="w-40">
+            <span data-slot="select-value" className="flex flex-1 text-left">
+              {type === 'ALL' ? '全部类型' : TYPE_LABELS[type] || type}
+            </span>
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="ALL">全部类型</SelectItem>
             {Object.entries(TYPE_LABELS).map(([k, v]) => (
@@ -73,7 +85,11 @@ export default function AdminFeedbackPage() {
           </SelectContent>
         </Select>
         <Select value={status} onValueChange={(v) => setStatus(v || 'ALL')}>
-          <SelectTrigger className="w-36"><SelectValue placeholder="状态" /></SelectTrigger>
+          <SelectTrigger className="w-36">
+            <span data-slot="select-value" className="flex flex-1 text-left">
+              {status === 'ALL' ? '全部状态' : STATUS_LABELS[status] || status}
+            </span>
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="ALL">全部状态</SelectItem>
             <SelectItem value="PENDING">待处理</SelectItem>
@@ -92,7 +108,7 @@ export default function AdminFeedbackPage() {
             <div className="flex items-center justify-between mb-2">
               <div className="flex gap-2 items-center">
                 <Badge variant="outline">{TYPE_LABELS[fb.type] || fb.type}</Badge>
-                <Badge className={STATUS_COLORS[fb.status]}>{fb.status}</Badge>
+                <Badge className={STATUS_COLORS[fb.status]}>{STATUS_LABELS[fb.status] || fb.status}</Badge>
                 <span className="font-medium">{fb.title}</span>
               </div>
               <div className="flex gap-1">
@@ -120,7 +136,7 @@ export default function AdminFeedbackPage() {
           <DialogHeader><DialogTitle>反馈详情</DialogTitle></DialogHeader>
           {selected && (
             <div className="space-y-3">
-              <div className="flex gap-2"><Badge>{TYPE_LABELS[selected.type]}</Badge><Badge>{selected.status}</Badge></div>
+              <div className="flex gap-2"><Badge>{TYPE_LABELS[selected.type]}</Badge><Badge>{STATUS_LABELS[selected.status] || selected.status}</Badge></div>
               <h3 className="font-bold">{selected.title}</h3>
               <p className="text-sm">{selected.content}</p>
               {selected.question && (

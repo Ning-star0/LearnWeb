@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 
 const TYPE_LABELS: Record<string, string> = {
@@ -116,7 +116,11 @@ function FeedbackPage() {
             <div className="space-y-2">
               <Label>反馈类型</Label>
               <Select value={type} onValueChange={(value) => setType(value || 'OTHER')}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <span data-slot="select-value" className="flex flex-1 text-left">
+                    {TYPE_LABELS[type] || '其他'}
+                  </span>
+                </SelectTrigger>
                 <SelectContent>
                   {Object.entries(TYPE_LABELS).map(([value, label]) => (
                     <SelectItem key={value} value={value}>{label}</SelectItem>
