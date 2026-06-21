@@ -19,12 +19,20 @@ import {
   Sparkles, Target, TrendingUp, User, XCircle,
 } from 'lucide-react';
 
+interface ChapterProgress {
+  name: string;
+  total: number;
+  done: number;
+  progress: number;
+}
+
 interface BookProgress {
   id: number;
   name: string;
   total: number;
   done: number;
   progress: number;
+  chapters: ChapterProgress[];
 }
 
 interface MemberInfo {
@@ -251,26 +259,33 @@ export default function ProfilePage() {
           </div>
 
           {stats?.books.map((book) => (
-            <Card key={book.id} className="hover:shadow-sm transition">
+            <Card key={book.id}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-2">
                   <div>
                     <p className="font-medium">{book.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {book.done}/{book.total} 题已掌握
-                    </p>
+                    <p className="text-xs text-muted-foreground">{book.done}/{book.total} 题已掌握</p>
                   </div>
-                  <Badge variant={book.progress >= 80 ? 'default' : book.progress > 0 ? 'secondary' : 'outline'}>
-                    {book.progress}%
-                  </Badge>
+                  <Badge variant={book.progress >= 80 ? 'default' : book.progress > 0 ? 'secondary' : 'outline'}>{book.progress}%</Badge>
                 </div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-blue-500 rounded-full transition-all"
-                    style={{ width: `${book.progress}%` }}
-                  />
+                <div className="h-2 bg-muted rounded-full overflow-hidden mb-3">
+                  <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${book.progress}%` }} />
                 </div>
-                <div className="flex gap-2 mt-3">
+                {/* 章节进度 */}
+                {book.chapters?.length > 0 && (
+                  <div className="space-y-1.5 mb-3">
+                    {book.chapters.map((ch) => (
+                      <div key={ch.name} className="flex items-center gap-2 text-xs">
+                        <span className="w-20 text-muted-foreground truncate">{ch.name}</span>
+                        <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${ch.progress}%` }} />
+                        </div>
+                        <span className="w-12 text-right text-muted-foreground">{ch.done}/{ch.total}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
                   <Link href={`/practice/select?scope=book&bookId=${book.id}&mode=quiz`}>
                     <Button size="sm" variant="outline"><Play className="size-3 mr-1" />刷这本</Button>
                   </Link>

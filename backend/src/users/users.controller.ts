@@ -62,20 +62,41 @@ export class UsersController {
     });
     const answeredQuestionIds = new Set(bookAnswers.map((a) => a.questionId));
 
-    // 获取每个教材的题目 ID
+    // 获取每个教材的题目及章节进度
     const booksWithProgress = await Promise.all(
       bookStats.map(async (book) => {
         const bookQuestions = await this.prisma.question.findMany({
           where: { bookId: book.id, isPublished: true },
-          select: { id: true },
+          select: { id: true, chapter: true },
+          orderBy: { orderNo: 'asc' },
         });
         const done = bookQuestions.filter((q) => answeredQuestionIds.has(q.id)).length;
+
+        // 按章节分组计算进度
+        const chapterMap = new Map<string, { total: number; done: number }>();
+        for (const q of bookQuestions) {
+          const ch = q.chapter || '未分类';
+          if (!chapterMap.has(ch)) chapterMap.set(ch, { total: 0, done: 0 });
+          const entry = chapterMap.get(ch)!;
+          entry.total++;
+          if (answeredQuestionIds.has(q.id)) entry.done++;
+        }
+        const chapters = Array.from(chapterMap.entries())
+          .sort(([a], [b]) => a.localeCompare(b, 'zh'))
+          .map(([name, stats]) => ({
+            name,
+            total: stats.total,
+            done: stats.done,
+            progress: stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0,
+          }));
+
         return {
           id: book.id,
           name: book.name,
           total: book._count.questions,
           done,
           progress: book._count.questions > 0 ? Math.round((done / book._count.questions) * 100) : 0,
+          chapters,
         };
       }),
     );
