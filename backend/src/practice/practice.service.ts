@@ -20,7 +20,7 @@ export class PracticeService {
     restart?: boolean;
     ids?: number[];
   }) {
-    const { userId, mode, scope, bookId, chapter, type, order, limit, restart, ids } = params;
+    const { userId, mode, scope, bookId, chapter, type, order, limit, ids } = params;
     const take = limit ? Math.min(limit, 5000) : undefined;
     const normalizedType = this.normalizeQuestionType(type);
 
@@ -108,9 +108,6 @@ export class PracticeService {
         if (orderNo !== 0) return orderNo;
         return a.id - b.id;
       });
-      if (!restart) {
-        questions = await this.rotateAfterLastAnswered(userId, questions);
-      }
     }
 
     const questionIdsForStatus = questions.map((question) => question.id);
@@ -165,19 +162,6 @@ export class PracticeService {
     if (!type || type === '_all' || type === 'all') return undefined;
     const normalized = type.toUpperCase();
     return QUESTION_TYPES.has(normalized) ? normalized : undefined;
-  }
-
-  private async rotateAfterLastAnswered(userId: number, questions: any[]) {
-    if (questions.length <= 1) return questions;
-    const latest = await this.prisma.answerRecord.findFirst({
-      where: { userId, questionId: { in: questions.map((question) => question.id) } },
-      orderBy: { createdAt: 'desc' },
-      select: { questionId: true },
-    });
-    if (!latest) return questions;
-    const index = questions.findIndex((question) => question.id === latest.questionId);
-    if (index < 0 || index >= questions.length - 1) return questions;
-    return [...questions.slice(index + 1), ...questions.slice(0, index + 1)];
   }
 
   private async getStudyStatusMap(userId: number, questionIds: number[]) {
