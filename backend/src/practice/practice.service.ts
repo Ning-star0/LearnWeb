@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { compareChapterNatural } from '../common/utils/chapter-sort';
 
 const QUESTION_TYPES = new Set(['SINGLE', 'MULTIPLE', 'JUDGE', 'SHORT']);
 
@@ -61,29 +62,18 @@ export class PracticeService {
     if (normalizedType) where.type = normalizedType;
     if (questionIds !== null) where.id = { in: questionIds };
 
-    // 排除已做对和已背熟的题（全部题库和按教材模式）
-    if (scope === 'all' || scope === 'book') {
-      const [correctIds, rememberedIds] = await Promise.all([
-        this.prisma.answerRecord.findMany({
-          where: { userId, isCorrect: true },
-          select: { questionId: true },
-          distinct: ['questionId'],
-        }),
-        this.prisma.answerRecord.findMany({
-          where: { userId, mode: 'STUDY', action: 'remembered' },
-          select: { questionId: true },
-          distinct: ['questionId'],
-        }),
-      ]);
-      const excludeIds = new Set([
-        ...correctIds.map((r) => r.questionId),
-        ...rememberedIds.map((r) => r.questionId),
-      ]);
+    // 背题模式仍然排除已背熟题；答题模式保留历史正确题并返回状态，前端负责标绿和跳过。
+    if (mode === 'study' && (scope === 'all' || scope === 'book')) {
+      const rememberedIds = await this.prisma.answerRecord.findMany({
+        where: { userId, mode: 'STUDY', action: 'remembered' },
+        select: { questionId: true },
+        distinct: ['questionId'],
+      });
+      const excludeIds = new Set(rememberedIds.map((r) => r.questionId));
       if (excludeIds.size > 0) {
-        const idArray = [...excludeIds];
         where.id = where.id
           ? { in: (where.id.in as number[]).filter((id: number) => !excludeIds.has(id)) }
-          : { notIn: idArray };
+          : { notIn: [...excludeIds] };
       }
     }
 
@@ -106,37 +96,65 @@ export class PracticeService {
     } else if (order === 'random') {
       this.shuffle(questions);
     } else {
-      // 顺序模式：先按题型排（单选→多选→判断→简答），再按 orderNo
-      const typeOrder: Record<string, number> = { SINGLE: 0, MULTIPLE: 1, JUDGE: 2, SHORT: 3 };
+      // 顺序模式：先按教材章节自然顺序，再按导入题序，避免章节被题型分组打散。
       questions.sort((a, b) => {
-        const ta = typeOrder[a.type] ?? 99;
-        const tb = typeOrder[b.type] ?? 99;
-        if (ta !== tb) return ta - tb;
-        return (a.orderNo ?? 0) - (b.orderNo ?? 0);
+        const chapterOrder = compareChapterNatural(a.chapter, b.chapter);
+        if (chapterOrder !== 0) return chapterOrder;
+        const orderNo = (a.orderNo ?? 0) - (b.orderNo ?? 0);
+        if (orderNo !== 0) return orderNo;
+        return a.id - b.id;
       });
       if (!restart) {
         questions = await this.rotateAfterLastAnswered(userId, questions);
       }
     }
 
+    const questionIdsForStatus = questions.map((question) => question.id);
     const studyStatusMap =
       mode === 'study'
-        ? await this.getStudyStatusMap(userId, questions.map((question) => question.id))
+        ? await this.getStudyStatusMap(userId, questionIdsForStatus)
         : new Map<number, string>();
+    const quizStatusMap =
+      mode === 'quiz'
+        ? await this.getQuizStatusMap(userId, questionIdsForStatus)
+        : new Map<number, { status: 'correct' | 'wrong' | 'unanswered'; historicalCorrect: boolean }>();
+    const historicalCorrectCount = [...quizStatusMap.values()].filter((item) => item.historicalCorrect).length;
+    const historicalWrongCount = [...quizStatusMap.values()].filter((item) => item.status === 'wrong').length;
 
     // 背题模式：直接返回答案；答题模式：隐藏答案
     if (mode === 'quiz') {
-      return questions.map((q) => ({
-        ...q,
-        answerRaw: undefined,
-        answerJson: null,
-      }));
+      return {
+        items: questions.map((q) => {
+          const status = quizStatusMap.get(q.id) || { status: 'unanswered', historicalCorrect: false };
+          return {
+            ...q,
+            answerRaw: undefined,
+            answerJson: null,
+            quizStatus: status.status,
+            historicalCorrect: status.historicalCorrect,
+          };
+        }),
+        stats: {
+          totalCount: questions.length,
+          historicalCorrectCount,
+          historicalWrongCount,
+          pendingCount: Math.max(0, questions.length - historicalCorrectCount),
+        },
+      };
     }
 
-    return questions.map((q) => ({
-      ...q,
-      studyStatus: studyStatusMap.get(q.id) || 'unmarked',
-    }));
+    return {
+      items: questions.map((q) => ({
+        ...q,
+        studyStatus: studyStatusMap.get(q.id) || 'unmarked',
+      })),
+      stats: {
+        totalCount: questions.length,
+        historicalCorrectCount: 0,
+        historicalWrongCount: 0,
+        pendingCount: questions.length,
+      },
+    };
   }
 
   private normalizeQuestionType(type?: string) {
@@ -173,6 +191,41 @@ export class PracticeService {
     for (const record of records) {
       if (!map.has(record.questionId) && record.action) {
         map.set(record.questionId, record.action);
+      }
+    }
+    return map;
+  }
+
+  private async getQuizStatusMap(userId: number, questionIds: number[]) {
+    if (questionIds.length === 0) {
+      return new Map<number, { status: 'correct' | 'wrong' | 'unanswered'; historicalCorrect: boolean }>();
+    }
+    const records = await this.prisma.answerRecord.findMany({
+      where: {
+        userId,
+        mode: 'QUIZ',
+        questionId: { in: questionIds },
+        isCorrect: { not: null },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { questionId: true, isCorrect: true },
+    });
+
+    const latestMap = new Map<number, boolean>();
+    const correctSet = new Set<number>();
+    for (const record of records) {
+      if (!latestMap.has(record.questionId)) latestMap.set(record.questionId, record.isCorrect === true);
+      if (record.isCorrect === true) correctSet.add(record.questionId);
+    }
+
+    const map = new Map<number, { status: 'correct' | 'wrong' | 'unanswered'; historicalCorrect: boolean }>();
+    for (const questionId of questionIds) {
+      if (correctSet.has(questionId)) {
+        map.set(questionId, { status: 'correct', historicalCorrect: true });
+      } else if (latestMap.get(questionId) === false) {
+        map.set(questionId, { status: 'wrong', historicalCorrect: false });
+      } else {
+        map.set(questionId, { status: 'unanswered', historicalCorrect: false });
       }
     }
     return map;

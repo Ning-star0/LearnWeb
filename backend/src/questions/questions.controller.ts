@@ -46,7 +46,7 @@ export class QuestionsController {
           answerRaw: isAdmin,
           answerJson: isAdmin || mode === 'study', // study/admin mode shows answer
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ bookId: 'asc' }, { orderNo: 'asc' }, { id: 'asc' }],
         skip: (p - 1) * ps,
         take: ps,
       }),

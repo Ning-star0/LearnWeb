@@ -51,9 +51,15 @@ export class PracticeController {
     return this.prisma.wrongQuestion.findMany({
       where: { userId, mastered: false },
       include: {
-        question: { include: { book: { select: { id: true, name: true } } } },
+        question: {
+          include: {
+            options: { orderBy: { orderNo: 'asc' } },
+            book: { select: { id: true, name: true } },
+            bank: { select: { id: true, name: true, sourceFile: true } },
+          },
+        },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
     });
   }
 

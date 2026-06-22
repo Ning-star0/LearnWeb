@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { compareChapterNatural } from '../common/utils/chapter-sort';
 
 @Injectable()
 export class BooksService {
@@ -50,11 +51,11 @@ export class BooksService {
         chapter: { not: null },
       },
       _count: { _all: true },
-      orderBy: { chapter: 'asc' },
     });
 
     return rows
       .filter((row) => row.chapter)
+      .sort((a, b) => compareChapterNatural(a.chapter, b.chapter))
       .map((row) => ({
         name: row.chapter,
         count: row._count._all,

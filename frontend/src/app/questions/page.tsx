@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useMemo, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Search, ArrowRight } from 'lucide-react';
+import { ArrowRight, BookOpen, CheckCircle2, Circle, ListFilter, Play, RotateCcw, Search, Shuffle, XCircle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -22,11 +22,13 @@ interface Question {
   courseObjective?: string | null;
   score?: number | null;
   book: Book;
+  bank?: { id: number; name: string; sourceFile?: string | null };
   options: { label: string; content: string }[];
   userStatus?: 'correct' | 'wrong' | 'unanswered';
 }
 
 const TYPE_LABEL: Record<string, string> = { SINGLE: '单选', MULTIPLE: '多选', JUDGE: '判断', SHORT: '简答' };
+const STATUS_LABEL: Record<string, string> = { _all: '全部状态', correct: '已做对', wrong: '做错过', unanswered: '未作答' };
 
 function QuestionsPage() {
   const router = useRouter();
@@ -39,8 +41,10 @@ function QuestionsPage() {
   const [bookId, setBookId] = useState(searchParams.get('bookId') || '');
   const [chapter, setChapter] = useState(searchParams.get('chapter') || '');
   const [type, setType] = useState('');
+  const [status, setStatus] = useState('_all');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -50,9 +54,15 @@ function QuestionsPage() {
     if (search) params.set('search', search);
     params.set('page', String(page));
     params.set('pageSize', '50');
+
+    setLoading(true);
     api.get(`/questions?${params}`).then((res) => {
-      if (res.code === 0) { setQuestions(res.data.items); setTotal(res.data.total); }
-    });
+      if (res.code === 0) {
+        setQuestions(res.data.items);
+        setTotal(res.data.total);
+      }
+    }).finally(() => setLoading(false));
+
     api.get('/books').then((res) => {
       if (res.code === 0) setBooks(res.data);
     });
@@ -74,110 +84,212 @@ function QuestionsPage() {
     });
   }, [bookId, chapter]);
 
-  const startPracticeWithIds = (ids: number[]) => {
-    router.push(`/practice?ids=${ids.join(',')}&mode=quiz`);
-  };
+  const displayedQuestions = useMemo(() => {
+    if (status === '_all') return questions;
+    return questions.filter((question) => (question.userStatus || 'unanswered') === status);
+  }, [questions, status]);
 
+  const pageCorrect = questions.filter((question) => question.userStatus === 'correct').length;
+  const pageWrong = questions.filter((question) => question.userStatus === 'wrong').length;
+  const pageUnanswered = questions.filter((question) => !question.userStatus || question.userStatus === 'unanswered').length;
+  const totalPages = Math.max(1, Math.ceil(total / 50));
   const selectedBookLabel = books.find((book) => String(book.id) === bookId)?.name || '全部教材';
   const selectedChapterLabel = chapter || '全部章节';
   const selectedTypeLabel = type ? `${TYPE_LABEL[type] || type}题` : '全部题型';
+  const selectedStatusLabel = STATUS_LABEL[status] || '全部状态';
+
+  const startPracticeWithIds = (ids: number[], orderMode: 'sequential' | 'random' = 'sequential') => {
+    if (ids.length === 0) return;
+    router.push(`/practice?ids=${ids.join(',')}&mode=quiz&order=${orderMode}&restart=1`);
+  };
+
+  const previewQuestion = (questionId: number) => {
+    router.push(`/practice?ids=${questionId}&mode=study&restart=1`);
+  };
+
+  const resetFilters = () => {
+    setBookId('');
+    setChapter('');
+    setType('');
+    setStatus('_all');
+    setSearch('');
+    setPage(1);
+  };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">题库浏览</h1>
+    <div className="mx-auto max-w-7xl px-4 py-6 lg:py-8">
+      <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <Badge variant="secondary" className="mb-2">统一题库</Badge>
+          <h1 className="text-2xl font-semibold tracking-normal">题库浏览</h1>
+          <p className="mt-1 text-sm text-muted-foreground">按教材、章节、题型、作答状态和题干关键词定位题目。</p>
+        </div>
         {user && (
-          <Button onClick={() => startPracticeWithIds(questions.map((q) => q.id))} size="sm">
-            刷当前列表<ArrowRight className="size-4 ml-1" />
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => startPracticeWithIds(displayedQuestions.map((q) => q.id), 'random')} disabled={displayedQuestions.length === 0}>
+              <Shuffle className="size-4" />随机刷当前页
+            </Button>
+            <Button onClick={() => startPracticeWithIds(displayedQuestions.map((q) => q.id))} disabled={displayedQuestions.length === 0}>
+              <Play className="size-4" />顺序刷当前页
+            </Button>
+          </div>
         )}
       </div>
 
-      <div className="flex gap-2 mb-4 flex-wrap">
-        <Select value={bookId || '_all'} onValueChange={(v) => { setBookId(v && v !== '_all' ? v : ''); setChapter(''); setPage(1); }}>
-          <SelectTrigger className="w-48">
-            <span className="truncate">{selectedBookLabel}</span>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="_all">全部教材</SelectItem>
-            {books.map((b) => (
-              <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={chapter || '_all'} onValueChange={(v) => { setChapter(v && v !== '_all' ? v : ''); setPage(1); }} disabled={!bookId || chapters.length === 0}>
-          <SelectTrigger className="w-40">
-            <span className="truncate">{selectedChapterLabel}</span>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="_all">全部章节</SelectItem>
-            {chapters.map((item) => (
-              <SelectItem key={item.name} value={item.name}>{item.name}（{item.count}）</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={type || '_all'} onValueChange={(v) => { setType(v && v !== '_all' ? v : ''); setPage(1); }}>
-          <SelectTrigger className="w-36">
-            <span className="truncate">{selectedTypeLabel}</span>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="_all">全部题型</SelectItem>
-            <SelectItem value="SINGLE">单选题</SelectItem>
-            <SelectItem value="MULTIPLE">多选题</SelectItem>
-            <SelectItem value="JUDGE">判断题</SelectItem>
-            <SelectItem value="SHORT">简答题</SelectItem>
-          </SelectContent>
-        </Select>
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-2 top-2.5 size-4 text-muted-foreground" />
-          <Input placeholder="搜索题干..." value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }} className="pl-8" />
-        </div>
-      </div>
+      <Card className="mb-4">
+        <CardContent className="space-y-3 p-4">
+          <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr_0.8fr_0.8fr_1.4fr_auto]">
+            <Select value={bookId || '_all'} onValueChange={(value) => { const next = value || '_all'; setBookId(next !== '_all' ? next : ''); setChapter(''); setPage(1); }}>
+              <SelectTrigger className="w-full">
+                <span className="truncate">{selectedBookLabel}</span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">全部教材</SelectItem>
+                {books.map((book) => (
+                  <SelectItem key={book.id} value={String(book.id)}>{book.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={chapter || '_all'} onValueChange={(value) => { const next = value || '_all'; setChapter(next !== '_all' ? next : ''); setPage(1); }} disabled={!bookId || chapters.length === 0}>
+              <SelectTrigger className="w-full">
+                <span className="truncate">{selectedChapterLabel}</span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">全部章节</SelectItem>
+                {chapters.map((item) => (
+                  <SelectItem key={item.name} value={item.name}>{item.name}（{item.count}）</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={type || '_all'} onValueChange={(value) => { const next = value || '_all'; setType(next !== '_all' ? next : ''); setPage(1); }}>
+              <SelectTrigger className="w-full">
+                <span className="truncate">{selectedTypeLabel}</span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">全部题型</SelectItem>
+                <SelectItem value="SINGLE">单选题</SelectItem>
+                <SelectItem value="MULTIPLE">多选题</SelectItem>
+                <SelectItem value="JUDGE">判断题</SelectItem>
+                <SelectItem value="SHORT">简答题</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={status} onValueChange={(value) => setStatus(value || '_all')}>
+              <SelectTrigger className="w-full">
+                <span className="truncate">{selectedStatusLabel}</span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">全部状态</SelectItem>
+                <SelectItem value="correct">已做对</SelectItem>
+                <SelectItem value="wrong">做错过</SelectItem>
+                <SelectItem value="unanswered">未作答</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="relative min-w-0">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="搜索题干..."
+                value={search}
+                onChange={(event) => { setSearch(event.target.value); setPage(1); }}
+                className="pl-9"
+              />
+            </div>
+            <Button variant="outline" onClick={resetFilters}>
+              <RotateCcw className="size-4" />清空
+            </Button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <ListFilter className="size-4" />
+            <span>共 {total} 题</span>
+            <span>当前页 {questions.length} 题</span>
+            <span>当前显示 {displayedQuestions.length} 题</span>
+            {user && (
+              <>
+                <span className="text-emerald-600">已做对 {pageCorrect}</span>
+                <span className="text-red-600">做错过 {pageWrong}</span>
+                <span>未作答 {pageUnanswered}</span>
+              </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="space-y-3">
-        {questions.map((q) => (
-          <Card key={q.id} className="hover:shadow-sm transition-shadow">
+        {displayedQuestions.map((question) => (
+          <Card key={question.id} className="transition-shadow hover:shadow-sm">
             <CardContent className="p-4">
-              <div className="flex items-start gap-3">
-                <div className="flex gap-2 shrink-0">
-                  {q.userStatus === 'correct' && <span className="mt-1 size-3 rounded-full bg-emerald-500 ring-2 ring-emerald-100" />}
-                  {q.userStatus === 'wrong' && <span className="mt-1 size-3 rounded-full bg-red-500 ring-2 ring-red-100" />}
-                  <Badge variant="outline">{TYPE_LABEL[q.type] || q.type}</Badge>
-                  {q.chapter && <Badge variant="outline">{q.chapter}</Badge>}
-                  {q.difficulty && <Badge variant="outline">{q.difficulty}</Badge>}
-                  <Badge variant="secondary">{q.book.name}</Badge>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium line-clamp-2">{q.stem}</p>
-                  <div className="flex gap-2 mt-2 flex-wrap">
-                    {q.options?.map((o) => (
-                      <span key={o.label} className="text-xs text-muted-foreground">{o.label}. {o.content}</span>
-                    ))}
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+                <div className="min-w-0 flex-1">
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <StatusBadge status={question.userStatus || 'unanswered'} />
+                    <Badge variant="outline">#{question.id}</Badge>
+                    <Badge>{TYPE_LABEL[question.type] || question.type}</Badge>
+                    {question.chapter && <Badge variant="outline">{question.chapter}</Badge>}
+                    {question.difficulty && <Badge variant="outline">{question.difficulty}</Badge>}
+                    {question.score ? <Badge variant="outline">{question.score} 分</Badge> : null}
+                    <Badge variant="secondary" className="max-w-72 truncate">{question.book.name}</Badge>
+                  </div>
+                  <p className="whitespace-pre-wrap break-words text-sm font-medium leading-7">{question.stem}</p>
+                  {question.options?.length > 0 && (
+                    <div className="mt-3 grid gap-2 md:grid-cols-2">
+                      {question.options.map((option) => (
+                        <div key={option.label} className="rounded-lg border bg-muted/25 px-3 py-2 text-sm">
+                          <span className="font-medium">{option.label}. </span>
+                          <span className="text-muted-foreground">{option.content}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1"><BookOpen className="size-3" />题库：{question.bank?.name || '未标记'}</span>
+                    {question.bank?.sourceFile && <span>来源文件：{question.bank.sourceFile}</span>}
+                    {question.courseObjective && <span>课程目标：{question.courseObjective}</span>}
                   </div>
                 </div>
                 {user && (
-                  <Button variant="ghost" size="sm" className="shrink-0"
-                    onClick={() => startPracticeWithIds([q.id])}>刷这题</Button>
+                  <div className="flex shrink-0 flex-row gap-2 lg:flex-col">
+                    <Button size="sm" variant="outline" onClick={() => startPracticeWithIds([question.id])}>
+                      <Play className="size-3" />刷这题
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => previewQuestion(question.id)}>
+                      <ArrowRight className="size-3" />看答案
+                    </Button>
+                  </div>
                 )}
               </div>
             </CardContent>
           </Card>
         ))}
-        {questions.length === 0 && <p className="text-center text-muted-foreground py-8">暂无题目</p>}
+        {!loading && displayedQuestions.length === 0 && (
+          <div className="rounded-lg border bg-muted/40 p-8 text-center">
+            <p className="font-medium">暂无题目</p>
+            <p className="mt-1 text-sm text-muted-foreground">调整筛选条件后再查看。</p>
+          </div>
+        )}
+        {loading && <p className="py-8 text-center text-sm text-muted-foreground">加载中...</p>}
       </div>
 
-      <div className="flex justify-between mt-4">
-        <Button variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>上一页</Button>
-        <span className="text-sm text-muted-foreground self-center">
-          第 {page} 页 / 共 {Math.max(1, Math.ceil(total / 50))} 页，{total} 题
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Button variant="outline" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>上一页</Button>
+        <span className="text-center text-sm text-muted-foreground">
+          第 {page} 页 / 共 {totalPages} 页，服务器结果 {total} 题
         </span>
-        <Button variant="outline" disabled={page >= Math.ceil(total / 50)} onClick={() => setPage(page + 1)}>下一页</Button>
+        <Button variant="outline" disabled={page >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>下一页</Button>
       </div>
     </div>
   );
 }
 
+function StatusBadge({ status }: { status: 'correct' | 'wrong' | 'unanswered' }) {
+  if (status === 'correct') {
+    return <Badge variant="outline" className="border-emerald-500 bg-emerald-50 text-emerald-700"><CheckCircle2 className="size-3" />已做对</Badge>;
+  }
+  if (status === 'wrong') {
+    return <Badge variant="outline" className="border-red-500 bg-red-50 text-red-700"><XCircle className="size-3" />做错过</Badge>;
+  }
+  return <Badge variant="outline" className="text-muted-foreground"><Circle className="size-3" />未作答</Badge>;
+}
+
 export default function QuestionsWrapper() {
-  return <Suspense fallback={<div className="text-center py-8">加载中...</div>}><QuestionsPage /></Suspense>;
+  return <Suspense fallback={<div className="py-8 text-center">加载中...</div>}><QuestionsPage /></Suspense>;
 }

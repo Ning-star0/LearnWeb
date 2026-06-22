@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, Suspense } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, ArrowRight, BookmarkPlus, BookmarkCheck, Brain, Check, CheckCircle2, ChevronLeft, Clock3, HelpCircle, Keyboard, MessageSquare, Sparkles, XCircle } from 'lucide-react';
@@ -67,10 +67,18 @@ interface PracticeQuestion {
   score?: number | null;
   studyStatus?: 'remembered' | 'not_remembered' | 'unmarked';
   quizStatus?: 'correct' | 'wrong' | 'uncertain' | 'unanswered';
+  historicalCorrect?: boolean;
   answerRaw?: string | null;
   answerJson?: unknown;
   book?: { name?: string };
   options?: QuestionOption[];
+}
+
+interface PracticeStats {
+  totalCount: number;
+  historicalCorrectCount: number;
+  historicalWrongCount: number;
+  pendingCount: number;
 }
 
 interface SubmitResult {
@@ -104,6 +112,7 @@ function PracticePage() {
   const restart = searchParams.get('restart') || '';
 
   const [questions, setQuestions] = useState<PracticeQuestion[]>([]);
+  const [practiceStats, setPracticeStats] = useState<PracticeStats | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string>('');
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
@@ -138,6 +147,18 @@ function PracticePage() {
     setShowSupporterPrompt(false);
     setQuizUncertain(false);
   };
+
+  const shouldSkipHistoricalCorrect = mode === 'quiz' && scope === 'all' && !ids;
+
+  const findNextPracticeIndex = useCallback((fromIndex: number, direction: 1 | -1, list = questions) => {
+    if (!shouldSkipHistoricalCorrect) {
+      return Math.max(0, Math.min(list.length - 1, fromIndex + direction));
+    }
+    for (let index = fromIndex + direction; index >= 0 && index < list.length; index += direction) {
+      if (!list[index]?.historicalCorrect) return index;
+    }
+    return -1;
+  }, [questions, shouldSkipHistoricalCorrect]);
 
   const sessionKey = `practice:${mode}:${scope}:${bookId || 'all'}:${chapter || 'all'}:${type || 'all'}:${ids || 'all'}:${order}`;
 
@@ -183,7 +204,8 @@ function PracticePage() {
     api.get(`/practice/questions?${params.toString()}`)
       .then((res) => {
         if (res.code === 0) {
-          const list = res.data || [];
+          const list = Array.isArray(res.data) ? res.data : (res.data?.items || []);
+          const stats = Array.isArray(res.data) ? null : (res.data?.stats || null);
           let savedIndex = 0;
           let savedAnswers: Record<number, AnswerState> = {};
           const saved = localStorage.getItem(sessionKey);
@@ -194,7 +216,12 @@ function PracticePage() {
               if (parsed.answers && typeof parsed.answers === 'object') savedAnswers = parsed.answers;
             } catch {}
           }
+          if (shouldSkipHistoricalCorrect && list[savedIndex]?.historicalCorrect) {
+            const nextPending = list.findIndex((question: PracticeQuestion) => !question.historicalCorrect);
+            savedIndex = nextPending >= 0 ? nextPending : 0;
+          }
           setQuestions(list);
+          setPracticeStats(stats);
           setAnswerStates(savedAnswers);
           setCurrentIndex(savedIndex);
           applyAnswerState(savedAnswers[list[savedIndex]?.id]);
@@ -209,7 +236,7 @@ function PracticePage() {
       })
       .finally(() => setLoading(false));
 
-  }, [authLoading, user, mode, scope, bookId, chapter, ids, type, order, restart, router, sessionKey]);
+  }, [authLoading, user, mode, scope, bookId, chapter, ids, type, order, restart, router, sessionKey, shouldSkipHistoricalCorrect]);
 
   // 退出时保存进度
   useEffect(() => {
@@ -257,6 +284,7 @@ function PracticePage() {
   const currentQuestion = questions[currentIndex];
   const progress = questions.length > 0 ? Math.round(((currentIndex + 1) / questions.length) * 100) : 0;
   const correctAnswer = submitted && result ? result.correctAnswer : currentQuestion?.answerJson;
+  const currentIsHistoricalCorrect = shouldSkipHistoricalCorrect && Boolean(currentQuestion?.historicalCorrect);
 
   useEffect(() => {
     if (!currentQuestion) return;
@@ -278,28 +306,34 @@ function PracticePage() {
   }, [questions]);
 
   const canSubmit = useMemo(() => {
-    if (!currentQuestion || submitted) return false;
+    if (!currentQuestion || submitted || currentIsHistoricalCorrect) return false;
     if (currentQuestion.type === 'SINGLE') return Boolean(selectedOption);
     if (currentQuestion.type === 'MULTIPLE') return selectedOptions.length > 0;
     if (currentQuestion.type === 'JUDGE') return judgeAnswer !== null;
     if (currentQuestion.type === 'SHORT') return shortAnswer.trim().length > 0;
     return false;
-  }, [currentQuestion, submitted, selectedOption, selectedOptions, judgeAnswer, shortAnswer]);
+  }, [currentQuestion, submitted, currentIsHistoricalCorrect, selectedOption, selectedOptions, judgeAnswer, shortAnswer]);
 
   const previousQuestion = useCallback(() => {
     if (currentIndex <= 0) return;
     resetState();
-    setCurrentIndex((index) => Math.max(0, index - 1));
-  }, [currentIndex]);
+    const nextIndex = findNextPracticeIndex(currentIndex, -1);
+    setCurrentIndex(nextIndex >= 0 ? nextIndex : 0);
+  }, [currentIndex, findNextPracticeIndex]);
 
   const nextQuestion = useCallback(() => {
     resetState();
     if (currentIndex < questions.length - 1) {
-      setCurrentIndex((index) => Math.min(questions.length - 1, index + 1));
+      const nextIndex = findNextPracticeIndex(currentIndex, 1);
+      if (nextIndex >= 0) {
+        setCurrentIndex(nextIndex);
+      } else {
+        backToSelect();
+      }
     } else {
       backToSelect();
     }
-  }, [currentIndex, questions.length]);
+  }, [currentIndex, findNextPracticeIndex, questions.length]);
 
   const jumpToQuestion = (index: number) => {
     // 不重置答案，保留用户已选内容
@@ -375,7 +409,7 @@ function PracticePage() {
   }, [mode, handleStudyAction]);
 
   const handleSubmit = async (answerOverride?: unknown) => {
-    if (!currentQuestion || submitted) return;
+    if (!currentQuestion || submitted || currentIsHistoricalCorrect) return;
 
     let userAnswer = answerOverride;
     if (userAnswer === undefined) {
@@ -425,21 +459,21 @@ function PracticePage() {
   };
 
   const handleSingleAnswer = (label: string) => {
-    if (submitted || mode === 'study') return;
+    if (submitted || mode === 'study' || currentIsHistoricalCorrect) return;
     setSelectedOption(label);
     if (currentQuestion) saveAnswerState(currentQuestion.id, { selectedOption: label });
     handleSubmit(label);
   };
 
   const handleJudgeAnswer = (value: boolean) => {
-    if (submitted || mode === 'study') return;
+    if (submitted || mode === 'study' || currentIsHistoricalCorrect) return;
     setJudgeAnswer(value);
     if (currentQuestion) saveAnswerState(currentQuestion.id, { judgeAnswer: value });
     handleSubmit(value);
   };
 
   const toggleMultipleOption = useCallback((label: string) => {
-    if (!currentQuestion || submitted || mode === 'study') return;
+    if (!currentQuestion || submitted || mode === 'study' || currentIsHistoricalCorrect) return;
     setSelectedOptions((current) => {
       const next = current.includes(label)
         ? current.filter((item) => item !== label)
@@ -447,7 +481,7 @@ function PracticePage() {
       saveAnswerState(currentQuestion.id, { selectedOptions: next });
       return next;
     });
-  }, [currentQuestion, submitted, mode]);
+  }, [currentQuestion, submitted, mode, currentIsHistoricalCorrect]);
 
   const openFeedback = useCallback(() => {
     if (!currentQuestion) return;
@@ -536,7 +570,7 @@ function PracticePage() {
 
     window.addEventListener('keydown', handleShortcutKeyDown);
     return () => window.removeEventListener('keydown', handleShortcutKeyDown);
-  }, [currentQuestion, submitted, mode, aiLoading, openFeedback, toggleMultipleOption]);
+  }, [currentQuestion, submitted, mode, aiLoading, openFeedback, toggleMultipleOption, currentIsHistoricalCorrect]);
 
   if (authLoading || loading) {
     return <div className="mx-auto max-w-6xl px-4 py-12 text-center text-sm text-muted-foreground">加载题目中...</div>;
@@ -639,6 +673,12 @@ function PracticePage() {
               <StemContent stem={currentQuestion.stem} />
             </CardHeader>
             <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto pt-3 sm:space-y-4 sm:pt-4">
+              {currentIsHistoricalCorrect && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
+                  这道题历史已做对，系统已把它计入绿色完成状态。顺序练习时会自动跳过，不需要重复作答。
+                </div>
+              )}
+
               {(currentQuestion.type === 'SINGLE' || currentQuestion.type === 'MULTIPLE') && (
                 <div className="grid gap-3">
                   {currentQuestion.options?.map((opt) => {
@@ -665,11 +705,11 @@ function PracticePage() {
                             id={`opt-${opt.label}`}
                             checked={selected}
                             onCheckedChange={(checked) => {
-                              if (!submitted && mode !== 'study') {
+                              if (!submitted && mode !== 'study' && !currentIsHistoricalCorrect) {
                                 toggleMultipleOption(opt.label);
                               }
                             }}
-                            disabled={submitted || mode === 'study'}
+                            disabled={submitted || mode === 'study' || currentIsHistoricalCorrect}
                           />
                         ) : (
                           <input
@@ -679,9 +719,9 @@ function PracticePage() {
                             value={opt.label}
                             checked={selected}
                             onChange={() => {
-                              if (!submitted && mode !== 'study') handleSingleAnswer(opt.label);
+                              if (!submitted && mode !== 'study' && !currentIsHistoricalCorrect) handleSingleAnswer(opt.label);
                             }}
-                            disabled={submitted || mode === 'study'}
+                            disabled={submitted || mode === 'study' || currentIsHistoricalCorrect}
                             className="size-4"
                           />
                         )}
@@ -701,7 +741,7 @@ function PracticePage() {
                 <RadioGroup
                   value={judgeAnswer === null ? '' : String(judgeAnswer)}
                   onValueChange={(value) => {
-                    if (!submitted && mode !== 'study') handleJudgeAnswer(value === 'true');
+                    if (!submitted && mode !== 'study' && !currentIsHistoricalCorrect) handleJudgeAnswer(value === 'true');
                   }}
                   className="grid gap-3 sm:grid-cols-2"
                 >
@@ -723,7 +763,7 @@ function PracticePage() {
                           selected ? 'border-foreground bg-muted' : 'border-border hover:border-foreground/40'
                         }`}
                       >
-                        <RadioGroupItem id={`judge-${item.value}`} value={item.value} disabled={submitted || mode === 'study'} />
+                        <RadioGroupItem id={`judge-${item.value}`} value={item.value} disabled={submitted || mode === 'study' || currentIsHistoricalCorrect} />
                         <span className="font-medium">{item.label}</span>
                         {isCorrect && <Check className="ml-auto size-4 text-emerald-700" />}
                       </Label>
@@ -821,6 +861,7 @@ function PracticePage() {
                 <QuizQuestionList
                   questions={questions}
                   currentIndex={currentIndex}
+                  stats={practiceStats}
                   onJump={jumpToQuestion}
                 />
               </CardContent>
@@ -1107,15 +1148,23 @@ function StudyQuestionList({
   counts: { remembered: number; notRemembered: number; unmarked: number };
   onJump: (index: number) => void;
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const active = scrollRef.current?.querySelector<HTMLButtonElement>('[data-active="true"]');
+    active?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+  }, [currentIndex, questions.length]);
+
   return (
     <div className="flex items-center gap-3 max-w-full">
-      <div className="hidden shrink-0 text-xs leading-5 text-muted-foreground sm:block">
+      <div className="shrink-0 whitespace-nowrap text-xs leading-5 text-muted-foreground">
         <span className="font-medium text-foreground">目录</span>
+        <span className="ml-2">总 {questions.length}</span>
         <span className="ml-2 text-emerald-600">记 {counts.remembered}</span>
         <span className="ml-2 text-red-600">未 {counts.notRemembered}</span>
         <span className="ml-2">空 {counts.unmarked}</span>
       </div>
-      <div className="flex-1 overflow-x-auto pb-1 -mx-1 px-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <div ref={scrollRef} className="flex-1 overflow-x-auto pb-1 -mx-1 px-1" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div className="flex gap-1.5 w-max">
           {questions.map((question, index) => {
             const active = index === currentIndex;
@@ -1131,6 +1180,7 @@ function StudyQuestionList({
               <button
                 key={question.id}
                 type="button"
+                data-active={active ? 'true' : undefined}
                 onClick={() => onJump(index)}
                 className={`shrink-0 flex h-7 w-7 items-center justify-center rounded-full border text-xs font-medium transition hover:border-blue-400 ${color}`}
                 title={`第 ${index + 1} 题`}
@@ -1148,21 +1198,36 @@ function StudyQuestionList({
 function QuizQuestionList({
   questions,
   currentIndex,
+  stats,
   onJump,
 }: {
   questions: PracticeQuestion[];
   currentIndex: number;
+  stats: PracticeStats | null;
   onJump: (index: number) => void;
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const correctCount = questions.filter((q) => q.quizStatus === 'correct').length;
+  const wrongCount = questions.filter((q) => q.quizStatus === 'wrong').length;
+  const remainingCount = questions.filter((q) => !q.quizStatus || q.quizStatus === 'unanswered').length;
+  const historicalCorrectCount = stats?.historicalCorrectCount ?? questions.filter((q) => q.historicalCorrect).length;
+
+  useEffect(() => {
+    const active = scrollRef.current?.querySelector<HTMLButtonElement>('[data-active="true"]');
+    active?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+  }, [currentIndex, questions.length]);
+
   return (
     <div className="flex items-center gap-3 max-w-full">
-      <div className="hidden shrink-0 text-xs leading-5 text-muted-foreground sm:block">
+      <div className="shrink-0 whitespace-nowrap text-xs leading-5 text-muted-foreground">
         <span className="font-medium text-foreground">题号</span>
-        <span className="ml-2 text-emerald-600">对 {questions.filter((q) => q.quizStatus === 'correct').length}</span>
-        <span className="ml-2 text-red-600">错 {questions.filter((q) => q.quizStatus === 'wrong').length}</span>
-        <span className="ml-2">余 {questions.filter((q) => !q.quizStatus || q.quizStatus === 'unanswered').length}</span>
+        <span className="ml-2">总 {stats?.totalCount ?? questions.length}</span>
+        <span className="ml-2 text-emerald-600">历史对 {historicalCorrectCount}</span>
+        <span className="ml-2 text-emerald-600">对 {correctCount}</span>
+        <span className="ml-2 text-red-600">错 {wrongCount}</span>
+        <span className="ml-2">余 {remainingCount}</span>
       </div>
-      <div className="flex-1 overflow-x-auto pb-1 -mx-1 px-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <div ref={scrollRef} className="flex-1 overflow-x-auto pb-1 -mx-1 px-1" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div className="flex gap-1.5 w-max">
           {questions.map((question, index) => {
             const active = index === currentIndex;
@@ -1180,6 +1245,7 @@ function QuizQuestionList({
               <button
                 key={question.id}
                 type="button"
+                data-active={active ? 'true' : undefined}
                 onClick={() => onJump(index)}
                 className={`shrink-0 flex h-7 w-7 items-center justify-center rounded-full border text-xs font-medium transition hover:border-blue-400 ${color}`}
                 title={`第 ${index + 1} 题${status === 'correct' ? ' ✓' : status === 'wrong' ? ' ✗' : status === 'uncertain' ? ' ?' : ''}`}
@@ -1208,10 +1274,13 @@ function StemContent({ stem }: { stem: string }) {
     if (match) {
       return (
         <div className="space-y-3">
-          <div className="rounded-lg border bg-muted/40 p-3 text-sm leading-7 text-muted-foreground font-serif italic">
-            {match[materialIdx].trim()}
+          <div className="max-h-48 overflow-y-auto rounded-lg border bg-muted/40 p-3 text-sm leading-6 text-muted-foreground">
+            <div className="mb-1 text-xs font-medium text-foreground">材料</div>
+            <div className="whitespace-pre-wrap break-words">
+              {match[materialIdx].trim()}
+            </div>
           </div>
-          <h3 className="whitespace-pre-wrap break-words text-base leading-7 font-medium sm:text-lg">
+          <h3 className="whitespace-pre-wrap break-words text-base leading-7 font-semibold sm:text-lg">
             {match[questionIdx].trim()}
           </h3>
         </div>
