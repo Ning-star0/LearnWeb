@@ -49,38 +49,38 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: oklch(0.985 0.004 255);
+  --foreground: oklch(0.17 0.012 255);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.17 0.012 255);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.17 0.012 255);
+  --primary: oklch(0.46 0.15 255);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.955 0.012 255);
+  --secondary-foreground: oklch(0.24 0.018 255);
+  --muted: oklch(0.955 0.01 255);
+  --muted-foreground: oklch(0.48 0.02 255);
+  --accent: oklch(0.94 0.03 245);
+  --accent-foreground: oklch(0.28 0.08 255);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: oklch(0.9 0.012 255);
+  --input: oklch(0.89 0.014 255);
+  --ring: oklch(0.62 0.12 255);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
+  --radius: 0.5rem;
+  --sidebar: oklch(0.975 0.006 255);
+  --sidebar-foreground: oklch(0.17 0.012 255);
+  --sidebar-primary: oklch(0.46 0.15 255);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-accent: oklch(0.94 0.025 245);
+  --sidebar-accent-foreground: oklch(0.28 0.08 255);
+  --sidebar-border: oklch(0.9 0.012 255);
+  --sidebar-ring: oklch(0.62 0.12 255);
 }
 
 .dark {
@@ -122,10 +122,23 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    text-rendering: optimizeLegibility;
   }
   html {
     @apply font-sans;
     scrollbar-gutter: stable;
+  }
+  ::selection {
+    @apply bg-primary/15 text-foreground;
+  }
+}
+
+@layer components {
+  .page-surface {
+    @apply rounded-lg border bg-card shadow-sm;
+  }
+  .soft-panel {
+    @apply rounded-lg border bg-card/85 shadow-sm;
   }
 }

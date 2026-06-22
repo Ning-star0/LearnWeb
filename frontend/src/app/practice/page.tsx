@@ -438,6 +438,22 @@ function PracticePage() {
     handleSubmit(value);
   };
 
+  const toggleMultipleOption = useCallback((label: string) => {
+    if (!currentQuestion || submitted || mode === 'study') return;
+    setSelectedOptions((current) => {
+      const next = current.includes(label)
+        ? current.filter((item) => item !== label)
+        : [...current, label];
+      saveAnswerState(currentQuestion.id, { selectedOptions: next });
+      return next;
+    });
+  }, [currentQuestion, submitted, mode]);
+
+  const openFeedback = useCallback(() => {
+    if (!currentQuestion) return;
+    router.push(`/feedback?questionId=${currentQuestion.id}`);
+  }, [currentQuestion, router]);
+
   const handleAiExplanation = async (useTrial = false) => {
     setAiLoading(true);
     setShowSupporterPrompt(false);
@@ -466,6 +482,61 @@ function PracticePage() {
     }
     setAiLoading(false);
   };
+
+  useEffect(() => {
+    const handleShortcutKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName;
+      if (
+        tagName === 'INPUT' ||
+        tagName === 'TEXTAREA' ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        if (currentQuestion && !aiLoading) handleAiExplanation();
+        return;
+      }
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        openFeedback();
+        return;
+      }
+
+      if (mode !== 'quiz' || !currentQuestion || submitted) return;
+
+      const numericIndex = /^[1-9]$/.test(event.key) ? Number(event.key) - 1 : -1;
+      const letterIndex = /^[a-z]$/i.test(event.key)
+        ? event.key.toUpperCase().charCodeAt(0) - 65
+        : -1;
+      const optionIndex = numericIndex >= 0 ? numericIndex : letterIndex;
+
+      if (currentQuestion.type === 'SINGLE' && optionIndex >= 0) {
+        const option = currentQuestion.options?.[optionIndex];
+        if (option) {
+          event.preventDefault();
+          handleSingleAnswer(option.label);
+        }
+      }
+      if (currentQuestion.type === 'MULTIPLE' && optionIndex >= 0) {
+        const option = currentQuestion.options?.[optionIndex];
+        if (option) {
+          event.preventDefault();
+          toggleMultipleOption(option.label);
+        }
+      }
+      if (currentQuestion.type === 'JUDGE' && (event.key === '1' || event.key === '2')) {
+        event.preventDefault();
+        handleJudgeAnswer(event.key === '1');
+      }
+    };
+
+    window.addEventListener('keydown', handleShortcutKeyDown);
+    return () => window.removeEventListener('keydown', handleShortcutKeyDown);
+  }, [currentQuestion, submitted, mode, aiLoading, openFeedback, toggleMultipleOption]);
 
   if (authLoading || loading) {
     return <div className="mx-auto max-w-6xl px-4 py-12 text-center text-sm text-muted-foreground">加载题目中...</div>;
@@ -533,7 +604,7 @@ function PracticePage() {
             </Button>
           )}
           {mode === 'quiz' && !submitted && (currentQuestion.type === 'SINGLE' || currentQuestion.type === 'JUDGE') && (
-            <Badge variant="secondary" className="hidden h-8 px-3 sm:inline-flex">点击选项自动判题</Badge>
+            <Badge variant="secondary" className="hidden h-8 px-3 sm:inline-flex">点击或按 1/2/3 自动判题</Badge>
           )}
           <Button variant="outline" size="sm" onClick={() => handleAiExplanation()} disabled={aiLoading} className="lg:hidden">
             <Sparkles className="size-4" />
@@ -595,9 +666,7 @@ function PracticePage() {
                             checked={selected}
                             onCheckedChange={(checked) => {
                               if (!submitted && mode !== 'study') {
-                                const next = checked ? [...selectedOptions, opt.label] : selectedOptions.filter((item) => item !== opt.label);
-                                setSelectedOptions(next);
-                                saveAnswerState(currentQuestion.id, { selectedOptions: next });
+                                toggleMultipleOption(opt.label);
                               }
                             }}
                             disabled={submitted || mode === 'study'}
@@ -727,7 +796,7 @@ function PracticePage() {
                     </Button>
                   )}
                   <div className="mt-2 text-center text-xs text-muted-foreground">
-                    键盘：1 已记住，2 未记住，方向键切题
+                    键盘：1 已记住，2 未记住，←/→ 切题，↑ AI，↓ 反馈
                   </div>
                 </div>
               )}
@@ -807,7 +876,7 @@ function PracticePage() {
                     </Button>
                   )}
                   <div className="rounded-lg border bg-muted/40 p-2 text-center text-xs text-muted-foreground">
-                    键盘：1 已记住，2 未记住，方向键切题
+                    键盘：1 已记住，2 未记住，←/→ 切题，↑ AI，↓ 反馈
                   </div>
                 </div>
               )}
@@ -846,9 +915,9 @@ function PracticePage() {
                 </Button>
               </div>
 
-              <div className="hidden rounded-lg border bg-muted/50 p-3 text-xs text-muted-foreground">
+              <div className="rounded-lg border bg-muted/50 p-3 text-xs text-muted-foreground">
                 <Keyboard className="mr-1 inline size-3.5" />
-                键盘方向键：左键上一题，右键下一题。
+                快捷键：1/2/3... 选择 A/B/C...，←/→ 切题，↑ AI，↓ 反馈。
               </div>
 
               <Button variant="outline" onClick={() => handleAiExplanation()} disabled={aiLoading} className="w-full">

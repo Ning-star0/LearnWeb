@@ -24,10 +24,10 @@ export function Navbar() {
   const wrongActive = pathname.startsWith('/wrong');
 
   const navItemClass = (active: boolean, hiddenClass = '') =>
-    `h-8 shrink-0 items-center gap-1 rounded-lg border px-3 text-sm font-medium transition ${hiddenClass} ${
+    `h-9 shrink-0 items-center gap-1 rounded-md border px-3 text-sm font-medium transition ${hiddenClass} ${
       active
-        ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-100'
-        : 'border-transparent hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700'
+        ? 'border-primary/40 bg-primary/10 text-primary ring-1 ring-primary/10'
+        : 'border-transparent text-muted-foreground hover:border-primary/25 hover:bg-primary/5 hover:text-primary'
     }`;
 
   const handleLogout = async () => {
@@ -36,12 +36,14 @@ export function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur">
+    <header className="sticky top-0 z-40 w-full border-b bg-card/90 backdrop-blur supports-[backdrop-filter]:bg-card/75">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
         {/* 左侧品牌 - 固定宽度避免偏移 */}
         <Link href="/" className="flex shrink-0 items-center gap-2 font-semibold whitespace-nowrap">
-          <Home className="size-4" />
-          思政学习系统
+          <span className="grid size-8 place-items-center rounded-md border bg-background">
+            <Home className="size-4" />
+          </span>
+          <span>思政学习系统</span>
         </Link>
 
         {/* 右侧导航 - 保持最小宽度 */}

@@ -34,7 +34,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}>
           <Button
             variant={pathname === item.href ? 'secondary' : 'ghost'}
-            className="w-full justify-start text-sm"
+            className={`w-full justify-start rounded-md text-sm ${
+              pathname === item.href ? 'bg-primary/10 text-primary hover:bg-primary/15' : 'text-muted-foreground hover:text-foreground'
+            }`}
           >
             {item.label}
           </Button>
@@ -44,10 +46,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   );
 
   return (
-    <div className="flex min-h-[calc(100vh-3.5rem)]">
+    <div className="flex min-h-[calc(100vh-3.5rem)] bg-background">
       {/* 桌面端侧边栏 */}
-      <aside className="w-56 border-r p-4 hidden md:block shrink-0">
-        <h2 className="font-bold mb-4">管理后台</h2>
+      <aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-60 shrink-0 border-r bg-card/70 p-4 md:block">
+        <h2 className="mb-4 text-sm font-semibold text-muted-foreground">管理后台</h2>
         <Sidebar />
         <div className="mt-4">
           <Link href="/"><Button variant="outline" size="sm" className="w-full">← 返回前台</Button></Link>
@@ -74,7 +76,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </div>
 
       {/* 桌面端主内容 */}
-      <main className="hidden md:block flex-1 p-6 overflow-x-auto">{children}</main>
+      <main className="hidden flex-1 overflow-x-auto p-6 md:block">{children}</main>
     </div>
   );
 }
