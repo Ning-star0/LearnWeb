@@ -85,6 +85,14 @@ function writeCachedAiExplanation(questionId: number, content: unknown) {
   }));
 }
 
+function findFirstUnansweredIndex(list: PracticeQuestion[], savedAnswers: Record<number, AnswerState>) {
+  return list.findIndex((question) => {
+    const status = question.quizStatus || 'unanswered';
+    const saved = savedAnswers[question.id];
+    return status === 'unanswered' && !saved?.submitted;
+  });
+}
+
 interface QuestionOption {
   label: string;
   content: string;
@@ -181,6 +189,7 @@ function PracticePage() {
   };
 
   const shouldSkipHistoricalCorrect = mode === 'quiz' && scope === 'all' && !ids;
+  const shouldOpenAtFirstUnanswered = mode === 'quiz' && (scope === 'all' || scope === 'book') && !ids;
 
   const findNextPracticeIndex = useCallback((fromIndex: number, direction: 1 | -1, list = questions) => {
     if (!shouldSkipHistoricalCorrect) {
@@ -248,7 +257,10 @@ function PracticePage() {
               if (parsed.answers && typeof parsed.answers === 'object') savedAnswers = parsed.answers;
             } catch {}
           }
-          if (shouldSkipHistoricalCorrect && list[savedIndex]?.historicalCorrect) {
+          if (shouldOpenAtFirstUnanswered) {
+            const firstUnansweredIndex = findFirstUnansweredIndex(list, savedAnswers);
+            savedIndex = firstUnansweredIndex >= 0 ? firstUnansweredIndex : 0;
+          } else if (shouldSkipHistoricalCorrect && list[savedIndex]?.historicalCorrect) {
             const nextPending = list.findIndex((question: PracticeQuestion) => !question.historicalCorrect);
             savedIndex = nextPending >= 0 ? nextPending : 0;
           }
@@ -268,7 +280,7 @@ function PracticePage() {
       })
       .finally(() => setLoading(false));
 
-  }, [authLoading, user, mode, scope, bookId, chapter, ids, type, order, restart, router, sessionKey, shouldSkipHistoricalCorrect]);
+  }, [authLoading, user, mode, scope, bookId, chapter, ids, type, order, restart, router, sessionKey, shouldOpenAtFirstUnanswered, shouldSkipHistoricalCorrect]);
 
   // 退出时保存进度
   useEffect(() => {
