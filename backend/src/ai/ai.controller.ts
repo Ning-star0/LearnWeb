@@ -26,7 +26,7 @@ export class AiController {
 
   @Post('questions/:questionId/ai-explanation')
   @UseGuards(JwtAuthGuard)
-  @RateLimit({ points: 5, duration: 60, keyPrefix: 'ai-gen' })
+  @RateLimit({ points: 1, duration: 5, keyPrefix: 'ai-gen' })
   async getExplanation(
     @Param('questionId', ParseIntPipe) questionId: number,
     @CurrentUser() user: any,

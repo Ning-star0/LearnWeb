@@ -42,6 +42,8 @@ const SCOPE_MAP: Record<string, string> = {
   review: '待背题',
 };
 
+const AI_EXPLANATION_CACHE_PREFIX = 'aiExplanation:v1:';
+
 function answerContains(answer: unknown, label: string) {
   if (Array.isArray(answer)) return answer.includes(label);
   return answer === label;
@@ -51,6 +53,36 @@ function formatAnswer(answer: unknown) {
   if (Array.isArray(answer)) return answer.join(', ');
   if (typeof answer === 'boolean') return answer ? '正确' : '错误';
   return String(answer ?? '');
+}
+
+function parseAiExplanationContent(raw: unknown) {
+  const text = String(raw || '');
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { correctReason: text || '暂无解析内容' };
+  }
+}
+
+function readCachedAiExplanation(questionId: number) {
+  if (typeof window === 'undefined') return null;
+  const raw = localStorage.getItem(`${AI_EXPLANATION_CACHE_PREFIX}${questionId}`);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed?.content || null;
+  } catch {
+    localStorage.removeItem(`${AI_EXPLANATION_CACHE_PREFIX}${questionId}`);
+    return null;
+  }
+}
+
+function writeCachedAiExplanation(questionId: number, content: unknown) {
+  if (typeof window === 'undefined' || !content) return;
+  localStorage.setItem(`${AI_EXPLANATION_CACHE_PREFIX}${questionId}`, JSON.stringify({
+    content,
+    cachedAt: Date.now(),
+  }));
 }
 
 interface QuestionOption {
@@ -290,6 +322,12 @@ function PracticePage() {
     if (!currentQuestion) return;
     applyAnswerState(answerStates[currentQuestion.id]);
   }, [currentQuestion?.id]);
+
+  useEffect(() => {
+    if (!currentQuestion) return;
+    const cached = readCachedAiExplanation(currentQuestion.id);
+    if (cached) setAiExplanation(cached);
+  }, [currentQuestion?.id]);
   const canGoPrevious = currentIndex > 0;
   const isLastQuestion = currentIndex >= questions.length - 1;
   const currentStudyStatus = studyAction || currentQuestion?.studyStatus || 'unmarked';
@@ -456,6 +494,10 @@ function PracticePage() {
         i === currentIndex ? { ...q, quizStatus } : q,
       ),
     );
+
+    if (mode === 'quiz' && !isUncertain && submitResult.isCorrect === false) {
+      void handleAiExplanation(false, { silent: true });
+    }
   };
 
   const handleSingleAnswer = (label: string) => {
@@ -488,30 +530,40 @@ function PracticePage() {
     router.push(`/feedback?questionId=${currentQuestion.id}`);
   }, [currentQuestion, router]);
 
-  const handleAiExplanation = async (useTrial = false) => {
+  const handleAiExplanation = async (useTrial = false, options: { silent?: boolean } = {}) => {
+    if (!currentQuestion) return;
+    const cached = readCachedAiExplanation(currentQuestion.id);
+    if (cached) {
+      setAiExplanation(cached);
+      return;
+    }
+
     setAiLoading(true);
     setShowSupporterPrompt(false);
     const res = await api.post(`/questions/${currentQuestion.id}/ai-explanation`, useTrial ? { useTrial: true } : {});
     if (res.code === -1 && res.message === 'TRIAL_CONFIRM_REQUIRED') {
+      if (options.silent) {
+        setAiLoading(false);
+        return;
+      }
       setTrialDialog({
         open: true,
         remaining: res.data?.trialRemaining || 5,
       });
     } else if (res.code === -1 && res.message === 'NEED_SUPPORTER') {
+      if (options.silent) {
+        setAiLoading(false);
+        return;
+      }
       // 跳转到支付页面并说明原因
+      setAiLoading(false);
       router.push('/payment?from=ai');
       return;
     } else if (res.code === 0 && res.data) {
-      // 尝试解析 JSON 格式的 AI 回复
-      const raw = res.data.content || '';
-      try {
-        const parsed = JSON.parse(raw);
-        setAiExplanation(parsed);
-      } catch {
-        // 兼容旧格式（纯文本）
-        setAiExplanation({ correctReason: raw });
-      }
-    } else {
+      const parsed = parseAiExplanationContent(res.data.content || '');
+      setAiExplanation(parsed);
+      writeCachedAiExplanation(currentQuestion.id, parsed);
+    } else if (!options.silent) {
       setAiExplanation({ correctReason: res.message || '获取失败' });
     }
     setAiLoading(false);
