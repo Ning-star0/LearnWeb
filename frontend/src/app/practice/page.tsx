@@ -1260,8 +1260,27 @@ function QuizQuestionList({
   );
 }
 
-/** 分离材料与问题，材料用衬线字体浅色展示 */
+/** 分离材料与问题，材料用可滚动区域展示，避免挤占答题区 */
 function StemContent({ stem }: { stem: string }) {
+  const materialBlock = splitMaterialStem(stem);
+  if (materialBlock) {
+    return (
+      <div className="space-y-3">
+        {materialBlock.question && (
+          <h3 className="whitespace-pre-wrap break-words text-base leading-7 font-semibold sm:text-lg">
+            {materialBlock.question}
+          </h3>
+        )}
+        <div className="max-h-52 overflow-y-auto rounded-lg border bg-muted/40 p-3 text-sm leading-6 text-muted-foreground">
+          <div className="mb-1 text-xs font-medium text-foreground">材料</div>
+          <div className="whitespace-pre-wrap break-words">
+            {materialBlock.material}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // 尝试按常见分隔符拆分
   const patterns: { regex: RegExp; materialIdx: number; questionIdx: number }[] = [
     { regex: /^([\s\S]+?)[\n\r]+(?:问题|问)[：:]\s*([\s\S]+)$/, materialIdx: 1, questionIdx: 2 },
@@ -1294,6 +1313,21 @@ function StemContent({ stem }: { stem: string }) {
       {stem}
     </h3>
   );
+}
+
+function splitMaterialStem(stem: string) {
+  const normalized = stem.trim();
+  const materialMatch = normalized.match(/(?:^|\n|\s)(材料\s*[一二三四五六七八九十\d]+[：:])/);
+  if (!materialMatch || materialMatch.index === undefined) return null;
+
+  const splitIndex = materialMatch.index + materialMatch[0].indexOf(materialMatch[1]);
+  const question = normalized.slice(0, splitIndex).trim();
+  const material = normalized.slice(splitIndex).trim();
+  if (!material) return null;
+  return {
+    question: question || '阅读材料并回答问题。',
+    material,
+  };
 }
 
 function normalizeTypeParam(value: string | null) {

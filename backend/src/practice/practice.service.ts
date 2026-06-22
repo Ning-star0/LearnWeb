@@ -96,8 +96,12 @@ export class PracticeService {
     } else if (order === 'random') {
       this.shuffle(questions);
     } else {
-      // 顺序模式：先按教材章节自然顺序，再按导入题序，避免章节被题型分组打散。
+      // 顺序模式：先题型（单选、多选、判断、大题），每个题型内部再按章节自然顺序和导入题序。
+      const typeOrder: Record<string, number> = { SINGLE: 0, MULTIPLE: 1, JUDGE: 2, SHORT: 3 };
       questions.sort((a, b) => {
+        const leftType = typeOrder[a.type] ?? 99;
+        const rightType = typeOrder[b.type] ?? 99;
+        if (leftType !== rightType) return leftType - rightType;
         const chapterOrder = compareChapterNatural(a.chapter, b.chapter);
         if (chapterOrder !== 0) return chapterOrder;
         const orderNo = (a.orderNo ?? 0) - (b.orderNo ?? 0);
