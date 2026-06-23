@@ -889,7 +889,7 @@ function PracticePage() {
                   )}
                   <div className="grid grid-cols-2 gap-1.5">
                     <Button size="sm" onClick={() => handleStudyAction('remembered')} variant={currentStudyStatus === 'remembered' ? 'default' : 'outline'}>
-                      <CheckCircle2 className="size-3.5" />记住
+                      <CheckCircle2 className="size-3.5" />已背过
                     </Button>
                     <Button size="sm" onClick={() => handleStudyAction('not_remembered')} variant={currentStudyStatus === 'not_remembered' ? 'default' : 'outline'}>
                       <Clock3 className="size-3.5" />没记住
@@ -973,7 +973,7 @@ function PracticePage() {
                     </Badge>
                   )}
                   <Button size="sm" onClick={() => handleStudyAction('remembered')} className="w-full" variant={currentStudyStatus === 'remembered' ? 'default' : 'outline'}>
-                    <CheckCircle2 className="size-3.5" />记住
+                    <CheckCircle2 className="size-3.5" />已背过
                   </Button>
                   <Button size="sm" onClick={() => handleStudyAction('not_remembered')} variant={currentStudyStatus === 'not_remembered' ? 'default' : 'outline'} className="w-full">
                     <Clock3 className="size-3.5" />没记住
