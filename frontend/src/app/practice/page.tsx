@@ -881,16 +881,18 @@ function PracticePage() {
               )}
 
               {mode === 'study' && (
-                <div className="rounded-lg border bg-muted/30 p-3 lg:hidden">
-                  <div className="mb-2 text-sm font-medium">是否已记住？</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button onClick={() => handleStudyAction('remembered')} variant={currentStudyStatus === 'remembered' ? 'default' : 'outline'}>
-                      <CheckCircle2 className="size-4" />
-                      已记住 1
+                <div className="rounded-lg border bg-muted/30 p-2 lg:hidden">
+                  {currentStudyStatus !== 'unmarked' && (
+                    <Badge variant={currentStudyStatus === 'remembered' ? 'default' : 'destructive'} className="mb-2">
+                      {currentStudyStatus === 'remembered' ? '✓ 已背过' : '✗ 未记住'}
+                    </Badge>
+                  )}
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <Button size="sm" onClick={() => handleStudyAction('remembered')} variant={currentStudyStatus === 'remembered' ? 'default' : 'outline'}>
+                      <CheckCircle2 className="size-3.5" />记住
                     </Button>
-                    <Button onClick={() => handleStudyAction('not_remembered')} variant={currentStudyStatus === 'not_remembered' ? 'default' : 'outline'}>
-                      <Clock3 className="size-4" />
-                      未记住 2
+                    <Button size="sm" onClick={() => handleStudyAction('not_remembered')} variant={currentStudyStatus === 'not_remembered' ? 'default' : 'outline'}>
+                      <Clock3 className="size-3.5" />没记住
                     </Button>
                   </div>
                   {currentStudyStatus !== 'unmarked' && (
@@ -965,14 +967,16 @@ function PracticePage() {
 
               {mode === 'study' && (
                 <div className="grid gap-2">
-                  <div className="text-sm font-medium">是否已记住？</div>
-                  <Button onClick={() => handleStudyAction('remembered')} className="w-full" variant={currentStudyStatus === 'remembered' ? 'default' : 'outline'}>
-                    <CheckCircle2 className="size-4" />
-                    已记住 1
+                  {currentStudyStatus !== 'unmarked' && (
+                    <Badge variant={currentStudyStatus === 'remembered' ? 'default' : 'destructive'}>
+                      {currentStudyStatus === 'remembered' ? '✓ 已背过' : '✗ 未记住'}
+                    </Badge>
+                  )}
+                  <Button size="sm" onClick={() => handleStudyAction('remembered')} className="w-full" variant={currentStudyStatus === 'remembered' ? 'default' : 'outline'}>
+                    <CheckCircle2 className="size-3.5" />记住
                   </Button>
-                  <Button onClick={() => handleStudyAction('not_remembered')} variant={currentStudyStatus === 'not_remembered' ? 'default' : 'outline'} className="w-full">
-                    <Clock3 className="size-4" />
-                    未记住 2
+                  <Button size="sm" onClick={() => handleStudyAction('not_remembered')} variant={currentStudyStatus === 'not_remembered' ? 'default' : 'outline'} className="w-full">
+                    <Clock3 className="size-3.5" />没记住
                   </Button>
                   {currentStudyStatus !== 'unmarked' && (
                     <Button onClick={nextQuestion} className="w-full">
