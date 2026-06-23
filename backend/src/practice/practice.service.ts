@@ -62,20 +62,7 @@ export class PracticeService {
     if (normalizedType) where.type = normalizedType;
     if (questionIds !== null) where.id = { in: questionIds };
 
-    // 背题模式仍然排除已背熟题；答题模式保留历史正确题并返回状态，前端负责标绿和跳过。
-    if (mode === 'study' && (scope === 'all' || scope === 'book')) {
-      const rememberedIds = await this.prisma.answerRecord.findMany({
-        where: { userId, mode: 'STUDY', action: 'remembered' },
-        select: { questionId: true },
-        distinct: ['questionId'],
-      });
-      const excludeIds = new Set(rememberedIds.map((r) => r.questionId));
-      if (excludeIds.size > 0) {
-        where.id = where.id
-          ? { in: (where.id.in as number[]).filter((id: number) => !excludeIds.has(id)) }
-          : { notIn: [...excludeIds] };
-      }
-    }
+    // 背题模式保留已背过题目，与答题模式一致：前端显示状态标记，用户可回看
 
     // 查询题目
     let questions = await this.prisma.question.findMany({
