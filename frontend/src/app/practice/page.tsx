@@ -326,9 +326,14 @@ function PracticePage() {
   };
 
   const currentQuestion = questions[currentIndex];
+  const currentQuestionIdRef = useRef<number | null>(null);
   const progress = questions.length > 0 ? Math.round(((currentIndex + 1) / questions.length) * 100) : 0;
   const correctAnswer = submitted && result ? result.correctAnswer : currentQuestion?.answerJson;
   const currentIsHistoricalCorrect = shouldSkipHistoricalCorrect && Boolean(currentQuestion?.historicalCorrect);
+
+  useEffect(() => {
+    currentQuestionIdRef.current = currentQuestion?.id ?? null;
+  }, [currentQuestion?.id]);
 
   useEffect(() => {
     if (!currentQuestion) return;
@@ -544,16 +549,21 @@ function PracticePage() {
 
   const handleAiExplanation = async (useTrial = false, options: { silent?: boolean } = {}) => {
     if (!currentQuestion) return;
-    const cached = readCachedAiExplanation(currentQuestion.id);
+    const requestQuestionId = currentQuestion.id;
+    const cached = readCachedAiExplanation(requestQuestionId);
     if (cached) {
-      setAiExplanation(cached);
+      if (currentQuestionIdRef.current === requestQuestionId) setAiExplanation(cached);
       return;
     }
 
     setAiLoading(true);
     setShowSupporterPrompt(false);
-    const res = await api.post(`/questions/${currentQuestion.id}/ai-explanation`, useTrial ? { useTrial: true } : {});
+    const res = await api.post(`/questions/${requestQuestionId}/ai-explanation`, useTrial ? { useTrial: true } : {});
     if (res.code === -1 && res.message === 'TRIAL_CONFIRM_REQUIRED') {
+      if (currentQuestionIdRef.current !== requestQuestionId) {
+        setAiLoading(false);
+        return;
+      }
       if (options.silent) {
         setAiLoading(false);
         return;
@@ -563,6 +573,10 @@ function PracticePage() {
         remaining: res.data?.trialRemaining || 5,
       });
     } else if (res.code === -1 && res.message === 'NEED_SUPPORTER') {
+      if (currentQuestionIdRef.current !== requestQuestionId) {
+        setAiLoading(false);
+        return;
+      }
       if (options.silent) {
         setAiLoading(false);
         return;
@@ -573,10 +587,12 @@ function PracticePage() {
       return;
     } else if (res.code === 0 && res.data) {
       const parsed = parseAiExplanationContent(res.data.content || '');
-      setAiExplanation(parsed);
-      writeCachedAiExplanation(currentQuestion.id, parsed);
+      writeCachedAiExplanation(requestQuestionId, parsed);
+      if (currentQuestionIdRef.current === requestQuestionId) setAiExplanation(parsed);
     } else if (!options.silent) {
-      setAiExplanation({ correctReason: res.message || '获取失败' });
+      if (currentQuestionIdRef.current === requestQuestionId) {
+        setAiExplanation({ correctReason: res.message || '获取失败' });
+      }
     }
     setAiLoading(false);
   };
