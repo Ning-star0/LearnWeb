@@ -355,7 +355,8 @@ function PracticePage() {
     return () => window.clearInterval(timer);
   }, [aiCooldown]);
 
-  const canGoPrevious = currentIndex > 0;
+  const canGoPrevious = currentIndex > 0 && !submittingAnswer;
+  const canGoNext = !submittingAnswer;
   const isLastQuestion = currentIndex >= questions.length - 1;
   const currentStudyStatus = studyAction || currentQuestion?.studyStatus || 'unmarked';
   const aiActionDisabled = aiLoading || (aiCooldown > 0 && !aiExplanation);
@@ -386,13 +387,14 @@ function PracticePage() {
   }, [currentQuestion, submitted, submittingAnswer, currentIsHistoricalCorrect, selectedOption, selectedOptions, judgeAnswer, shortAnswer]);
 
   const previousQuestion = useCallback(() => {
-    if (currentIndex <= 0) return;
+    if (currentIndex <= 0 || submittingAnswer) return;
     resetState();
     const nextIndex = findNextPracticeIndex(currentIndex, -1);
     setCurrentIndex(nextIndex >= 0 ? nextIndex : 0);
-  }, [currentIndex, findNextPracticeIndex]);
+  }, [currentIndex, findNextPracticeIndex, submittingAnswer]);
 
   const nextQuestion = useCallback(() => {
+    if (submittingAnswer) return;
     resetState();
     if (currentIndex < questions.length - 1) {
       const nextIndex = findNextPracticeIndex(currentIndex, 1);
@@ -404,9 +406,10 @@ function PracticePage() {
     } else {
       backToSelect();
     }
-  }, [currentIndex, findNextPracticeIndex, questions.length]);
+  }, [currentIndex, findNextPracticeIndex, questions.length, submittingAnswer]);
 
   const jumpToQuestion = (index: number) => {
+    if (submittingAnswer) return;
     // 不重置答案，保留用户已选内容
     setCurrentIndex(index);
   };
@@ -481,6 +484,7 @@ function PracticePage() {
 
   const handleSubmit = async (answerOverride?: unknown) => {
     if (!currentQuestion || submitted || submittingAnswer || currentIsHistoricalCorrect) return;
+    const requestQuestionId = currentQuestion.id;
 
     let userAnswer = answerOverride;
     if (userAnswer === undefined) {
@@ -512,10 +516,8 @@ function PracticePage() {
         return;
       }
 
-      setSubmitted(true);
       const submitResult = res.data as SubmitResult;
-      setResult(submitResult);
-      saveAnswerState(currentQuestion.id, {
+      const nextAnswerState: AnswerState = {
         selectedOption: currentQuestion.type === 'SINGLE' ? String(userAnswer || '') : selectedOption,
         selectedOptions: currentQuestion.type === 'MULTIPLE' && Array.isArray(userAnswer) ? userAnswer : selectedOptions,
         judgeAnswer: currentQuestion.type === 'JUDGE' ? Boolean(userAnswer) : judgeAnswer,
@@ -523,17 +525,23 @@ function PracticePage() {
         submitted: true,
         result: submitResult,
         quizUncertain: isUncertain,
-      });
+      };
+      saveAnswerState(requestQuestionId, nextAnswerState);
 
       // 记录答题状态
       const quizStatus = isUncertain ? 'uncertain' as const
         : submitResult.isCorrect ? 'correct' as const
         : 'wrong' as const;
       setQuestions((current) =>
-        current.map((q, i) =>
-          i === currentIndex ? { ...q, quizStatus } : q,
+        current.map((q) =>
+          q.id === requestQuestionId ? { ...q, quizStatus } : q,
         ),
       );
+
+      if (currentQuestionIdRef.current === requestQuestionId) {
+        setSubmitted(true);
+        setResult(submitResult);
+      }
 
       if (mode === 'quiz' && !isUncertain && submitResult.isCorrect === false) {
         void handleAiExplanation(false, { silent: true });
@@ -763,7 +771,7 @@ function PracticePage() {
               反馈
             </Button>
           </Link>
-          <Button variant="outline" size="sm" onClick={nextQuestion}>
+          <Button variant="outline" size="sm" onClick={nextQuestion} disabled={!canGoNext}>
             {isLastQuestion ? '完成' : '下一题'}
             <ArrowRight className="size-4" />
           </Button>
@@ -1028,7 +1036,7 @@ function PracticePage() {
                     <Clock3 className="size-3.5" />没记住
                   </Button>
                   {currentStudyStatus !== 'unmarked' && (
-                    <Button onClick={nextQuestion} className="w-full">
+                    <Button onClick={nextQuestion} className="w-full" disabled={!canGoNext}>
                       {isLastQuestion ? '完成' : '下一题'}
                       <ArrowRight className="size-4" />
                     </Button>
@@ -1057,7 +1065,7 @@ function PracticePage() {
               )}
 
               {mode === 'quiz' && submitted && (
-                <Button onClick={nextQuestion} className="w-full">
+                <Button onClick={nextQuestion} className="w-full" disabled={!canGoNext}>
                   {isLastQuestion ? '完成学习' : '下一题'}
                   <ArrowRight className="size-4" />
                 </Button>
@@ -1068,7 +1076,7 @@ function PracticePage() {
                   <ArrowLeft className="size-4" />
                   上一题
                 </Button>
-                <Button variant="outline" onClick={nextQuestion}>
+                <Button variant="outline" onClick={nextQuestion} disabled={!canGoNext}>
                   下一题
                   <ArrowRight className="size-4" />
                 </Button>
@@ -1325,7 +1333,7 @@ function QuizQuestionList({
   onJump: (index: number) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const correctCount = questions.filter((q) => q.quizStatus === 'correct').length;
+  const correctCount = questions.filter((q) => q.quizStatus === 'correct' && !q.historicalCorrect).length;
   const wrongCount = questions.filter((q) => q.quizStatus === 'wrong').length;
   const remainingCount = questions.filter((q) => !q.quizStatus || q.quizStatus === 'unanswered').length;
   const historicalCorrectCount = stats?.historicalCorrectCount ?? questions.filter((q) => q.historicalCorrect).length;
