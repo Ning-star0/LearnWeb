@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, ArrowRight, BookmarkPlus, BookmarkCheck, Brain, Check, CheckCircle2, ChevronLeft, Clock3, HelpCircle, Keyboard, MessageSquare, Sparkles, XCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -168,6 +169,7 @@ function PracticePage() {
   const [loadError, setLoadError] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiCooldown, setAiCooldown] = useState(0);
+  const [submittingAnswer, setSubmittingAnswer] = useState(false);
   const [studyAction, setStudyAction] = useState<string | null>(null);
   const [quizUncertain, setQuizUncertain] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
@@ -375,13 +377,13 @@ function PracticePage() {
   }, [questions]);
 
   const canSubmit = useMemo(() => {
-    if (!currentQuestion || submitted || currentIsHistoricalCorrect) return false;
+    if (!currentQuestion || submitted || submittingAnswer || currentIsHistoricalCorrect) return false;
     if (currentQuestion.type === 'SINGLE') return Boolean(selectedOption);
     if (currentQuestion.type === 'MULTIPLE') return selectedOptions.length > 0;
     if (currentQuestion.type === 'JUDGE') return judgeAnswer !== null;
     if (currentQuestion.type === 'SHORT') return shortAnswer.trim().length > 0;
     return false;
-  }, [currentQuestion, submitted, currentIsHistoricalCorrect, selectedOption, selectedOptions, judgeAnswer, shortAnswer]);
+  }, [currentQuestion, submitted, submittingAnswer, currentIsHistoricalCorrect, selectedOption, selectedOptions, judgeAnswer, shortAnswer]);
 
   const previousQuestion = useCallback(() => {
     if (currentIndex <= 0) return;
@@ -478,7 +480,7 @@ function PracticePage() {
   }, [mode, handleStudyAction]);
 
   const handleSubmit = async (answerOverride?: unknown) => {
-    if (!currentQuestion || submitted || currentIsHistoricalCorrect) return;
+    if (!currentQuestion || submitted || submittingAnswer || currentIsHistoricalCorrect) return;
 
     let userAnswer = answerOverride;
     if (userAnswer === undefined) {
@@ -499,54 +501,66 @@ function PracticePage() {
     }
 
     const isUncertain = answerOverride === 'UNCERTAIN';
-    const res = await api.post('/practice/submit', {
-      questionId: currentQuestion.id,
-      userAnswer,
-    });
-    setSubmitted(true);
-    const submitResult = res.data || res;
-    setResult(submitResult);
-    saveAnswerState(currentQuestion.id, {
-      selectedOption: currentQuestion.type === 'SINGLE' ? String(userAnswer || '') : selectedOption,
-      selectedOptions: currentQuestion.type === 'MULTIPLE' && Array.isArray(userAnswer) ? userAnswer : selectedOptions,
-      judgeAnswer: currentQuestion.type === 'JUDGE' ? Boolean(userAnswer) : judgeAnswer,
-      shortAnswer,
-      submitted: true,
-      result: submitResult,
-      quizUncertain: isUncertain,
-    });
+    setSubmittingAnswer(true);
+    try {
+      const res = await api.post('/practice/submit', {
+        questionId: currentQuestion.id,
+        userAnswer,
+      });
+      if (res.code !== 0 || !res.data) {
+        toast.error(res.message || '提交失败，请稍后重试');
+        return;
+      }
 
-    // 记录答题状态
-    const quizStatus = isUncertain ? 'uncertain' as const
-      : submitResult.isCorrect ? 'correct' as const
-      : 'wrong' as const;
-    setQuestions((current) =>
-      current.map((q, i) =>
-        i === currentIndex ? { ...q, quizStatus } : q,
-      ),
-    );
+      setSubmitted(true);
+      const submitResult = res.data as SubmitResult;
+      setResult(submitResult);
+      saveAnswerState(currentQuestion.id, {
+        selectedOption: currentQuestion.type === 'SINGLE' ? String(userAnswer || '') : selectedOption,
+        selectedOptions: currentQuestion.type === 'MULTIPLE' && Array.isArray(userAnswer) ? userAnswer : selectedOptions,
+        judgeAnswer: currentQuestion.type === 'JUDGE' ? Boolean(userAnswer) : judgeAnswer,
+        shortAnswer,
+        submitted: true,
+        result: submitResult,
+        quizUncertain: isUncertain,
+      });
 
-    if (mode === 'quiz' && !isUncertain && submitResult.isCorrect === false) {
-      void handleAiExplanation(false, { silent: true });
+      // 记录答题状态
+      const quizStatus = isUncertain ? 'uncertain' as const
+        : submitResult.isCorrect ? 'correct' as const
+        : 'wrong' as const;
+      setQuestions((current) =>
+        current.map((q, i) =>
+          i === currentIndex ? { ...q, quizStatus } : q,
+        ),
+      );
+
+      if (mode === 'quiz' && !isUncertain && submitResult.isCorrect === false) {
+        void handleAiExplanation(false, { silent: true });
+      }
+    } catch {
+      toast.error('提交失败，请检查网络后重试');
+    } finally {
+      setSubmittingAnswer(false);
     }
   };
 
   const handleSingleAnswer = (label: string) => {
-    if (submitted || mode === 'study' || currentIsHistoricalCorrect) return;
+    if (submitted || submittingAnswer || mode === 'study' || currentIsHistoricalCorrect) return;
     setSelectedOption(label);
     if (currentQuestion) saveAnswerState(currentQuestion.id, { selectedOption: label });
     handleSubmit(label);
   };
 
   const handleJudgeAnswer = (value: boolean) => {
-    if (submitted || mode === 'study' || currentIsHistoricalCorrect) return;
+    if (submitted || submittingAnswer || mode === 'study' || currentIsHistoricalCorrect) return;
     setJudgeAnswer(value);
     if (currentQuestion) saveAnswerState(currentQuestion.id, { judgeAnswer: value });
     handleSubmit(value);
   };
 
   const toggleMultipleOption = useCallback((label: string) => {
-    if (!currentQuestion || submitted || mode === 'study' || currentIsHistoricalCorrect) return;
+    if (!currentQuestion || submitted || submittingAnswer || mode === 'study' || currentIsHistoricalCorrect) return;
     setSelectedOptions((current) => {
       const next = current.includes(label)
         ? current.filter((item) => item !== label)
@@ -554,7 +568,7 @@ function PracticePage() {
       saveAnswerState(currentQuestion.id, { selectedOptions: next });
       return next;
     });
-  }, [currentQuestion, submitted, mode, currentIsHistoricalCorrect]);
+  }, [currentQuestion, submitted, submittingAnswer, mode, currentIsHistoricalCorrect]);
 
   const openFeedback = useCallback(() => {
     if (!currentQuestion) return;
@@ -733,7 +747,7 @@ function PracticePage() {
           </Button>
           {mode === 'quiz' && !submitted && (currentQuestion.type === 'MULTIPLE' || currentQuestion.type === 'SHORT') && (
             <Button size="sm" onClick={() => handleSubmit()} disabled={!canSubmit}>
-              提交答案
+              {submittingAnswer ? '提交中...' : '提交答案'}
             </Button>
           )}
           {mode === 'quiz' && !submitted && (currentQuestion.type === 'SINGLE' || currentQuestion.type === 'JUDGE') && (
@@ -1028,12 +1042,13 @@ function PracticePage() {
               {mode === 'quiz' && !submitted && (currentQuestion.type === 'MULTIPLE' || currentQuestion.type === 'SHORT') && (
                 <div className="flex gap-2 w-full">
                   <Button onClick={() => handleSubmit()} className="flex-1" disabled={!canSubmit}>
-                    提交答案
+                    {submittingAnswer ? '提交中...' : '提交答案'}
                   </Button>
                   <Button
                     variant="outline"
                     className="flex-1"
                     onClick={() => handleSubmit('UNCERTAIN')}
+                    disabled={submittingAnswer || currentIsHistoricalCorrect}
                   >
                     <HelpCircle className="size-4 mr-1" />
                     不确定
