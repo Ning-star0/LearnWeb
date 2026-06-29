@@ -170,6 +170,7 @@ function PracticePage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiCooldown, setAiCooldown] = useState(0);
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
+  const [savingStudyAction, setSavingStudyAction] = useState(false);
   const [studyAction, setStudyAction] = useState<string | null>(null);
   const [quizUncertain, setQuizUncertain] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
@@ -355,8 +356,9 @@ function PracticePage() {
     return () => window.clearInterval(timer);
   }, [aiCooldown]);
 
-  const canGoPrevious = currentIndex > 0 && !submittingAnswer;
-  const canGoNext = !submittingAnswer;
+  const actionLocked = submittingAnswer || savingStudyAction;
+  const canGoPrevious = currentIndex > 0 && !actionLocked;
+  const canGoNext = !actionLocked;
   const isLastQuestion = currentIndex >= questions.length - 1;
   const currentStudyStatus = studyAction || currentQuestion?.studyStatus || 'unmarked';
   const aiActionDisabled = aiLoading || (aiCooldown > 0 && !aiExplanation);
@@ -387,14 +389,14 @@ function PracticePage() {
   }, [currentQuestion, submitted, submittingAnswer, currentIsHistoricalCorrect, selectedOption, selectedOptions, judgeAnswer, shortAnswer]);
 
   const previousQuestion = useCallback(() => {
-    if (currentIndex <= 0 || submittingAnswer) return;
+    if (currentIndex <= 0 || actionLocked) return;
     resetState();
     const nextIndex = findNextPracticeIndex(currentIndex, -1);
     setCurrentIndex(nextIndex >= 0 ? nextIndex : 0);
-  }, [currentIndex, findNextPracticeIndex, submittingAnswer]);
+  }, [actionLocked, currentIndex, findNextPracticeIndex]);
 
   const nextQuestion = useCallback(() => {
-    if (submittingAnswer) return;
+    if (actionLocked) return;
     resetState();
     if (currentIndex < questions.length - 1) {
       const nextIndex = findNextPracticeIndex(currentIndex, 1);
@@ -406,10 +408,10 @@ function PracticePage() {
     } else {
       backToSelect();
     }
-  }, [currentIndex, findNextPracticeIndex, questions.length, submittingAnswer]);
+  }, [actionLocked, currentIndex, findNextPracticeIndex, questions.length]);
 
   const jumpToQuestion = (index: number) => {
-    if (submittingAnswer) return;
+    if (actionLocked) return;
     // 不重置答案，保留用户已选内容
     setCurrentIndex(index);
   };
@@ -441,19 +443,41 @@ function PracticePage() {
   }, [previousQuestion, nextQuestion]);
 
   const handleStudyAction = useCallback(async (action: 'remembered' | 'not_remembered') => {
-    if (!currentQuestion) return;
+    if (!currentQuestion || savingStudyAction) return;
+    const requestQuestionId = currentQuestion.id;
+    const previousAction = studyAction;
+    const previousStatus = currentQuestion.studyStatus || 'unmarked';
     setStudyAction(action);
-    saveAnswerState(currentQuestion.id, { studyAction: action });
+    saveAnswerState(requestQuestionId, { studyAction: action });
     setQuestions((current) =>
       current.map((question, index) =>
         index === currentIndex ? { ...question, studyStatus: action } : question,
       ),
     );
-    await api.post('/practice/study-action', {
-      questionId: currentQuestion.id,
-      action,
-    });
-  }, [currentIndex, currentQuestion]);
+    setSavingStudyAction(true);
+    try {
+      const res = await api.post('/practice/study-action', {
+        questionId: requestQuestionId,
+        action,
+      });
+      if (res.code !== 0) {
+        throw new Error(res.message || '保存失败');
+      }
+    } catch {
+      saveAnswerState(requestQuestionId, { studyAction: previousAction });
+      setQuestions((current) =>
+        current.map((question) =>
+          question.id === requestQuestionId ? { ...question, studyStatus: previousStatus } : question,
+        ),
+      );
+      if (currentQuestionIdRef.current === requestQuestionId) {
+        setStudyAction(previousAction);
+      }
+      toast.error('背题状态保存失败，请稍后重试');
+    } finally {
+      setSavingStudyAction(false);
+    }
+  }, [currentIndex, currentQuestion, savingStudyAction, studyAction]);
 
   useEffect(() => {
     if (mode !== 'study') return;
@@ -945,15 +969,15 @@ function PracticePage() {
                     </Badge>
                   )}
                   <div className="grid grid-cols-2 gap-1.5">
-                    <Button size="sm" onClick={() => handleStudyAction('remembered')} variant={currentStudyStatus === 'remembered' ? 'default' : 'outline'}>
-                      <CheckCircle2 className="size-3.5" />已背过
+                    <Button size="sm" onClick={() => handleStudyAction('remembered')} variant={currentStudyStatus === 'remembered' ? 'default' : 'outline'} disabled={savingStudyAction}>
+                      <CheckCircle2 className="size-3.5" />{savingStudyAction ? '保存中...' : '已背过'}
                     </Button>
-                    <Button size="sm" onClick={() => handleStudyAction('not_remembered')} variant={currentStudyStatus === 'not_remembered' ? 'default' : 'outline'}>
-                      <Clock3 className="size-3.5" />没记住
+                    <Button size="sm" onClick={() => handleStudyAction('not_remembered')} variant={currentStudyStatus === 'not_remembered' ? 'default' : 'outline'} disabled={savingStudyAction}>
+                      <Clock3 className="size-3.5" />{savingStudyAction ? '保存中...' : '没记住'}
                     </Button>
                   </div>
                   {currentStudyStatus !== 'unmarked' && (
-                    <Button onClick={nextQuestion} className="mt-2 w-full">
+                    <Button onClick={nextQuestion} className="mt-2 w-full" disabled={!canGoNext}>
                       {isLastQuestion ? '完成' : '下一题'}
                       <ArrowRight className="size-4" />
                     </Button>
@@ -1029,11 +1053,11 @@ function PracticePage() {
                       {currentStudyStatus === 'remembered' ? '✓ 已背过' : '✗ 未记住'}
                     </Badge>
                   )}
-                  <Button size="sm" onClick={() => handleStudyAction('remembered')} className="w-full" variant={currentStudyStatus === 'remembered' ? 'default' : 'outline'}>
-                    <CheckCircle2 className="size-3.5" />已背过
+                  <Button size="sm" onClick={() => handleStudyAction('remembered')} className="w-full" variant={currentStudyStatus === 'remembered' ? 'default' : 'outline'} disabled={savingStudyAction}>
+                    <CheckCircle2 className="size-3.5" />{savingStudyAction ? '保存中...' : '已背过'}
                   </Button>
-                  <Button size="sm" onClick={() => handleStudyAction('not_remembered')} variant={currentStudyStatus === 'not_remembered' ? 'default' : 'outline'} className="w-full">
-                    <Clock3 className="size-3.5" />没记住
+                  <Button size="sm" onClick={() => handleStudyAction('not_remembered')} variant={currentStudyStatus === 'not_remembered' ? 'default' : 'outline'} className="w-full" disabled={savingStudyAction}>
+                    <Clock3 className="size-3.5" />{savingStudyAction ? '保存中...' : '没记住'}
                   </Button>
                   {currentStudyStatus !== 'unmarked' && (
                     <Button onClick={nextQuestion} className="w-full" disabled={!canGoNext}>
