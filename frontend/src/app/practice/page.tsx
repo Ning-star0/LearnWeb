@@ -86,11 +86,13 @@ function writeCachedAiExplanation(questionId: number, content: unknown) {
 }
 
 function findFirstUnansweredIndex(list: PracticeQuestion[], savedAnswers: Record<number, AnswerState>) {
-  return list.findIndex((question) => {
-    const status = question.quizStatus || 'unanswered';
-    const saved = savedAnswers[question.id];
-    return status === 'unanswered' && !saved?.submitted;
-  });
+  return list.findIndex((question) => isQuestionUnanswered(question, savedAnswers));
+}
+
+function isQuestionUnanswered(question: PracticeQuestion, savedAnswers: Record<number, AnswerState> = {}) {
+  const status = question.quizStatus || 'unanswered';
+  const saved = savedAnswers[question.id];
+  return status === 'unanswered' && !saved?.submitted;
 }
 
 interface QuestionOption {
@@ -189,18 +191,17 @@ function PracticePage() {
     setQuizUncertain(false);
   };
 
-  const shouldSkipHistoricalCorrect = mode === 'quiz' && scope === 'all' && !ids;
-  const shouldOpenAtFirstUnanswered = mode === 'quiz' && (scope === 'all' || scope === 'book') && !ids;
+  const shouldUseQuizProgressQueue = mode === 'quiz' && (scope === 'all' || scope === 'book') && !ids;
 
   const findNextPracticeIndex = useCallback((fromIndex: number, direction: 1 | -1, list = questions) => {
-    if (!shouldSkipHistoricalCorrect) {
+    if (!shouldUseQuizProgressQueue || direction === -1) {
       return Math.max(0, Math.min(list.length - 1, fromIndex + direction));
     }
     for (let index = fromIndex + direction; index >= 0 && index < list.length; index += direction) {
-      if (!list[index]?.historicalCorrect) return index;
+      if (isQuestionUnanswered(list[index])) return index;
     }
     return -1;
-  }, [questions, shouldSkipHistoricalCorrect]);
+  }, [questions, shouldUseQuizProgressQueue]);
 
   const sessionKey = `practice:${mode}:${scope}:${bookId || 'all'}:${chapter || 'all'}:${type || 'all'}:${ids || 'all'}:${order}`;
 
@@ -250,7 +251,7 @@ function PracticePage() {
           const stats = Array.isArray(res.data) ? null : (res.data?.stats || null);
           let savedIndex = 0;
           let savedAnswers: Record<number, AnswerState> = {};
-          const saved = localStorage.getItem(sessionKey);
+          const saved = restart ? null : localStorage.getItem(sessionKey);
           if (saved) {
             try {
               const parsed = JSON.parse(saved);
@@ -258,12 +259,9 @@ function PracticePage() {
               if (parsed.answers && typeof parsed.answers === 'object') savedAnswers = parsed.answers;
             } catch {}
           }
-          if (shouldOpenAtFirstUnanswered) {
+          if (shouldUseQuizProgressQueue) {
             const firstUnansweredIndex = findFirstUnansweredIndex(list, savedAnswers);
             savedIndex = firstUnansweredIndex >= 0 ? firstUnansweredIndex : 0;
-          } else if (shouldSkipHistoricalCorrect && list[savedIndex]?.historicalCorrect) {
-            const nextPending = list.findIndex((question: PracticeQuestion) => !question.historicalCorrect);
-            savedIndex = nextPending >= 0 ? nextPending : 0;
           }
           setQuestions(list);
           setPracticeStats(stats);
@@ -281,7 +279,7 @@ function PracticePage() {
       })
       .finally(() => setLoading(false));
 
-  }, [authLoading, user, mode, scope, bookId, chapter, ids, type, order, restart, router, sessionKey, shouldOpenAtFirstUnanswered, shouldSkipHistoricalCorrect]);
+  }, [authLoading, user, mode, scope, bookId, chapter, ids, type, order, restart, router, sessionKey, shouldUseQuizProgressQueue]);
 
   // 退出时保存进度
   useEffect(() => {
@@ -330,7 +328,7 @@ function PracticePage() {
   const currentQuestionIdRef = useRef<number | null>(null);
   const progress = questions.length > 0 ? Math.round(((currentIndex + 1) / questions.length) * 100) : 0;
   const correctAnswer = submitted && result ? result.correctAnswer : currentQuestion?.answerJson;
-  const currentIsHistoricalCorrect = shouldSkipHistoricalCorrect && Boolean(currentQuestion?.historicalCorrect);
+  const currentIsHistoricalCorrect = shouldUseQuizProgressQueue && Boolean(currentQuestion?.historicalCorrect);
 
   useEffect(() => {
     currentQuestionIdRef.current = currentQuestion?.id ?? null;
