@@ -165,6 +165,7 @@ function PracticePage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiCooldown, setAiCooldown] = useState(0);
   const [studyAction, setStudyAction] = useState<string | null>(null);
   const [quizUncertain, setQuizUncertain] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
@@ -345,9 +346,24 @@ function PracticePage() {
     const cached = readCachedAiExplanation(currentQuestion.id);
     if (cached) setAiExplanation(cached);
   }, [currentQuestion?.id]);
+
+  useEffect(() => {
+    if (aiCooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setAiCooldown((current) => Math.max(0, current - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [aiCooldown]);
+
   const canGoPrevious = currentIndex > 0;
   const isLastQuestion = currentIndex >= questions.length - 1;
   const currentStudyStatus = studyAction || currentQuestion?.studyStatus || 'unmarked';
+  const aiActionDisabled = aiLoading || (aiCooldown > 0 && !aiExplanation);
+  const aiButtonText = aiLoading
+    ? '加载中...'
+    : aiCooldown > 0 && !aiExplanation
+      ? `${aiCooldown} 秒后可再分析`
+      : '查看 AI 解析';
   const studyCounts = useMemo(() => {
     return questions.reduce(
       (acc, question) => {
@@ -555,46 +571,51 @@ function PracticePage() {
       if (currentQuestionIdRef.current === requestQuestionId) setAiExplanation(cached);
       return;
     }
+    if (aiCooldown > 0) {
+      if (!options.silent && currentQuestionIdRef.current === requestQuestionId) {
+        setAiExplanation({ correctReason: `AI 解析请求间隔为 5 秒，请 ${aiCooldown} 秒后再试。` });
+      }
+      return;
+    }
 
     setAiLoading(true);
     setShowSupporterPrompt(false);
-    const res = await api.post(`/questions/${requestQuestionId}/ai-explanation`, useTrial ? { useTrial: true } : {});
-    if (res.code === -1 && res.message === 'TRIAL_CONFIRM_REQUIRED') {
-      if (currentQuestionIdRef.current !== requestQuestionId) {
-        setAiLoading(false);
+    try {
+      const res = await api.post(`/questions/${requestQuestionId}/ai-explanation`, useTrial ? { useTrial: true } : {});
+      if (res.retryAfter) {
+        const retryAfter = Math.max(1, Number(res.retryAfter) || 5);
+        setAiCooldown(retryAfter);
+        if (!options.silent && currentQuestionIdRef.current === requestQuestionId) {
+          setAiExplanation({ correctReason: `AI 解析请求间隔为 5 秒，请 ${retryAfter} 秒后再试。` });
+        }
+      } else if (res.code === -1 && res.message === 'TRIAL_CONFIRM_REQUIRED') {
+        if (currentQuestionIdRef.current !== requestQuestionId) return;
+        if (options.silent) return;
+        setTrialDialog({
+          open: true,
+          remaining: res.data?.trialRemaining || 5,
+        });
+      } else if (res.code === -1 && res.message === 'NEED_SUPPORTER') {
+        if (currentQuestionIdRef.current !== requestQuestionId) return;
+        if (options.silent) return;
+        router.push('/payment?from=ai');
         return;
+      } else if (res.code === 0 && res.data) {
+        const parsed = parseAiExplanationContent(res.data.content || '');
+        writeCachedAiExplanation(requestQuestionId, parsed);
+        if (currentQuestionIdRef.current === requestQuestionId) setAiExplanation(parsed);
+      } else if (!options.silent) {
+        if (currentQuestionIdRef.current === requestQuestionId) {
+          setAiExplanation({ correctReason: res.message || '获取失败' });
+        }
       }
-      if (options.silent) {
-        setAiLoading(false);
-        return;
+    } catch {
+      if (!options.silent && currentQuestionIdRef.current === requestQuestionId) {
+        setAiExplanation({ correctReason: 'AI 解析请求失败，请稍后重试。' });
       }
-      setTrialDialog({
-        open: true,
-        remaining: res.data?.trialRemaining || 5,
-      });
-    } else if (res.code === -1 && res.message === 'NEED_SUPPORTER') {
-      if (currentQuestionIdRef.current !== requestQuestionId) {
-        setAiLoading(false);
-        return;
-      }
-      if (options.silent) {
-        setAiLoading(false);
-        return;
-      }
-      // 跳转到支付页面并说明原因
+    } finally {
       setAiLoading(false);
-      router.push('/payment?from=ai');
-      return;
-    } else if (res.code === 0 && res.data) {
-      const parsed = parseAiExplanationContent(res.data.content || '');
-      writeCachedAiExplanation(requestQuestionId, parsed);
-      if (currentQuestionIdRef.current === requestQuestionId) setAiExplanation(parsed);
-    } else if (!options.silent) {
-      if (currentQuestionIdRef.current === requestQuestionId) {
-        setAiExplanation({ correctReason: res.message || '获取失败' });
-      }
     }
-    setAiLoading(false);
   };
 
   useEffect(() => {
@@ -720,7 +741,7 @@ function PracticePage() {
           {mode === 'quiz' && !submitted && (currentQuestion.type === 'SINGLE' || currentQuestion.type === 'JUDGE') && (
             <Badge variant="secondary" className="hidden h-8 px-3 sm:inline-flex">点击或按 1/2/3 自动判题</Badge>
           )}
-          <Button variant="outline" size="sm" onClick={() => handleAiExplanation()} disabled={aiLoading} className="lg:hidden">
+          <Button variant="outline" size="sm" onClick={() => handleAiExplanation()} disabled={aiActionDisabled} className="lg:hidden">
             <Sparkles className="size-4" />
             AI
           </Button>
@@ -1045,9 +1066,9 @@ function PracticePage() {
                 快捷键：1/2/3... 选择 A/B/C...，←/→ 切题，↑ AI，↓ 反馈。
               </div>
 
-              <Button variant="outline" onClick={() => handleAiExplanation()} disabled={aiLoading} className="w-full">
+              <Button variant="outline" onClick={() => handleAiExplanation()} disabled={aiActionDisabled} className="w-full">
                 <Sparkles className="size-4" />
-                {aiLoading ? '加载中...' : '查看 AI 解析'}
+                {aiButtonText}
               </Button>
               <Link href={`/feedback?questionId=${currentQuestion.id}`} className="block">
                 <Button variant="outline" className="w-full">
@@ -1065,8 +1086,8 @@ function PracticePage() {
                   <Sparkles className="size-4 text-blue-500" />
                   AI 解析
                 </span>
-                <Button variant="outline" size="sm" onClick={() => handleAiExplanation()} disabled={aiLoading}>
-                  {aiLoading ? '加载中' : '查看'}
+                <Button variant="outline" size="sm" onClick={() => handleAiExplanation()} disabled={aiActionDisabled}>
+                  {aiLoading ? '加载中' : aiCooldown > 0 && !aiExplanation ? `${aiCooldown}s` : '查看'}
                 </Button>
               </CardTitle>
             </CardHeader>
