@@ -149,12 +149,20 @@ export default function RememberedShortsPage() {
                     <span className="text-xs text-muted-foreground">最近标记 {formatDate(item.createdAt)}</span>
                   </div>
                   <CardTitle className="text-base leading-7 font-medium">
-                    <span className="line-clamp-4 whitespace-pre-wrap break-words sm:line-clamp-5">
+                    <span className="line-clamp-3 whitespace-pre-wrap break-words sm:line-clamp-4">
                       {item.question.stem}
                     </span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 p-4">
+                  <details className="group rounded-lg border bg-background">
+                    <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
+                      查看完整题干
+                    </summary>
+                    <div className="max-h-56 overflow-y-auto border-t px-3 py-2 text-sm leading-7 text-muted-foreground sm:max-h-72">
+                      <p className="whitespace-pre-wrap break-words">{item.question.stem}</p>
+                    </div>
+                  </details>
                   <details className="group rounded-lg border bg-muted/30">
                     <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
                       查看答案
