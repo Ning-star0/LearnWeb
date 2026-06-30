@@ -771,14 +771,15 @@ function PracticePage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col px-3 py-2 sm:px-4 sm:py-3 lg:h-[calc(100dvh-3.5rem)] lg:overflow-hidden">
-      <div className="mb-3 flex flex-col gap-3 rounded-xl border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={backToSelect} className="shrink-0">
+    <div className="mx-auto flex w-full max-w-7xl min-w-0 flex-col overflow-x-hidden px-3 py-2 sm:px-4 sm:py-3 lg:h-[calc(100dvh-3.5rem)] lg:overflow-hidden">
+      <div className="mb-3 flex min-w-0 max-w-full flex-col gap-3 overflow-hidden rounded-xl border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <Button variant="ghost" size="sm" onClick={backToSelect} className="shrink-0 px-2">
             <ChevronLeft className="size-4" />
-            重新选择
+            <span className="hidden sm:inline">重新选择</span>
+            <span className="sm:hidden">返回</span>
           </Button>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="hidden flex-wrap items-center gap-2 sm:flex">
               <Badge variant="secondary">{MODE_MAP[mode] || mode}</Badge>
               <Badge variant="outline">{TYPE_MAP[currentQuestion.type]}</Badge>
@@ -791,39 +792,39 @@ function PracticePage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={previousQuestion} disabled={!canGoPrevious}>
+        <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end">
+          <Button variant="outline" size="sm" onClick={previousQuestion} disabled={!canGoPrevious} className="min-w-0 px-2">
             <ArrowLeft className="size-4" />
             上一题
           </Button>
           {mode === 'quiz' && !submitted && (currentQuestion.type === 'MULTIPLE' || currentQuestion.type === 'SHORT') && (
-            <Button size="sm" onClick={() => handleSubmit()} disabled={!canSubmit}>
+            <Button size="sm" onClick={() => handleSubmit()} disabled={!canSubmit} className="min-w-0 px-2">
               {submittingAnswer ? '提交中...' : '提交答案'}
             </Button>
           )}
           {mode === 'quiz' && !submitted && (currentQuestion.type === 'SINGLE' || currentQuestion.type === 'JUDGE') && (
             <Badge variant="secondary" className="hidden h-8 px-3 sm:inline-flex">点击或按 1/2/3 自动判题</Badge>
           )}
-          <Button variant="outline" size="sm" onClick={() => handleAiExplanation()} disabled={aiActionDisabled} className="lg:hidden">
+          <Button variant="outline" size="sm" onClick={() => handleAiExplanation()} disabled={aiActionDisabled} className="min-w-0 px-2 lg:hidden">
             <Sparkles className="size-4" />
             AI
           </Button>
-          <Link href={`/feedback?questionId=${currentQuestion.id}`}>
-            <Button variant="outline" size="sm">
+          <Link href={`/feedback?questionId=${currentQuestion.id}`} className="min-w-0">
+            <Button variant="outline" size="sm" className="w-full min-w-0 px-2">
               <MessageSquare className="size-4" />
               反馈
             </Button>
           </Link>
-          <Button variant="outline" size="sm" onClick={nextQuestion} disabled={!canGoNext}>
+          <Button variant="outline" size="sm" onClick={nextQuestion} disabled={!canGoNext} className="min-w-0 px-2">
             {isLastQuestion ? '完成' : '下一题'}
             <ArrowRight className="size-4" />
           </Button>
         </div>
       </div>
 
-      <div className="grid min-w-0 min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_460px] lg:gap-4">
-        <main className="flex min-h-0 flex-col gap-3">
-          <Card className="flex max-h-[calc(100dvh-9rem)] min-w-0 flex-col sm:min-h-[520px] sm:max-h-none lg:min-h-0 lg:flex-1">
+      <div className="grid min-h-0 min-w-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_460px] lg:gap-4">
+        <main className="flex min-h-0 min-w-0 flex-col gap-3">
+          <Card className="flex max-h-[calc(100dvh-9rem)] w-full min-w-0 flex-col sm:min-h-[520px] sm:max-h-none lg:min-h-0 lg:flex-1">
             <CardHeader className="min-h-0 shrink-0 border-b p-3 sm:p-5">
               <div className="mb-3 flex flex-wrap items-center gap-2">
                 <Badge variant="secondary">第 {currentIndex + 1} / {questions.length} 题</Badge>
@@ -947,11 +948,13 @@ function PracticePage() {
               {currentQuestion.type === 'SHORT' && (
                 <div className="space-y-4">
                   {(mode === 'study' || submitted) && (
-                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-950 sm:p-4">
                       <p className="mb-2 text-sm font-medium">参考答案</p>
-                      <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                        {currentQuestion.answerRaw || formatAnswer(submitted && result ? result.correctAnswer : currentQuestion.answerJson)}
-                      </p>
+                      <div className="max-h-[28dvh] overflow-y-auto rounded-md bg-white/60 p-2 text-sm leading-relaxed sm:max-h-72">
+                        <p className="whitespace-pre-wrap break-words">
+                          {currentQuestion.answerRaw || formatAnswer(submitted && result ? result.correctAnswer : currentQuestion.answerJson)}
+                        </p>
+                      </div>
                     </div>
                   )}
                   {mode === 'quiz' && !submitted && (
@@ -983,7 +986,7 @@ function PracticePage() {
                       : result.isCorrect ? '回答正确' : '回答错误'}
                   </div>
                   {!result.isCorrect && currentQuestion.type !== 'SHORT' && (
-                    <p className="mt-2 text-sm">正确答案：{formatAnswer(result.correctAnswer)}</p>
+                    <p className="mt-2 break-words text-sm">正确答案：{formatAnswer(result.correctAnswer)}</p>
                   )}
                 </div>
               )}
@@ -1018,8 +1021,8 @@ function PracticePage() {
           </Card>
 
           {mode === 'study' && (
-            <Card className="shrink-0">
-              <CardContent className="p-3">
+            <Card className="w-full min-w-0 shrink-0">
+              <CardContent className="min-w-0 p-3">
                 <StudyQuestionList
                   questions={questions}
                   currentIndex={currentIndex}
@@ -1030,8 +1033,8 @@ function PracticePage() {
             </Card>
           )}
           {mode === 'quiz' && (
-            <Card className="shrink-0">
-              <CardContent className="p-3">
+            <Card className="w-full min-w-0 shrink-0">
+              <CardContent className="min-w-0 p-3">
                 <QuizQuestionList
                   questions={questions}
                   currentIndex={currentIndex}
@@ -1226,8 +1229,8 @@ function PracticePage() {
       </div>
 
       {(aiExplanation || showSupporterPrompt) && (
-        <Card className="mt-3 max-h-[38dvh] overflow-hidden border-blue-200 bg-blue-50/40 lg:hidden">
-          <CardContent className="max-h-[38dvh] space-y-3 overflow-y-auto p-4 text-sm">
+        <Card className="mt-3 max-h-[38dvh] w-full min-w-0 overflow-hidden border-blue-200 bg-blue-50/40 lg:hidden">
+          <CardContent className="max-h-[38dvh] min-w-0 space-y-3 overflow-y-auto overflow-x-hidden p-4 text-sm [&_*]:break-words">
             {aiExplanation && (
               <>
                 {aiExplanation.knowledgePoint && (
