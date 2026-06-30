@@ -125,11 +125,11 @@ function PracticeSelectPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-5 lg:py-7">
-      <Card className="mb-4 border-blue-200 bg-blue-50/40">
-        <CardContent className="p-4 sm:p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-0">
+    <div className="mx-auto w-full max-w-5xl min-w-0 overflow-x-hidden px-4 py-5 lg:py-7">
+      <Card className="mb-4 min-w-0 border-blue-200 bg-blue-50/40">
+        <CardContent className="min-w-0 p-4 sm:p-5">
+          <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0 flex-1">
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <Badge>学习范围</Badge>
                 <Badge variant="outline">{order === 'random' ? '随机' : '顺序'}</Badge>
@@ -145,16 +145,16 @@ function PracticeSelectPage() {
                   : '未选择教材时进入全部题库'}
               </p>
             </div>
-            <div className="grid gap-2 sm:flex">
-              <Button onClick={() => startPractice('study')} size="lg">
+            <div className="grid min-w-0 gap-2 sm:flex sm:flex-wrap sm:justify-end">
+              <Button onClick={() => startPractice('study')} size="lg" className="w-full sm:w-auto">
                 <Brain className="size-4" />
                 开始背题
               </Button>
-              <Button onClick={() => startPractice('study', scope, { restart: true })} size="lg" variant="outline">
+              <Button onClick={() => startPractice('study', scope, { restart: true })} size="lg" variant="outline" className="w-full sm:w-auto">
                 <CheckCircle2 className="size-4" />
                 从头背
               </Button>
-              <Button onClick={() => startPractice('quiz')} size="lg" variant="outline">
+              <Button onClick={() => startPractice('quiz')} size="lg" variant="outline" className="w-full sm:w-auto">
                 <Play className="size-4" />
                 开始答题
               </Button>
@@ -163,11 +163,11 @@ function PracticeSelectPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
-        <section className="space-y-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="mb-3 flex items-center justify-between">
+      <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <section className="min-w-0 space-y-4">
+          <Card className="min-w-0">
+            <CardContent className="min-w-0 p-4">
+              <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-2">
                 <h2 className="flex items-center gap-2 text-sm font-medium">
                   <BookOpen className="size-4" />
                   教材
@@ -176,7 +176,7 @@ function PracticeSelectPage() {
                   全部题库
                 </Button>
               </div>
-              <div className="flex gap-2 overflow-x-auto pb-1 sm:flex-wrap">
+              <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-3">
                 {books.map((book) => {
                   const active = scope === 'book' && String(book.id) === bookId;
                   return (
@@ -184,13 +184,13 @@ function PracticeSelectPage() {
                       key={book.id}
                       type="button"
                       onClick={() => rememberBook(String(book.id))}
-                      className={`min-w-[12rem] rounded-lg border px-3 py-2 text-left transition sm:min-w-0 ${
+                      className={`min-w-0 rounded-lg border px-3 py-2 text-left transition ${
                         active
                           ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-100'
                           : 'border-border bg-card hover:border-blue-300 hover:bg-blue-50/60'
                       }`}
                     >
-                      <div className="truncate text-sm font-medium">{book.name}</div>
+                      <div className="break-words text-sm font-medium">{book.name}</div>
                       <div className="mt-1 text-xs text-muted-foreground">{book._count.questions} 题</div>
                     </button>
                   );
@@ -200,13 +200,13 @@ function PracticeSelectPage() {
           </Card>
 
           {scope === 'book' && chapters.length > 0 && (
-            <Card>
-              <CardContent className="p-4">
+            <Card className="min-w-0">
+              <CardContent className="min-w-0 p-4">
                 <h2 className="mb-3 flex items-center gap-2 text-sm font-medium">
                   <BookOpen className="size-4" />
                   章节
                 </h2>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex min-w-0 flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={() => setChapter('')}
@@ -225,7 +225,7 @@ function PracticeSelectPage() {
                         key={item.name}
                         type="button"
                         onClick={() => setChapter(item.name)}
-                        className={`rounded-lg border px-3 py-2 text-sm transition ${
+                        className={`min-w-0 rounded-lg border px-3 py-2 text-sm transition ${
                           active
                             ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-100'
                             : 'border-border hover:border-blue-300 hover:bg-blue-50/50'
@@ -242,20 +242,20 @@ function PracticeSelectPage() {
           )}
 
           {scope === 'book' && selectedBook && chapters.length === 0 && (
-            <Card>
+            <Card className="min-w-0">
               <CardContent className="p-4 text-sm leading-relaxed text-muted-foreground">
                 当前教材还没有章节数据。可以先刷全部题；如果要按章节学习，请在管理端重新上传带“知识点/章节”的新版 Excel，重复题会自动补齐章节，不会重复新增。
               </CardContent>
             </Card>
           )}
 
-          <Card>
-            <CardContent className="p-4">
+          <Card className="min-w-0">
+            <CardContent className="min-w-0 p-4">
               <h2 className="mb-3 flex items-center gap-2 text-sm font-medium">
                 <ListFilter className="size-4" />
                 题型
               </h2>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex min-w-0 flex-wrap gap-2">
                 {TYPE_OPTIONS.map((item) => {
                   const active = type === item.value;
                   return (
@@ -278,9 +278,9 @@ function PracticeSelectPage() {
           </Card>
         </section>
 
-        <aside className="space-y-3">
-          <Card>
-            <CardContent className="space-y-2 p-4">
+        <aside className="min-w-0 space-y-3">
+          <Card className="min-w-0">
+            <CardContent className="min-w-0 space-y-2 p-4">
               <Button variant="outline" className="w-full justify-start" onClick={() => startPractice('quiz', 'wrong')}>
                 <Target className="size-4" />
                 刷错题
@@ -292,7 +292,7 @@ function PracticeSelectPage() {
             </CardContent>
           </Card>
 
-          <details className="rounded-xl border bg-card p-4 text-sm">
+          <details className="min-w-0 rounded-xl border bg-card p-4 text-sm">
             <summary className="flex cursor-pointer list-none items-center justify-between font-medium">
               高级设置
               <ChevronDown className="size-4" />
