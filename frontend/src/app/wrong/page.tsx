@@ -32,6 +32,7 @@ interface WrongItem {
 }
 
 const TYPE_LABEL: Record<string, string> = { SINGLE: '单选', MULTIPLE: '多选', JUDGE: '判断', SHORT: '简答' };
+const WRONG_PAGE_SIZE = 12;
 
 function formatAnswer(answer: unknown) {
   if (Array.isArray(answer)) return answer.join(', ');
@@ -71,6 +72,7 @@ export default function WrongPage() {
   const [bookId, setBookId] = useState('_all');
   const [sortBy, setSortBy] = useState('recent');
   const [focusOnly, setFocusOnly] = useState(false);
+  const [page, setPage] = useState(1);
   const [removingIds, setRemovingIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
@@ -107,6 +109,17 @@ export default function WrongPage() {
   const highRiskItems = items.filter((item) => item.wrongCount >= 2);
   const totalWrongAttempts = items.reduce((sum, item) => sum + item.wrongCount, 0);
   const selectedBookLabel = bookId === '_all' ? '全部教材' : books.find((book) => book.id === bookId)?.name || '全部教材';
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / WRONG_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const visibleItems = filteredItems.slice((currentPage - 1) * WRONG_PAGE_SIZE, currentPage * WRONG_PAGE_SIZE);
+
+  useEffect(() => {
+    setPage(1);
+  }, [bookId, focusOnly, search, sortBy]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const removeWrong = async (questionId: number) => {
     if (removingIds.has(questionId)) return;
@@ -146,7 +159,7 @@ export default function WrongPage() {
   if (!user) return null;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 lg:py-8">
+    <div className="mx-auto w-full max-w-7xl min-w-0 overflow-x-hidden px-4 py-6 lg:py-8">
       <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <Badge variant="secondary" className="mb-2">复习队列</Badge>
@@ -221,11 +234,18 @@ export default function WrongPage() {
               <SelectItem value="count">错误次数优先</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant={focusOnly ? 'default' : 'outline'} onClick={() => setFocusOnly((value) => !value)}>
+          <Button variant={focusOnly ? 'default' : 'outline'} onClick={() => setFocusOnly((value) => !value)} className="w-full lg:w-auto">
             <Filter className="size-4" />只看重点
           </Button>
         </CardContent>
       </Card>
+
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
+        <span>当前筛选 {filteredItems.length} 题，每页 {WRONG_PAGE_SIZE} 题</span>
+        {filteredItems.length > WRONG_PAGE_SIZE && (
+          <span>第 {currentPage} / {totalPages} 页</span>
+        )}
+      </div>
 
       {items.length === 0 ? (
         <div className="rounded-lg border bg-muted/40 p-8 text-center">
@@ -240,7 +260,7 @@ export default function WrongPage() {
         </div>
       ) : (
         <div className="grid gap-3 xl:grid-cols-2">
-          {filteredItems.map((item) => (
+          {visibleItems.map((item) => (
             <Card key={item.id} className="h-full">
               <CardHeader className="pb-3">
                 <div className="flex flex-wrap items-center gap-2">
@@ -250,15 +270,17 @@ export default function WrongPage() {
                   {item.question.difficulty && <Badge variant="outline">{item.question.difficulty}</Badge>}
                   {item.question.book?.name && <Badge variant="secondary">{item.question.book.name}</Badge>}
                 </div>
-                <CardTitle className="text-base leading-relaxed font-medium">{item.question.stem}</CardTitle>
+                <CardTitle className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words pr-1 text-base leading-relaxed font-medium">
+                  {item.question.stem}
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 {item.question.options && item.question.options.length > 0 && (
-                  <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="grid max-h-52 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
                     {item.question.options.map((option) => (
                       <div key={option.label} className="rounded-lg border bg-muted/25 px-3 py-2 text-sm">
                         <span className="font-medium">{option.label}. </span>
-                        <span className="text-muted-foreground">{option.content}</span>
+                        <span className="break-words text-muted-foreground">{option.content}</span>
                       </div>
                     ))}
                   </div>
@@ -266,7 +288,7 @@ export default function WrongPage() {
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
                   正确答案：<span className="font-semibold">{formatAnswer(item.question.answerJson)}</span>
                 </div>
-                <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                <div className="grid gap-2 break-words text-xs text-muted-foreground sm:grid-cols-2">
                   <span>题库：{item.question.bank?.name || '未标记'}</span>
                   <span>来源文件：{item.question.bank?.sourceFile || '未记录'}</span>
                   <span>最近错误：{formatDate(item.updatedAt || item.createdAt)}</span>
@@ -292,6 +314,20 @@ export default function WrongPage() {
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+
+      {filteredItems.length > WRONG_PAGE_SIZE && (
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <Button variant="outline" disabled={currentPage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>
+            上一页
+          </Button>
+          <span className="text-center text-sm text-muted-foreground">
+            第 {currentPage} 页 / 共 {totalPages} 页，当前显示 {visibleItems.length} 题
+          </span>
+          <Button variant="outline" disabled={currentPage >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>
+            下一页
+          </Button>
         </div>
       )}
     </div>

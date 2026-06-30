@@ -29,6 +29,7 @@ interface Question {
 
 const TYPE_LABEL: Record<string, string> = { SINGLE: '单选', MULTIPLE: '多选', JUDGE: '判断', SHORT: '简答' };
 const STATUS_LABEL: Record<string, string> = { _all: '全部状态', correct: '已做对', wrong: '做错过', unanswered: '未作答' };
+const QUESTION_PAGE_SIZE = 20;
 
 function QuestionsPage() {
   const router = useRouter();
@@ -53,7 +54,7 @@ function QuestionsPage() {
     if (type) params.set('type', type);
     if (search) params.set('search', search);
     params.set('page', String(page));
-    params.set('pageSize', '50');
+    params.set('pageSize', String(QUESTION_PAGE_SIZE));
 
     setLoading(true);
     api.get(`/questions?${params}`).then((res) => {
@@ -92,7 +93,7 @@ function QuestionsPage() {
   const pageCorrect = questions.filter((question) => question.userStatus === 'correct').length;
   const pageWrong = questions.filter((question) => question.userStatus === 'wrong').length;
   const pageUnanswered = questions.filter((question) => !question.userStatus || question.userStatus === 'unanswered').length;
-  const totalPages = Math.max(1, Math.ceil(total / 50));
+  const totalPages = Math.max(1, Math.ceil(total / QUESTION_PAGE_SIZE));
   const selectedBookLabel = books.find((book) => String(book.id) === bookId)?.name || '全部教材';
   const selectedChapterLabel = chapter || '全部章节';
   const selectedTypeLabel = type ? `${TYPE_LABEL[type] || type}题` : '全部题型';
@@ -117,7 +118,7 @@ function QuestionsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 lg:py-8">
+    <div className="mx-auto w-full max-w-7xl min-w-0 overflow-x-hidden px-4 py-6 lg:py-8">
       <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <Badge variant="secondary" className="mb-2">统一题库</Badge>
@@ -136,8 +137,8 @@ function QuestionsPage() {
         )}
       </div>
 
-      <Card className="mb-4">
-        <CardContent className="space-y-3 p-4">
+      <Card className="mb-4 min-w-0">
+        <CardContent className="min-w-0 space-y-3 p-4">
           <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr_0.8fr_0.8fr_1.4fr_auto]">
             <Select value={bookId || '_all'} onValueChange={(value) => { const next = value || '_all'; setBookId(next !== '_all' ? next : ''); setChapter(''); setPage(1); }}>
               <SelectTrigger className="w-full">
@@ -216,7 +217,7 @@ function QuestionsPage() {
 
       <div className="space-y-3">
         {displayedQuestions.map((question) => (
-          <Card key={question.id} className="transition-shadow hover:shadow-sm">
+          <Card key={question.id} className="min-w-0 transition-shadow hover:shadow-sm">
             <CardContent className="p-4">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
                 <div className="min-w-0 flex-1">
@@ -229,18 +230,18 @@ function QuestionsPage() {
                     {question.score ? <Badge variant="outline">{question.score} 分</Badge> : null}
                     <Badge variant="secondary" className="max-w-72 truncate">{question.book.name}</Badge>
                   </div>
-                  <p className="whitespace-pre-wrap break-words text-sm font-medium leading-7">{question.stem}</p>
+                  <p className="max-h-36 overflow-y-auto whitespace-pre-wrap break-words pr-1 text-sm font-medium leading-7">{question.stem}</p>
                   {question.options?.length > 0 && (
-                    <div className="mt-3 grid gap-2 md:grid-cols-2">
+                    <div className="mt-3 grid max-h-52 gap-2 overflow-y-auto pr-1 md:grid-cols-2">
                       {question.options.map((option) => (
                         <div key={option.label} className="rounded-lg border bg-muted/25 px-3 py-2 text-sm">
                           <span className="font-medium">{option.label}. </span>
-                          <span className="text-muted-foreground">{option.content}</span>
+                          <span className="break-words text-muted-foreground">{option.content}</span>
                         </div>
                       ))}
                     </div>
                   )}
-                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                  <div className="mt-3 flex flex-wrap gap-2 break-words text-xs text-muted-foreground">
                     <span className="inline-flex items-center gap-1"><BookOpen className="size-3" />题库：{question.bank?.name || '未标记'}</span>
                     {question.bank?.sourceFile && <span>来源文件：{question.bank.sourceFile}</span>}
                     {question.courseObjective && <span>课程目标：{question.courseObjective}</span>}
@@ -272,7 +273,7 @@ function QuestionsPage() {
       <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Button variant="outline" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>上一页</Button>
         <span className="text-center text-sm text-muted-foreground">
-          第 {page} 页 / 共 {totalPages} 页，服务器结果 {total} 题
+          第 {page} 页 / 共 {totalPages} 页，服务器结果 {total} 题，每页 {QUESTION_PAGE_SIZE} 题
         </span>
         <Button variant="outline" disabled={page >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>下一页</Button>
       </div>
