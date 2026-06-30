@@ -20,6 +20,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthProvider>
           <Navbar />
           <main className="flex-1">{children}</main>
+          <footer className="border-t bg-background px-4 py-3 text-center text-xs text-muted-foreground">
+            <a
+              href="https://beian.miit.gov.cn/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-foreground"
+            >
+              冀ICP备2026007268号-1
+            </a>
+          </footer>
           <Toaster />
         </AuthProvider>
       </body>
