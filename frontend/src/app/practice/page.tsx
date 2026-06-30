@@ -173,8 +173,8 @@ function PracticePage() {
   const [savingStudyAction, setSavingStudyAction] = useState(false);
   const [studyAction, setStudyAction] = useState<string | null>(null);
   const [quizUncertain, setQuizUncertain] = useState(false);
-  const [bookmarked, setBookmarked] = useState(false);
   const [bookmarks, setBookmarks] = useState<Set<number>>(new Set());
+  const [bookmarkingIds, setBookmarkingIds] = useState<Set<number>>(new Set());
   const [answerStates, setAnswerStates] = useState<Record<number, AnswerState>>({});
   const [trialDialog, setTrialDialog] = useState<{ open: boolean; remaining: number }>({
     open: false,
@@ -295,12 +295,31 @@ function PracticePage() {
   }, [mode, scope, currentIndex, answerStates, sessionKey]);
 
   const toggleBookmark = async (qid: number) => {
-    if (bookmarks.has(qid)) {
-      await api.delete(`/bookmarks/${qid}`);
-      setBookmarks((prev) => { const next = new Set(prev); next.delete(qid); return next; });
-    } else {
-      await api.post(`/bookmarks/${qid}`);
-      setBookmarks((prev) => new Set(prev).add(qid));
+    if (bookmarkingIds.has(qid)) return;
+    const shouldRemove = bookmarks.has(qid);
+    setBookmarkingIds((prev) => new Set(prev).add(qid));
+    try {
+      const res = shouldRemove
+        ? await api.delete(`/bookmarks/${qid}`)
+        : await api.post(`/bookmarks/${qid}`);
+      if (res.code !== 0) {
+        throw new Error(res.message || '收藏操作失败');
+      }
+      setBookmarks((prev) => {
+        const next = new Set(prev);
+        if (shouldRemove) next.delete(qid);
+        else next.add(qid);
+        return next;
+      });
+      toast.success(shouldRemove ? '已取消收藏' : '已收藏');
+    } catch {
+      toast.error('收藏操作失败，请稍后重试');
+    } finally {
+      setBookmarkingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(qid);
+        return next;
+      });
     }
   };
 
@@ -811,7 +830,13 @@ function PracticePage() {
                 <Badge>{TYPE_MAP[currentQuestion.type]}</Badge>
                 {currentQuestion.chapter && <Badge variant="outline">{currentQuestion.chapter}</Badge>}
                 {currentQuestion.score ? <Badge variant="outline">{currentQuestion.score} 分</Badge> : null}
-                <button onClick={() => toggleBookmark(currentQuestion.id)} className="ml-auto">
+                <button
+                  type="button"
+                  onClick={() => toggleBookmark(currentQuestion.id)}
+                  disabled={bookmarkingIds.has(currentQuestion.id)}
+                  className="ml-auto disabled:cursor-not-allowed disabled:opacity-50"
+                  title={bookmarks.has(currentQuestion.id) ? '取消收藏' : '收藏题目'}
+                >
                   {bookmarks.has(currentQuestion.id) ? <BookmarkCheck className="size-4 text-blue-500" /> : <BookmarkPlus className="size-4 text-muted-foreground hover:text-blue-500" />}
                 </button>
               </div>
