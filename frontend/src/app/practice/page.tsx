@@ -821,10 +821,10 @@ function PracticePage() {
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_460px]">
+      <div className="grid min-w-0 min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_460px] lg:gap-4">
         <main className="flex min-h-0 flex-col gap-3">
-          <Card className="flex min-h-[calc(100dvh-9.5rem)] flex-col sm:min-h-[520px] lg:min-h-0 lg:flex-1">
-            <CardHeader className="shrink-0 border-b p-4 sm:p-5">
+          <Card className="flex max-h-[calc(100dvh-9rem)] min-w-0 flex-col sm:min-h-[520px] sm:max-h-none lg:min-h-0 lg:flex-1">
+            <CardHeader className="min-h-0 shrink-0 border-b p-3 sm:p-5">
               <div className="mb-3 flex flex-wrap items-center gap-2">
                 <Badge variant="secondary">第 {currentIndex + 1} / {questions.length} 题</Badge>
                 <Badge>{TYPE_MAP[currentQuestion.type]}</Badge>
@@ -840,9 +840,11 @@ function PracticePage() {
                   {bookmarks.has(currentQuestion.id) ? <BookmarkCheck className="size-4 text-blue-500" /> : <BookmarkPlus className="size-4 text-muted-foreground hover:text-blue-500" />}
                 </button>
               </div>
-              <StemContent stem={currentQuestion.stem} />
+              <div className="max-h-[32dvh] min-h-0 overflow-y-auto pr-1 sm:max-h-[40dvh] lg:max-h-none lg:overflow-visible lg:pr-0">
+                <StemContent stem={currentQuestion.stem} />
+              </div>
             </CardHeader>
-            <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto pt-3 sm:space-y-4 sm:pt-4">
+            <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 pt-3 sm:space-y-4 sm:p-4 sm:pt-4">
               {currentIsHistoricalCorrect && (
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
                   这道题历史已做对，系统已把它计入绿色完成状态。顺序练习时会自动跳过，不需要重复作答。
@@ -1224,8 +1226,8 @@ function PracticePage() {
       </div>
 
       {(aiExplanation || showSupporterPrompt) && (
-        <Card className="mt-3 border-blue-200 bg-blue-50/40 lg:hidden">
-          <CardContent className="space-y-3 p-4 text-sm">
+        <Card className="mt-3 max-h-[38dvh] overflow-hidden border-blue-200 bg-blue-50/40 lg:hidden">
+          <CardContent className="max-h-[38dvh] space-y-3 overflow-y-auto p-4 text-sm">
             {aiExplanation && (
               <>
                 {aiExplanation.knowledgePoint && (
@@ -1331,15 +1333,15 @@ function StudyQuestionList({
   }, [currentIndex, questions.length]);
 
   return (
-    <div className="flex items-center gap-3 max-w-full">
-      <div className="shrink-0 whitespace-nowrap text-xs leading-5 text-muted-foreground">
+    <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+      <div className="flex flex-wrap gap-x-2 gap-y-1 text-xs leading-5 text-muted-foreground sm:shrink-0 sm:whitespace-nowrap">
         <span className="font-medium text-foreground">目录</span>
-        <span className="ml-2">总 {questions.length}</span>
-        <span className="ml-2 text-emerald-600">记 {counts.remembered}</span>
-        <span className="ml-2 text-red-600">未 {counts.notRemembered}</span>
-        <span className="ml-2">空 {counts.unmarked}</span>
+        <span>总 {questions.length}</span>
+        <span className="text-emerald-600">记 {counts.remembered}</span>
+        <span className="text-red-600">未 {counts.notRemembered}</span>
+        <span>空 {counts.unmarked}</span>
       </div>
-      <div ref={scrollRef} className="flex-1 overflow-x-auto pb-1 -mx-1 px-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <div ref={scrollRef} className="w-full min-w-0 overflow-x-auto pb-1 -mx-1 px-1 sm:flex-1" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div className="flex gap-1.5 w-max">
           {questions.map((question, index) => {
             const active = index === currentIndex;
@@ -1393,16 +1395,16 @@ function QuizQuestionList({
   }, [currentIndex, questions.length]);
 
   return (
-    <div className="flex items-center gap-3 max-w-full">
-      <div className="shrink-0 whitespace-nowrap text-xs leading-5 text-muted-foreground">
+    <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+      <div className="flex flex-wrap gap-x-2 gap-y-1 text-xs leading-5 text-muted-foreground sm:shrink-0 sm:whitespace-nowrap">
         <span className="font-medium text-foreground">题号</span>
-        <span className="ml-2">总 {stats?.totalCount ?? questions.length}</span>
-        <span className="ml-2 text-emerald-600">历史对 {historicalCorrectCount}</span>
-        <span className="ml-2 text-emerald-600">对 {correctCount}</span>
-        <span className="ml-2 text-red-600">错 {wrongCount}</span>
-        <span className="ml-2">余 {remainingCount}</span>
+        <span>总 {stats?.totalCount ?? questions.length}</span>
+        <span className="text-emerald-600">历史对 {historicalCorrectCount}</span>
+        <span className="text-emerald-600">对 {correctCount}</span>
+        <span className="text-red-600">错 {wrongCount}</span>
+        <span>余 {remainingCount}</span>
       </div>
-      <div ref={scrollRef} className="flex-1 overflow-x-auto pb-1 -mx-1 px-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <div ref={scrollRef} className="w-full min-w-0 overflow-x-auto pb-1 -mx-1 px-1 sm:flex-1" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div className="flex gap-1.5 w-max">
           {questions.map((question, index) => {
             const active = index === currentIndex;
