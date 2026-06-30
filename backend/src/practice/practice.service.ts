@@ -244,6 +244,36 @@ export class PracticeService {
     return { success: true, action };
   }
 
+  async getRememberedShortQuestions(userId: number) {
+    const latestStudyRecords = await this.prisma.answerRecord.findMany({
+      where: {
+        userId,
+        mode: 'STUDY',
+        action: { in: ['remembered', 'not_remembered'] },
+        question: {
+          type: 'SHORT',
+          isPublished: true,
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      distinct: ['questionId'],
+      include: {
+        question: {
+          include: {
+            book: { select: { id: true, name: true } },
+            bank: { select: { id: true, name: true, sourceFile: true } },
+          },
+        },
+      },
+    });
+
+    const items = latestStudyRecords.filter((record) => record.action === 'remembered');
+    return {
+      items,
+      total: items.length,
+    };
+  }
+
   async submitQuiz(userId: number, questionId: number, userAnswer: any) {
     const question = await this.prisma.question.findUnique({
       where: { id: questionId },

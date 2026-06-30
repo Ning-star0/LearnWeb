@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, CheckCircle2, Eye, Filter, Play, Search, Target, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -70,6 +71,7 @@ export default function WrongPage() {
   const [bookId, setBookId] = useState('_all');
   const [sortBy, setSortBy] = useState('recent');
   const [focusOnly, setFocusOnly] = useState(false);
+  const [removingIds, setRemovingIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (!user) return;
@@ -107,8 +109,24 @@ export default function WrongPage() {
   const selectedBookLabel = bookId === '_all' ? '全部教材' : books.find((book) => book.id === bookId)?.name || '全部教材';
 
   const removeWrong = async (questionId: number) => {
-    await api.delete(`/wrong/${questionId}`);
-    setItems((current) => current.filter((item) => item.questionId !== questionId));
+    if (removingIds.has(questionId)) return;
+    setRemovingIds((current) => new Set(current).add(questionId));
+    try {
+      const res = await api.delete(`/wrong/${questionId}`);
+      if (res.code !== 0) {
+        throw new Error(res.message || '移出错题本失败');
+      }
+      setItems((current) => current.filter((item) => item.questionId !== questionId));
+      toast.success('已移出错题本');
+    } catch {
+      toast.error('移出错题本失败，请稍后重试');
+    } finally {
+      setRemovingIds((current) => {
+        const next = new Set(current);
+        next.delete(questionId);
+        return next;
+      });
+    }
   };
 
   const startPractice = (ids: number[]) => {
@@ -261,8 +279,14 @@ export default function WrongPage() {
                   <Button size="sm" variant="outline" onClick={() => previewOne(item.questionId)}>
                     <Eye className="size-3" />看答案
                   </Button>
-                  <Button size="sm" variant="ghost" className="text-red-500" onClick={() => removeWrong(item.questionId)}>
-                    <Trash2 className="size-3" />移出错题本
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-red-500"
+                    onClick={() => removeWrong(item.questionId)}
+                    disabled={removingIds.has(item.questionId)}
+                  >
+                    <Trash2 className="size-3" />{removingIds.has(item.questionId) ? '移出中...' : '移出错题本'}
                   </Button>
                 </div>
               </CardContent>

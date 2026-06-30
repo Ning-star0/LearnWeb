@@ -85,6 +85,12 @@ export class PracticeController {
     });
   }
 
+  @Get('study/remembered-shorts')
+  @UseGuards(JwtAuthGuard)
+  async getRememberedShorts(@CurrentUser('id') userId: number) {
+    return this.practiceService.getRememberedShortQuestions(userId);
+  }
+
   @Delete('review/:questionId')
   @UseGuards(JwtAuthGuard)
   async removeReview(

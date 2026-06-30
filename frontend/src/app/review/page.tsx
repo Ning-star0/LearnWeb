@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Brain, CheckCircle2, Clock3 } from 'lucide-react';
+import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,6 +31,7 @@ function formatAnswer(answer: unknown) {
 export default function ReviewPage() {
   const { user, loading } = useAuth();
   const [items, setItems] = useState<ReviewItem[]>([]);
+  const [removingIds, setRemovingIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (!user) return;
@@ -39,8 +41,24 @@ export default function ReviewPage() {
   }, [user]);
 
   const removeReview = async (questionId: number) => {
-    await api.delete(`/review/${questionId}`);
-    setItems(items.filter((item) => item.questionId !== questionId));
+    if (removingIds.has(questionId)) return;
+    setRemovingIds((current) => new Set(current).add(questionId));
+    try {
+      const res = await api.delete(`/review/${questionId}`);
+      if (res.code !== 0) {
+        throw new Error(res.message || '移出待背题失败');
+      }
+      setItems((current) => current.filter((item) => item.questionId !== questionId));
+      toast.success('已移出待背题');
+    } catch {
+      toast.error('移出待背题失败，请稍后重试');
+    } finally {
+      setRemovingIds((current) => {
+        const next = new Set(current);
+        next.delete(questionId);
+        return next;
+      });
+    }
   };
 
   if (loading) return <div className="mx-auto max-w-6xl px-4 py-10 text-center text-sm text-muted-foreground">加载中...</div>;
@@ -81,7 +99,14 @@ export default function ReviewPage() {
                     </Badge>
                     <Badge variant="secondary">{item.question.book?.name}</Badge>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => removeReview(item.questionId)}>已背熟</Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeReview(item.questionId)}
+                    disabled={removingIds.has(item.questionId)}
+                  >
+                    {removingIds.has(item.questionId) ? '移出中...' : '已背熟'}
+                  </Button>
                 </div>
                 <CardTitle className="text-base leading-relaxed font-medium">{item.question.stem}</CardTitle>
               </CardHeader>
