@@ -1332,7 +1332,12 @@ function StudyQuestionList({
 
   useEffect(() => {
     const active = scrollRef.current?.querySelector<HTMLButtonElement>('[data-active="true"]');
-    active?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    const isMobile = window.matchMedia('(max-width: 639px)').matches;
+    active?.scrollIntoView({
+      behavior: 'smooth',
+      block: isMobile ? 'center' : 'nearest',
+      inline: isMobile ? 'nearest' : 'center',
+    });
   }, [currentIndex, questions.length]);
 
   return (
@@ -1344,8 +1349,8 @@ function StudyQuestionList({
         <span className="text-red-600">未 {counts.notRemembered}</span>
         <span>空 {counts.unmarked}</span>
       </div>
-      <div ref={scrollRef} className="w-full min-w-0 overflow-x-auto pb-1 -mx-1 px-1 sm:flex-1" style={{ WebkitOverflowScrolling: 'touch' }}>
-        <div className="flex gap-1.5 w-max">
+      <div ref={scrollRef} className="-mx-1 max-h-28 w-full min-w-0 overflow-y-auto px-1 pb-1 sm:max-h-none sm:flex-1 sm:overflow-x-auto sm:overflow-y-hidden" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(1.75rem,1.75rem))] content-start gap-1.5 sm:flex sm:w-max">
           {questions.map((question, index) => {
             const active = index === currentIndex;
             const status = question.studyStatus || 'unmarked';
@@ -1394,7 +1399,12 @@ function QuizQuestionList({
 
   useEffect(() => {
     const active = scrollRef.current?.querySelector<HTMLButtonElement>('[data-active="true"]');
-    active?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    const isMobile = window.matchMedia('(max-width: 639px)').matches;
+    active?.scrollIntoView({
+      behavior: 'smooth',
+      block: isMobile ? 'center' : 'nearest',
+      inline: isMobile ? 'nearest' : 'center',
+    });
   }, [currentIndex, questions.length]);
 
   return (
@@ -1407,8 +1417,8 @@ function QuizQuestionList({
         <span className="text-red-600">错 {wrongCount}</span>
         <span>余 {remainingCount}</span>
       </div>
-      <div ref={scrollRef} className="w-full min-w-0 overflow-x-auto pb-1 -mx-1 px-1 sm:flex-1" style={{ WebkitOverflowScrolling: 'touch' }}>
-        <div className="flex gap-1.5 w-max">
+      <div ref={scrollRef} className="-mx-1 max-h-28 w-full min-w-0 overflow-y-auto px-1 pb-1 sm:max-h-none sm:flex-1 sm:overflow-x-auto sm:overflow-y-hidden" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(1.75rem,1.75rem))] content-start gap-1.5 sm:flex sm:w-max">
           {questions.map((question, index) => {
             const active = index === currentIndex;
             const status = question.quizStatus || 'unanswered';
