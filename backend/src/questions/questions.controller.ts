@@ -21,6 +21,7 @@ export class QuestionsController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('mode') mode?: string, // 'wrong' | 'correct' | 'all'
+    @Query('status') status?: string, // 'wrong' | 'correct' | 'unanswered'
     @CurrentUser() user?: any,
     @CurrentUser('id') userId?: number,
   ) {
@@ -33,6 +34,12 @@ export class QuestionsController {
 
     const p = page ? parseInt(page) : 1;
     const ps = Math.min(pageSize ? parseInt(pageSize) : 50, 100);
+    const statusFilter = normalizeStatusFilter(status || mode);
+
+    if (userId && statusFilter) {
+      const matchedIds = await this.findQuestionIdsByStatus(where, userId, statusFilter);
+      where.id = { in: matchedIds };
+    }
 
     const [items, total] = await Promise.all([
       this.prisma.question.findMany({
@@ -83,6 +90,43 @@ export class QuestionsController {
       page: p,
       pageSize: ps,
     };
+  }
+
+  private async findQuestionIdsByStatus(
+    where: any,
+    userId: number,
+    status: 'correct' | 'wrong' | 'unanswered',
+  ) {
+    const candidates = await this.prisma.question.findMany({
+      where,
+      select: { id: true },
+      orderBy: [{ bookId: 'asc' }, { orderNo: 'asc' }, { id: 'asc' }],
+    });
+    const candidateIds = candidates.map((item) => item.id);
+    if (candidateIds.length === 0) return [];
+
+    const records = await this.prisma.answerRecord.findMany({
+      where: {
+        userId,
+        mode: 'QUIZ',
+        questionId: { in: candidateIds },
+        isCorrect: { not: null },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { questionId: true, isCorrect: true },
+    });
+
+    const latestStatus = new Map<number, 'correct' | 'wrong'>();
+    for (const record of records) {
+      if (!latestStatus.has(record.questionId)) {
+        latestStatus.set(record.questionId, record.isCorrect === true ? 'correct' : 'wrong');
+      }
+    }
+
+    return candidateIds.filter((questionId) => {
+      const currentStatus = latestStatus.get(questionId) || 'unanswered';
+      return currentStatus === status;
+    });
   }
 
   /** 单题详情 */
@@ -157,4 +201,9 @@ export class QuestionsController {
 
     return { code: 0, data: updated };
   }
+}
+
+function normalizeStatusFilter(value?: string): 'correct' | 'wrong' | 'unanswered' | null {
+  if (value === 'correct' || value === 'wrong' || value === 'unanswered') return value;
+  return null;
 }

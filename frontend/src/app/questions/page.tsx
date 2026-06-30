@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowRight, BookOpen, CheckCircle2, Circle, ListFilter, Play, RotateCcw, Search, Shuffle, XCircle } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -52,6 +52,7 @@ function QuestionsPage() {
     if (bookId) params.set('bookId', bookId);
     if (chapter) params.set('chapter', chapter);
     if (type) params.set('type', type);
+    if (status !== '_all') params.set('status', status);
     if (search) params.set('search', search);
     params.set('page', String(page));
     params.set('pageSize', String(QUESTION_PAGE_SIZE));
@@ -67,7 +68,7 @@ function QuestionsPage() {
     api.get('/books').then((res) => {
       if (res.code === 0) setBooks(res.data);
     });
-  }, [bookId, chapter, type, search, page]);
+  }, [bookId, chapter, type, status, search, page]);
 
   useEffect(() => {
     if (!bookId) {
@@ -85,10 +86,7 @@ function QuestionsPage() {
     });
   }, [bookId, chapter]);
 
-  const displayedQuestions = useMemo(() => {
-    if (status === '_all') return questions;
-    return questions.filter((question) => (question.userStatus || 'unanswered') === status);
-  }, [questions, status]);
+  const displayedQuestions = questions;
 
   const pageCorrect = questions.filter((question) => question.userStatus === 'correct').length;
   const pageWrong = questions.filter((question) => question.userStatus === 'wrong').length;
@@ -174,7 +172,7 @@ function QuestionsPage() {
                 <SelectItem value="SHORT">简答题</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={status} onValueChange={(value) => setStatus(value || '_all')}>
+            <Select value={status} onValueChange={(value) => { setStatus(value || '_all'); setPage(1); }}>
               <SelectTrigger className="w-full">
                 <span className="truncate">{selectedStatusLabel}</span>
               </SelectTrigger>
