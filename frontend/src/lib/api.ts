@@ -75,22 +75,48 @@ class ApiClient {
     const refreshToken = this.getRefreshToken();
     if (!refreshToken) return false;
 
-    const res = await fetch(`${this.baseUrl}/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
-    });
-    if (!res.ok) {
+    try {
+      const res = await fetch(`${this.baseUrl}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+      if (!res.ok) {
+        this.clearAuthTokens();
+        return false;
+      }
+      const data = await res.json();
+      if (data?.code === 0 && data.data?.accessToken && data.data?.refreshToken) {
+        this.setAuthTokens(data.data.accessToken, data.data.refreshToken);
+        return true;
+      }
+      this.clearAuthTokens();
+      return false;
+    } catch {
       this.clearAuthTokens();
       return false;
     }
-    const data = await res.json();
-    if (data?.code === 0 && data.data?.accessToken && data.data?.refreshToken) {
-      this.setAuthTokens(data.data.accessToken, data.data.refreshToken);
-      return true;
+  }
+
+  private authExpiredResponse() {
+    return {
+      code: 401,
+      statusCode: 401,
+      authExpired: true,
+      message: '登录已过期，请重新登录',
+    };
+  }
+
+  private async readResponseJson(res: Response) {
+    try {
+      return await res.json();
+    } catch {
+      return {
+        code: res.ok ? 0 : res.status || -1,
+        statusCode: res.status,
+        message: res.ok ? '请求成功' : '请求失败，请稍后重试',
+      };
     }
-    this.clearAuthTokens();
-    return false;
   }
 
   async fetch(path: string, options: RequestInit = {}): Promise<any> {
@@ -134,10 +160,21 @@ class ApiClient {
             ...(nextToken ? { Authorization: `Bearer ${nextToken}` } : {}),
           },
         });
+      } else {
+        return this.authExpiredResponse();
       }
     }
 
-    const data = await res.json();
+    const data = await this.readResponseJson(res);
+    if (
+      res.status === 401 &&
+      typeof window !== 'undefined' &&
+      !path.startsWith('/auth/login') &&
+      !path.startsWith('/auth/register')
+    ) {
+      this.clearAuthTokens();
+      return this.authExpiredResponse();
+    }
 
     // 缓存成功的 GET 响应
     if (method === 'GET' && data?.code === 0 && typeof window !== 'undefined' && !skipLocalCache) {

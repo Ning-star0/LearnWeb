@@ -86,6 +86,10 @@ function writeCachedAiExplanation(questionId: number, content: unknown) {
   }));
 }
 
+function isAuthExpiredResponse(res: any) {
+  return Boolean(res?.authExpired || res?.statusCode === 401 || res?.code === 401);
+}
+
 function findFirstUnansweredIndex(list: PracticeQuestion[], savedAnswers: Record<number, AnswerState>) {
   return list.findIndex((question) => isQuestionUnanswered(question, savedAnswers));
 }
@@ -273,6 +277,9 @@ function PracticePage() {
           setAnswerStates(savedAnswers);
           setCurrentIndex(savedIndex);
           applyAnswerState(savedAnswers[list[savedIndex]?.id]);
+        } else if (isAuthExpiredResponse(res)) {
+          setQuestions([]);
+          setLoadError('登录已过期，请重新登录后继续练习');
         } else {
           setQuestions([]);
           setLoadError(res.message || '题目加载失败');
@@ -595,7 +602,11 @@ function PracticePage() {
     setShowSupporterPrompt(false);
     try {
       const res = await api.post(`/questions/${requestQuestionId}/ai-explanation`, useTrial ? { useTrial: true } : {});
-      if (res.retryAfter) {
+      if (isAuthExpiredResponse(res)) {
+        if (!options.silent && currentQuestionIdRef.current === requestQuestionId) {
+          setAiExplanation({ correctReason: '登录已过期，请重新登录后再查看 AI 解析。' });
+        }
+      } else if (res.retryAfter) {
         const retryAfter = Math.max(1, Number(res.retryAfter) || 5);
         setAiCooldown(retryAfter);
         if (!options.silent && currentQuestionIdRef.current === requestQuestionId) {
@@ -728,14 +739,18 @@ function PracticePage() {
   }
 
   if (loadError) {
+    const isAuthLoadError = loadError.includes('登录已过期') || loadError.includes('重新登录');
     return (
       <div className="mx-auto max-w-2xl px-4 py-16">
         <Card>
           <CardContent className="space-y-4 p-6 text-center">
-            <h1 className="text-2xl font-semibold">题目加载失败</h1>
+            <h1 className="text-2xl font-semibold">{isAuthLoadError ? '登录已过期' : '题目加载失败'}</h1>
             <p className="text-sm text-muted-foreground">{loadError}</p>
             <PracticeFilterSummary mode={mode} scope={scope} type={type} order={order} />
-            <Button onClick={backToSelect}>返回重新选择</Button>
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+              {isAuthLoadError && <Button onClick={() => router.push('/login')}>去登录</Button>}
+              <Button variant={isAuthLoadError ? 'outline' : 'default'} onClick={backToSelect}>返回重新选择</Button>
+            </div>
           </CardContent>
         </Card>
       </div>
