@@ -13,8 +13,8 @@ import { api } from '@/lib/api';
 const QUICK_ACTIONS = [
   { href: '/practice/select?mode=quiz&scope=all&order=random', title: '随机答题', desc: '直接进入答题模式，提交后自动判题。', icon: CheckCircle2 },
   { href: '/practice/select?mode=study&scope=all&order=random', title: '快速背题', desc: '先看答案，适合考前快速过一遍。', icon: Brain },
-  { href: '/practice/select?scope=wrong&mode=quiz', title: '刷错题', desc: '集中处理还没掌握的题。', icon: Target },
-  { href: '/practice/select?scope=review&mode=study', title: '背待背题', desc: '复习标记为没记住的题。', icon: Clock3 },
+  { href: '/practice?mode=quiz&scope=wrong&order=sequential&restart=1', title: '刷错题', desc: '集中处理还没掌握的题。', icon: Target },
+  { href: '/practice?mode=study&scope=review&order=sequential&restart=1', title: '背待背题', desc: '复习标记为没记住的题。', icon: Clock3 },
 ];
 
 interface Book {

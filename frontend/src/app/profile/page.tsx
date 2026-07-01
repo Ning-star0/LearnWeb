@@ -219,7 +219,7 @@ export default function ProfilePage() {
                     </CardContent>
                   </Card>
                 </Link>
-                <Link href="/practice/select?scope=wrong&mode=quiz">
+                <Link href="/practice?mode=quiz&scope=wrong&order=sequential&restart=1">
                   <Card className="hover:shadow cursor-pointer transition">
                     <CardContent className="p-4 flex items-center gap-3">
                       <Target className="size-8 text-red-500" />

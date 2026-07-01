@@ -148,7 +148,7 @@ export default function WrongPage() {
   };
 
   const startWrongPractice = () => {
-    router.push('/practice/select?scope=wrong&mode=quiz');
+    router.push('/practice?mode=quiz&scope=wrong&order=sequential&restart=1');
   };
 
   const previewOne = (questionId: number) => {

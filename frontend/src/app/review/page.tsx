@@ -72,7 +72,7 @@ export default function ReviewPage() {
           <h1 className="text-2xl font-semibold tracking-normal">待背题</h1>
           <p className="mt-1 text-sm text-muted-foreground">背题模式中点“没记住”的题会进入这里。</p>
         </div>
-        <Link href="/practice/select?scope=review&mode=study">
+        <Link href="/practice?mode=study&scope=review&order=sequential&restart=1">
           <Button disabled={items.length === 0}>
             <Brain className="size-4" />
             背待背题
