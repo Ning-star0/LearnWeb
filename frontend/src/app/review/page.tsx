@@ -44,14 +44,17 @@ export default function ReviewPage() {
     if (removingIds.has(questionId)) return;
     setRemovingIds((current) => new Set(current).add(questionId));
     try {
-      const res = await api.delete(`/review/${questionId}`);
+      const res = await api.post('/practice/study-action', {
+        questionId,
+        action: 'remembered',
+      });
       if (res.code !== 0) {
         throw new Error(res.message || '移出待背题失败');
       }
       setItems((current) => current.filter((item) => item.questionId !== questionId));
-      toast.success('已移出待背题');
+      toast.success('已标记为背熟');
     } catch {
-      toast.error('移出待背题失败，请稍后重试');
+      toast.error('标记失败，请稍后重试');
     } finally {
       setRemovingIds((current) => {
         const next = new Set(current);
