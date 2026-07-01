@@ -435,32 +435,6 @@ function PracticePage() {
     setCurrentIndex(index);
   };
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      const tagName = target?.tagName;
-      if (
-        tagName === 'INPUT' ||
-        tagName === 'TEXTAREA' ||
-        target?.isContentEditable
-      ) {
-        return;
-      }
-
-      if (event.key === 'ArrowLeft') {
-        event.preventDefault();
-        previousQuestion();
-      }
-      if (event.key === 'ArrowRight') {
-        event.preventDefault();
-        nextQuestion();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [previousQuestion, nextQuestion]);
-
   const handleStudyAction = useCallback(async (action: 'remembered' | 'not_remembered') => {
     if (!currentQuestion || savingStudyAction) return;
     const requestQuestionId = currentQuestion.id;
@@ -497,33 +471,6 @@ function PracticePage() {
       setSavingStudyAction(false);
     }
   }, [currentIndex, currentQuestion, savingStudyAction, studyAction]);
-
-  useEffect(() => {
-    if (mode !== 'study') return;
-    const handleStudyKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      const tagName = target?.tagName;
-      if (
-        tagName === 'INPUT' ||
-        tagName === 'TEXTAREA' ||
-        target?.isContentEditable
-      ) {
-        return;
-      }
-
-      if (event.key === '1') {
-        event.preventDefault();
-        handleStudyAction('remembered');
-      }
-      if (event.key === '2') {
-        event.preventDefault();
-        handleStudyAction('not_remembered');
-      }
-    };
-
-    window.addEventListener('keydown', handleStudyKeyDown);
-    return () => window.removeEventListener('keydown', handleStudyKeyDown);
-  }, [mode, handleStudyAction]);
 
   const handleSubmit = async (answerOverride?: unknown) => {
     if (!currentQuestion || submitted || submittingAnswer || currentIsHistoricalCorrect) return;
@@ -703,6 +650,29 @@ function PracticePage() {
         openFeedback();
         return;
       }
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        previousQuestion();
+        return;
+      }
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        nextQuestion();
+        return;
+      }
+
+      if (mode === 'study') {
+        if (event.key === '1') {
+          event.preventDefault();
+          void handleStudyAction('remembered');
+          return;
+        }
+        if (event.key === '2') {
+          event.preventDefault();
+          void handleStudyAction('not_remembered');
+          return;
+        }
+      }
 
       if (mode !== 'quiz' || !currentQuestion || submitted) return;
 
@@ -734,7 +704,21 @@ function PracticePage() {
 
     window.addEventListener('keydown', handleShortcutKeyDown);
     return () => window.removeEventListener('keydown', handleShortcutKeyDown);
-  }, [currentQuestion, submitted, mode, aiLoading, openFeedback, toggleMultipleOption, currentIsHistoricalCorrect]);
+  }, [
+    currentQuestion,
+    submitted,
+    mode,
+    aiLoading,
+    openFeedback,
+    previousQuestion,
+    nextQuestion,
+    handleStudyAction,
+    handleAiExplanation,
+    handleSingleAnswer,
+    handleJudgeAnswer,
+    toggleMultipleOption,
+    currentIsHistoricalCorrect,
+  ]);
 
   if (authLoading || loading) {
     return <div className="mx-auto max-w-6xl px-4 py-12 text-center text-sm text-muted-foreground">加载题目中...</div>;
