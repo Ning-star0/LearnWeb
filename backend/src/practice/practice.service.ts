@@ -281,25 +281,30 @@ export class PracticeService {
     });
     if (!question) throw new BadRequestException('题目不存在');
 
-    let isCorrect: boolean;
+    const isUncertain = userAnswer === 'UNCERTAIN';
+    let isCorrect: boolean | null;
     const type = question.type;
 
-    switch (type) {
-      case 'SINGLE':
-        isCorrect = this.checkSingle(question.answerJson, userAnswer);
-        break;
-      case 'MULTIPLE':
-        isCorrect = this.checkMultiple(question.answerJson, userAnswer);
-        break;
-      case 'JUDGE':
-        isCorrect = this.checkJudge(question.answerJson, userAnswer);
-        break;
-      case 'SHORT':
-        // 简答题不自动判题，由用户自行判断
-        isCorrect = userAnswer === true; // 用户提交时传 true 表示自己判断正确
-        break;
-      default:
-        isCorrect = false;
+    if (isUncertain) {
+      isCorrect = null;
+    } else {
+      switch (type) {
+        case 'SINGLE':
+          isCorrect = this.checkSingle(question.answerJson, userAnswer);
+          break;
+        case 'MULTIPLE':
+          isCorrect = this.checkMultiple(question.answerJson, userAnswer);
+          break;
+        case 'JUDGE':
+          isCorrect = this.checkJudge(question.answerJson, userAnswer);
+          break;
+        case 'SHORT':
+          // 简答题不自动判题，由用户自行判断
+          isCorrect = userAnswer === true; // 用户提交时传 true 表示自己判断正确
+          break;
+        default:
+          isCorrect = false;
+      }
     }
 
     // 记录答题
@@ -314,7 +319,7 @@ export class PracticeService {
     });
 
     // 答错自动加入错题本
-    if (!isCorrect) {
+    if (isCorrect === false) {
       await this.prisma.wrongQuestion.upsert({
         where: {
           userId_questionId: { userId, questionId },
@@ -333,6 +338,7 @@ export class PracticeService {
 
     return {
       isCorrect,
+      uncertain: isUncertain,
       correctAnswer:
         type === 'SHORT' ? question.answerRaw || question.answerJson : question.answerJson,
       explanation: question.explanation,

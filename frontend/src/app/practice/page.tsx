@@ -125,7 +125,8 @@ interface PracticeStats {
 }
 
 interface SubmitResult {
-  isCorrect: boolean;
+  isCorrect: boolean | null;
+  uncertain?: boolean;
   correctAnswer?: unknown;
 }
 
@@ -519,7 +520,7 @@ function PracticePage() {
       saveAnswerState(requestQuestionId, nextAnswerState);
 
       // 记录答题状态
-      const quizStatus = isUncertain ? 'uncertain' as const
+      const quizStatus = isUncertain || submitResult.uncertain ? 'uncertain' as const
         : submitResult.isCorrect ? 'correct' as const
         : 'wrong' as const;
       setQuestions((current) =>
@@ -531,6 +532,7 @@ function PracticePage() {
       if (currentQuestionIdRef.current === requestQuestionId) {
         setSubmitted(true);
         setResult(submitResult);
+        setQuizUncertain(isUncertain || Boolean(submitResult.uncertain));
       }
 
       if (mode === 'quiz' && !isUncertain && submitResult.isCorrect === false) {
@@ -957,19 +959,26 @@ function PracticePage() {
 
               {submitted && result && (
                 <div className={`rounded-lg border p-4 ${
-                  currentQuestion.type === 'SHORT'
+                  quizUncertain || result.uncertain
+                    ? 'border-amber-200 bg-amber-50 text-amber-950'
+                    : currentQuestion.type === 'SHORT'
                     ? 'border-blue-200 bg-blue-50 text-blue-950'
                     : result.isCorrect
                       ? 'border-emerald-200 bg-emerald-50 text-emerald-950'
                       : 'border-red-200 bg-red-50 text-red-950'
                 }`}>
                   <div className="flex items-center gap-2 font-medium">
-                    {currentQuestion.type !== 'SHORT' && (result.isCorrect ? <CheckCircle2 className="size-4" /> : <XCircle className="size-4" />)}
-                    {currentQuestion.type === 'SHORT'
+                    {quizUncertain || result.uncertain ? <HelpCircle className="size-4" /> : currentQuestion.type !== 'SHORT' && (result.isCorrect ? <CheckCircle2 className="size-4" /> : <XCircle className="size-4" />)}
+                    {quizUncertain || result.uncertain
+                      ? '已标记不确定'
+                      : currentQuestion.type === 'SHORT'
                       ? '请对照参考答案自查'
                       : result.isCorrect ? '回答正确' : '回答错误'}
                   </div>
-                  {!result.isCorrect && currentQuestion.type !== 'SHORT' && (
+                  {(quizUncertain || result.uncertain) && (
+                    <p className="mt-2 break-words text-sm">这道题不会计入错题本；之后仍可重新作答。</p>
+                  )}
+                  {!quizUncertain && !result.uncertain && !result.isCorrect && currentQuestion.type !== 'SHORT' && (
                     <p className="mt-2 break-words text-sm">正确答案：{formatAnswer(result.correctAnswer)}</p>
                   )}
                 </div>
