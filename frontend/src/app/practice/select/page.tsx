@@ -98,6 +98,7 @@ function PracticeSelectPage() {
 
   const startPractice = (mode: 'quiz' | 'study', scopeOverride = scope, options: { restart?: boolean } = {}) => {
     const params = new URLSearchParams();
+    const isSpecialQueue = scopeOverride === 'wrong' || scopeOverride === 'review';
     params.set('mode', mode);
     if (scopeOverride === 'book' && bookId) {
       params.set('scope', 'book');
@@ -107,9 +108,9 @@ function PracticeSelectPage() {
     } else {
       params.set('scope', scopeOverride);
     }
-    if (type) params.set('type', type);
-    params.set('order', mode === 'study' ? order || 'sequential' : order || 'random');
-    if (options.restart) params.set('restart', '1');
+    if (type && !isSpecialQueue) params.set('type', type);
+    params.set('order', isSpecialQueue ? 'sequential' : mode === 'study' ? order || 'sequential' : order || 'random');
+    if (options.restart || isSpecialQueue) params.set('restart', '1');
     router.push(`/practice?${params.toString()}`);
   };
 
@@ -281,11 +282,11 @@ function PracticeSelectPage() {
         <aside className="min-w-0 space-y-3">
           <Card className="min-w-0">
             <CardContent className="min-w-0 space-y-2 p-4">
-              <Button variant="outline" className="w-full justify-start" onClick={() => startPractice('quiz', 'wrong')}>
+              <Button variant="outline" className="w-full justify-start" onClick={() => startPractice('quiz', 'wrong', { restart: true })}>
                 <Target className="size-4" />
                 刷错题
               </Button>
-              <Button variant="outline" className="w-full justify-start" onClick={() => startPractice('study', 'review')}>
+              <Button variant="outline" className="w-full justify-start" onClick={() => startPractice('study', 'review', { restart: true })}>
                 <Clock3 className="size-4" />
                 背待背题
               </Button>

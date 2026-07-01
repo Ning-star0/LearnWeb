@@ -2,12 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { BookMarked, Brain, CheckCircle2, Search } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Brain, CheckCircle2, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 
 interface RememberedShortItem {
@@ -32,16 +30,6 @@ function formatAnswer(answerRaw: string | null | undefined, answerJson: unknown)
   return String(answerJson ?? '暂无答案');
 }
 
-function formatDate(value?: string) {
-  if (!value) return '暂无时间';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '暂无时间';
-  return date.toLocaleDateString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-  });
-}
-
 function matchesKeyword(item: RememberedShortItem, keyword: string) {
   const text = [
     item.question.stem,
@@ -58,10 +46,11 @@ export default function RememberedShortsPage() {
   const { user, loading } = useAuth();
   const [items, setItems] = useState<RememberedShortItem[]>([]);
   const [search, setSearch] = useState('');
+  const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
     if (!user) return;
-    api.get('/study/remembered-shorts').then((res) => {
+    api.get('/study/remembered-shorts', { cache: 'no-store' }).then((res) => {
       if (res.code === 0) setItems(res.data?.items || []);
     });
   }, [user]);
@@ -72,120 +61,108 @@ export default function RememberedShortsPage() {
     return items.filter((item) => matchesKeyword(item, keyword));
   }, [items, search]);
 
+  useEffect(() => {
+    setCurrentIndex((index) => Math.min(index, Math.max(0, filteredItems.length - 1)));
+  }, [filteredItems.length]);
+
+  const currentItem = filteredItems[currentIndex] || null;
+  const answer = currentItem ? formatAnswer(currentItem.question.answerRaw, currentItem.question.answerJson) : '';
   const practiceIds = filteredItems.map((item) => item.questionId).join(',');
+  const canPrevious = currentIndex > 0;
+  const canNext = currentIndex < filteredItems.length - 1;
 
   if (loading) {
-    return <div className="mx-auto max-w-6xl px-4 py-10 text-center text-sm text-muted-foreground">加载中...</div>;
+    return <div className="mx-auto max-w-3xl px-4 py-10 text-center text-sm text-muted-foreground">加载中...</div>;
   }
   if (!user) return null;
 
   return (
-    <div className="mx-auto max-w-6xl px-3 py-5 sm:px-4 lg:py-8">
-      <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          <Badge variant="secondary" className="mb-2">背题回看</Badge>
-          <h1 className="text-2xl font-semibold tracking-normal">已背过大题</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            这里只显示最新背题状态仍为“已背过”的大题，方便之后集中重新背。
-          </p>
-        </div>
-        {practiceIds ? (
-          <Link href={`/practice?ids=${practiceIds}&mode=study&restart=1`}>
-            <Button className="w-full sm:w-auto">
+    <div className="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-3xl flex-col overflow-x-hidden px-3 py-3 sm:px-4 sm:py-5">
+      <header className="mb-3 flex shrink-0 flex-col gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold tracking-normal sm:text-2xl">已背过大题</h1>
+            <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
+              {filteredItems.length > 0 ? `${currentIndex + 1} / ${filteredItems.length}` : '0 / 0'}
+            </p>
+          </div>
+          {practiceIds ? (
+            <Link href={`/practice?ids=${practiceIds}&mode=study&restart=1`} className="shrink-0">
+              <Button size="sm" variant="outline">
+                <Brain className="size-4" />
+                重背
+              </Button>
+            </Link>
+          ) : (
+            <Button size="sm" variant="outline" disabled className="shrink-0">
               <Brain className="size-4" />
-              重新背当前列表
+              重背
             </Button>
-          </Link>
-        ) : (
-          <Button disabled className="w-full sm:w-auto">
-            <Brain className="size-4" />
-            重新背当前列表
-          </Button>
-        )}
-      </div>
+          )}
+        </div>
 
-      <Card className="mb-4">
-        <CardContent className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:p-4">
-          <div className="relative min-w-0 flex-1">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="搜索题干、答案、教材或来源文件"
-              className="pl-9"
-            />
-          </div>
-          <div className="shrink-0 rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-            共 <span className="font-semibold text-foreground">{filteredItems.length}</span> 道
-          </div>
-        </CardContent>
-      </Card>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setCurrentIndex(0);
+            }}
+            placeholder="搜索题干、答案、教材"
+            className="h-10 pl-9"
+          />
+        </div>
+      </header>
 
       {items.length === 0 ? (
-        <div className="rounded-lg border bg-muted/40 p-8 text-center">
-          <CheckCircle2 className="mx-auto mb-3 size-8 text-muted-foreground" />
-          <p className="font-medium">还没有已背过的大题</p>
-          <p className="mt-1 text-sm text-muted-foreground">在背题模式中把大题标为“已背过”后，会出现在这里。</p>
-        </div>
-      ) : filteredItems.length === 0 ? (
-        <div className="rounded-lg border bg-muted/40 p-8 text-center">
-          <p className="font-medium">没有符合搜索条件的大题</p>
-          <p className="mt-1 text-sm text-muted-foreground">换个关键词再试。</p>
-        </div>
+        <EmptyState title="还没有已背过的大题" description="在背题模式中把大题标为已背过后，会出现在这里。" />
+      ) : filteredItems.length === 0 || !currentItem ? (
+        <EmptyState title="没有符合搜索条件的大题" description="换个关键词再试。" />
       ) : (
-        <div className="grid gap-3 lg:grid-cols-2">
-          {filteredItems.map((item) => {
-            const answer = formatAnswer(item.question.answerRaw, item.question.answerJson);
-            return (
-              <Card key={item.id} className="h-full">
-                <CardHeader className="border-b p-4">
-                  <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <Badge variant="outline">
-                      <BookMarked className="size-3" />
-                      已背过
-                    </Badge>
-                    <Badge variant="secondary">{item.question.book?.name || '未标记教材'}</Badge>
-                    {item.question.chapter && <Badge variant="outline">{item.question.chapter}</Badge>}
-                    <span className="text-xs text-muted-foreground">最近标记 {formatDate(item.createdAt)}</span>
-                  </div>
-                  <CardTitle className="text-base leading-7 font-medium">
-                    <span className="line-clamp-3 whitespace-pre-wrap break-words sm:line-clamp-4">
-                      {item.question.stem}
-                    </span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 p-4">
-                  <details className="group rounded-lg border bg-background">
-                    <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
-                      查看完整题干
-                    </summary>
-                    <div className="max-h-56 overflow-y-auto border-t px-3 py-2 text-sm leading-7 text-muted-foreground sm:max-h-72">
-                      <p className="whitespace-pre-wrap break-words">{item.question.stem}</p>
-                    </div>
-                  </details>
-                  <details className="group rounded-lg border bg-muted/30">
-                    <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
-                      查看答案
-                    </summary>
-                    <div className="max-h-48 overflow-y-auto border-t px-3 py-2 text-sm leading-7 text-muted-foreground sm:max-h-64">
-                      <p className="whitespace-pre-wrap break-words">{answer}</p>
-                    </div>
-                  </details>
-                  <div className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
-                    <span>题库：{item.question.bank?.name || '未标记'}</span>
-                    <span>来源文件：{item.question.bank?.sourceFile || '未记录'}</span>
-                  </div>
-                  <Link href={`/practice?ids=${item.questionId}&mode=study&restart=1`}>
-                    <Button variant="outline" size="sm" className="w-full">
-                      单独重背
-                    </Button>
-                  </Link>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+        <>
+          <main className="min-h-0 flex-1 overflow-y-auto rounded-lg border bg-background">
+            <section className="border-b p-3 sm:p-4">
+              <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                <span>{currentItem.question.book?.name || '未标记教材'}</span>
+                {currentItem.question.chapter && <span>{currentItem.question.chapter}</span>}
+                <span>题号 {currentItem.questionId}</span>
+              </div>
+              <h2 className="whitespace-pre-wrap break-words text-base font-semibold leading-7 sm:text-lg sm:leading-8">
+                {currentItem.question.stem}
+              </h2>
+            </section>
+
+            <section className="p-3 sm:p-4">
+              <div className="mb-2 text-sm font-medium">答案</div>
+              <div className="whitespace-pre-wrap break-words text-sm leading-7 text-foreground sm:text-base sm:leading-8">
+                {answer}
+              </div>
+            </section>
+          </main>
+
+          <footer className="mt-3 grid shrink-0 grid-cols-2 gap-2">
+            <Button variant="outline" onClick={() => setCurrentIndex((index) => Math.max(0, index - 1))} disabled={!canPrevious}>
+              <ArrowLeft className="size-4" />
+              上一题
+            </Button>
+            <Button onClick={() => setCurrentIndex((index) => Math.min(filteredItems.length - 1, index + 1))} disabled={!canNext}>
+              下一题
+              <ArrowRight className="size-4" />
+            </Button>
+          </footer>
+        </>
       )}
+    </div>
+  );
+}
+
+function EmptyState({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center rounded-lg border bg-muted/30 p-6 text-center">
+      <CheckCircle2 className="mb-3 size-8 text-muted-foreground" />
+      <p className="font-medium">{title}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{description}</p>
     </div>
   );
 }

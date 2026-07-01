@@ -195,10 +195,10 @@ export class PracticeService {
 
     const map = new Map<number, { status: 'correct' | 'wrong' | 'unanswered'; historicalCorrect: boolean }>();
     for (const questionId of questionIds) {
-      if (correctSet.has(questionId)) {
-        map.set(questionId, { status: 'correct', historicalCorrect: true });
-      } else if (latestMap.get(questionId) === false) {
+      if (latestMap.get(questionId) === false) {
         map.set(questionId, { status: 'wrong', historicalCorrect: false });
+      } else if (correctSet.has(questionId)) {
+        map.set(questionId, { status: 'correct', historicalCorrect: true });
       } else {
         map.set(questionId, { status: 'unanswered', historicalCorrect: false });
       }

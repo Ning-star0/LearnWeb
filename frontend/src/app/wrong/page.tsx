@@ -144,7 +144,7 @@ export default function WrongPage() {
 
   const startPractice = (ids: number[]) => {
     if (ids.length === 0) return;
-    router.push(`/practice?ids=${ids.join(',')}&mode=quiz&restart=1`);
+    router.push(`/practice?ids=${ids.join(',')}&mode=quiz&scope=wrong&order=sequential&restart=1`);
   };
 
   const startWrongPractice = () => {
@@ -152,7 +152,7 @@ export default function WrongPage() {
   };
 
   const previewOne = (questionId: number) => {
-    router.push(`/practice?ids=${questionId}&mode=study&restart=1`);
+    router.push(`/practice?ids=${questionId}&mode=study&scope=wrong&order=sequential&restart=1`);
   };
 
   if (loading) return <div className="mx-auto max-w-6xl px-4 py-10 text-center text-sm text-muted-foreground">加载中...</div>;
@@ -169,6 +169,9 @@ export default function WrongPage() {
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => startPractice(highRiskItems.map((item) => item.questionId))} disabled={highRiskItems.length === 0}>
             <AlertTriangle className="size-4" />重点复习
+          </Button>
+          <Button variant="outline" onClick={() => startPractice(filteredItems.map((item) => item.questionId))} disabled={filteredItems.length === 0}>
+            <Play className="size-4" />刷当前筛选
           </Button>
           <Button onClick={startWrongPractice} disabled={items.length === 0}>
             <Target className="size-4" />批量刷错题

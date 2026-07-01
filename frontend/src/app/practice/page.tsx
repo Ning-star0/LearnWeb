@@ -248,7 +248,8 @@ function PracticePage() {
     params.set('order', mode === 'study' ? order || 'sequential' : order);
     if (restart) params.set('restart', restart);
 
-    api.get(`/practice/questions?${params.toString()}`)
+    const shouldBypassPracticeCache = scope === 'wrong' || scope === 'review' || Boolean(restart);
+    api.get(`/practice/questions?${params.toString()}`, shouldBypassPracticeCache ? { cache: 'no-store' } : {})
       .then((res) => {
         if (res.code === 0) {
           const list = Array.isArray(res.data) ? res.data : (res.data?.items || []);
