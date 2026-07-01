@@ -334,6 +334,11 @@ export class PracticeService {
           mastered: false,
         },
       });
+    } else if (isCorrect === true) {
+      await this.prisma.wrongQuestion.updateMany({
+        where: { userId, questionId, mastered: false },
+        data: { mastered: true },
+      });
     }
 
     return {
