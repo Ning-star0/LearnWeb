@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight, Brain, CheckCircle2, Search } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -70,6 +70,34 @@ export default function RememberedShortsPage() {
   const practiceIds = filteredItems.map((item) => item.questionId).join(',');
   const canPrevious = currentIndex > 0;
   const canNext = currentIndex < filteredItems.length - 1;
+
+  const goPrevious = useCallback(() => {
+    setCurrentIndex((index) => Math.max(0, index - 1));
+  }, []);
+
+  const goNext = useCallback(() => {
+    setCurrentIndex((index) => Math.min(filteredItems.length - 1, index + 1));
+  }, [filteredItems.length]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName;
+      if (tagName === 'INPUT' || tagName === 'TEXTAREA' || target?.isContentEditable) return;
+
+      if (event.key === 'ArrowLeft' && canPrevious) {
+        event.preventDefault();
+        goPrevious();
+      }
+      if (event.key === 'ArrowRight' && canNext) {
+        event.preventDefault();
+        goNext();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [canNext, canPrevious, goNext, goPrevious]);
 
   if (loading) {
     return <div className="mx-auto max-w-3xl px-4 py-10 text-center text-sm text-muted-foreground">加载中...</div>;
@@ -142,11 +170,11 @@ export default function RememberedShortsPage() {
           </main>
 
           <footer className="mt-3 grid shrink-0 grid-cols-2 gap-2">
-            <Button variant="outline" onClick={() => setCurrentIndex((index) => Math.max(0, index - 1))} disabled={!canPrevious}>
+            <Button variant="outline" onClick={goPrevious} disabled={!canPrevious}>
               <ArrowLeft className="size-4" />
               上一题
             </Button>
-            <Button onClick={() => setCurrentIndex((index) => Math.min(filteredItems.length - 1, index + 1))} disabled={!canNext}>
+            <Button onClick={goNext} disabled={!canNext}>
               下一题
               <ArrowRight className="size-4" />
             </Button>
