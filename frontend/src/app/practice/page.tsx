@@ -425,6 +425,7 @@ function PracticePage() {
     if (currentQuestion.type === 'SHORT') return shortAnswer.trim().length > 0;
     return false;
   }, [currentQuestion, submitted, submittingAnswer, currentIsHistoricalCorrect, selectedOption, selectedOptions, judgeAnswer, shortAnswer]);
+  const canMarkUncertain = mode === 'quiz' && Boolean(currentQuestion) && !submitted && !submittingAnswer && !currentIsHistoricalCorrect;
 
   const previousQuestion = useCallback(() => {
     if (currentIndex <= 0 || actionLocked) return;
@@ -527,9 +528,9 @@ function PracticePage() {
 
       const submitResult = res.data as SubmitResult;
       const nextAnswerState: AnswerState = {
-        selectedOption: currentQuestion.type === 'SINGLE' ? String(userAnswer || '') : selectedOption,
-        selectedOptions: currentQuestion.type === 'MULTIPLE' && Array.isArray(userAnswer) ? userAnswer : selectedOptions,
-        judgeAnswer: currentQuestion.type === 'JUDGE' ? Boolean(userAnswer) : judgeAnswer,
+        selectedOption: !isUncertain && currentQuestion.type === 'SINGLE' ? String(userAnswer || '') : selectedOption,
+        selectedOptions: !isUncertain && currentQuestion.type === 'MULTIPLE' && Array.isArray(userAnswer) ? userAnswer : selectedOptions,
+        judgeAnswer: !isUncertain && currentQuestion.type === 'JUDGE' ? Boolean(userAnswer) : judgeAnswer,
         shortAnswer,
         submitted: true,
         result: submitResult,
@@ -700,6 +701,12 @@ function PracticePage() {
 
       if (mode !== 'quiz' || !currentQuestion || submitted) return;
 
+      if (event.key === '0' && canMarkUncertain) {
+        event.preventDefault();
+        void handleSubmit('UNCERTAIN');
+        return;
+      }
+
       const numericIndex = /^[1-9]$/.test(event.key) ? Number(event.key) - 1 : -1;
       const letterIndex = /^[a-z]$/i.test(event.key)
         ? event.key.toUpperCase().charCodeAt(0) - 65
@@ -742,6 +749,7 @@ function PracticePage() {
     handleJudgeAnswer,
     toggleMultipleOption,
     currentIsHistoricalCorrect,
+    canMarkUncertain,
   ]);
 
   if (authLoading || loading) {
@@ -813,6 +821,12 @@ function PracticePage() {
           {mode === 'quiz' && !submitted && (currentQuestion.type === 'MULTIPLE' || currentQuestion.type === 'SHORT') && (
             <Button size="sm" onClick={() => handleSubmit()} disabled={!canSubmit} className="min-w-0 px-2">
               {submittingAnswer ? '提交中...' : '提交答案'}
+            </Button>
+          )}
+          {canMarkUncertain && (
+            <Button variant="outline" size="sm" onClick={() => handleSubmit('UNCERTAIN')} className="min-w-0 px-2">
+              <HelpCircle className="size-4" />
+              不确定
             </Button>
           )}
           {mode === 'quiz' && !submitted && (currentQuestion.type === 'SINGLE' || currentQuestion.type === 'JUDGE') && (
@@ -1130,12 +1144,19 @@ function PracticePage() {
                     variant="outline"
                     className="flex-1"
                     onClick={() => handleSubmit('UNCERTAIN')}
-                    disabled={submittingAnswer || currentIsHistoricalCorrect}
+                    disabled={!canMarkUncertain}
                   >
                     <HelpCircle className="size-4 mr-1" />
                     不确定
                   </Button>
                 </div>
+              )}
+
+              {mode === 'quiz' && !submitted && (currentQuestion.type === 'SINGLE' || currentQuestion.type === 'JUDGE') && (
+                <Button variant="outline" onClick={() => handleSubmit('UNCERTAIN')} disabled={!canMarkUncertain} className="w-full">
+                  <HelpCircle className="size-4" />
+                  不确定
+                </Button>
               )}
 
               {mode === 'quiz' && submitted && (
@@ -1158,7 +1179,7 @@ function PracticePage() {
 
               <div className="rounded-lg border bg-muted/50 p-3 text-xs text-muted-foreground">
                 <Keyboard className="mr-1 inline size-3.5" />
-                快捷键：1/2/3... 选择 A/B/C...，←/→ 切题，↑ AI，↓ 反馈。
+                快捷键：1/2/3... 选择 A/B/C...，0 不确定，←/→ 切题，↑ AI，↓ 反馈。
               </div>
 
               <Button variant="outline" onClick={() => handleAiExplanation()} disabled={aiActionDisabled} className="w-full">
