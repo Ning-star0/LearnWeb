@@ -824,7 +824,7 @@ function PracticePage() {
             </Button>
           )}
           {canMarkUncertain && (
-            <Button variant="outline" size="sm" onClick={() => handleSubmit('UNCERTAIN')} className="min-w-0 px-2">
+            <Button variant="outline" size="sm" onClick={() => handleSubmit('UNCERTAIN')} className="min-w-0 px-2 lg:hidden">
               <HelpCircle className="size-4" />
               不确定
             </Button>

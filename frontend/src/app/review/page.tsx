@@ -68,7 +68,7 @@ export default function ReviewPage() {
   if (!user) return null;
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 lg:py-8">
+    <div className="mx-auto w-full max-w-6xl overflow-x-hidden px-3 py-5 sm:px-4 lg:py-8">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <Badge variant="secondary" className="mb-2">复习队列</Badge>
@@ -90,17 +90,17 @@ export default function ReviewPage() {
           <p className="mt-1 text-sm text-muted-foreground">学习时遇到不熟的题，点“没记住”后会出现在这里。</p>
         </div>
       ) : (
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className="grid min-w-0 gap-3 lg:grid-cols-2">
           {items.map((item) => (
-            <Card key={item.id} className="h-full">
-              <CardHeader className="border-b">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div className="flex flex-wrap items-center gap-2">
+            <Card key={item.id} className="h-full min-w-0">
+              <CardHeader className="min-w-0 border-b p-4">
+                <div className="mb-2 flex min-w-0 flex-wrap items-center justify-between gap-2">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
                     <Badge variant="outline">
                       <Clock3 className="size-3" />
                       待背
                     </Badge>
-                    <Badge variant="secondary">{item.question.book?.name}</Badge>
+                    <Badge variant="secondary" className="max-w-full truncate">{item.question.book?.name || '未标记教材'}</Badge>
                   </div>
                   <Button
                     variant="ghost"
@@ -111,12 +111,15 @@ export default function ReviewPage() {
                     {removingIds.has(item.questionId) ? '移出中...' : '已背熟'}
                   </Button>
                 </div>
-                <CardTitle className="text-base leading-relaxed font-medium">{item.question.stem}</CardTitle>
+                <CardTitle className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words pr-1 text-base leading-relaxed font-medium">
+                  {item.question.stem}
+                </CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-sm leading-relaxed text-muted-foreground">
-                  答案：{formatAnswer(item.question.answerJson)}
-                </p>
+              <CardContent className="min-w-0 p-4">
+                <div className="max-h-44 overflow-y-auto rounded-lg border bg-muted/30 p-3 text-sm leading-relaxed text-muted-foreground">
+                  <span className="font-medium text-foreground">答案：</span>
+                  <span className="whitespace-pre-wrap break-words">{formatAnswer(item.question.answerJson)}</span>
+                </div>
               </CardContent>
             </Card>
           ))}
