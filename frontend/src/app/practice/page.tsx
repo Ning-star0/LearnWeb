@@ -181,6 +181,8 @@ function PracticePage() {
   const [bookmarks, setBookmarks] = useState<Set<number>>(new Set());
   const [bookmarkingIds, setBookmarkingIds] = useState<Set<number>>(new Set());
   const [answerStates, setAnswerStates] = useState<Record<number, AnswerState>>({});
+  const stemScrollRef = useRef<HTMLDivElement>(null);
+  const answerScrollRef = useRef<HTMLDivElement>(null);
   const [trialDialog, setTrialDialog] = useState<{ open: boolean; remaining: number }>({
     open: false,
     remaining: 5,
@@ -342,7 +344,9 @@ function PracticePage() {
     });
   }, [user]);
 
-  const backToSelect = () => {
+  const exitTarget = useMemo(() => {
+    if (scope === 'wrong') return { href: '/wrong', label: '返回错题本' };
+    if (scope === 'review') return { href: '/review', label: '返回待背题' };
     const params = new URLSearchParams();
     params.set('mode', mode);
     params.set('scope', scope);
@@ -352,8 +356,12 @@ function PracticePage() {
     if (type) params.set('type', type);
     params.set('order', order);
     if (restart) params.set('restart', restart);
-    router.push(`/practice/select?${params.toString()}`);
-  };
+    return { href: `/practice/select?${params.toString()}`, label: '重新选择' };
+  }, [bookId, chapter, ids, mode, order, restart, scope, type]);
+
+  const backToSelect = useCallback(() => {
+    router.push(exitTarget.href);
+  }, [exitTarget.href, router]);
 
   const currentQuestion = questions[currentIndex];
   const currentQuestionIdRef = useRef<number | null>(null);
@@ -368,6 +376,8 @@ function PracticePage() {
   useEffect(() => {
     if (!currentQuestion) return;
     applyAnswerState(answerStates[currentQuestion.id]);
+    stemScrollRef.current?.scrollTo({ top: 0 });
+    answerScrollRef.current?.scrollTo({ top: 0 });
   }, [currentQuestion?.id]);
 
   useEffect(() => {
@@ -436,7 +446,7 @@ function PracticePage() {
     } else {
       backToSelect();
     }
-  }, [actionLocked, currentIndex, findNextPracticeIndex, questions.length]);
+  }, [actionLocked, backToSelect, currentIndex, findNextPracticeIndex, questions.length]);
 
   const jumpToQuestion = (index: number) => {
     if (actionLocked) return;
@@ -749,7 +759,7 @@ function PracticePage() {
             <PracticeFilterSummary mode={mode} scope={scope} type={type} order={order} />
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
               {isAuthLoadError && <Button onClick={() => router.push('/login')}>去登录</Button>}
-              <Button variant={isAuthLoadError ? 'outline' : 'default'} onClick={backToSelect}>返回重新选择</Button>
+              <Button variant={isAuthLoadError ? 'outline' : 'default'} onClick={backToSelect}>{exitTarget.label}</Button>
             </div>
           </CardContent>
         </Card>
@@ -758,14 +768,15 @@ function PracticePage() {
   }
 
   if (questions.length === 0) {
+    const emptyCopy = getPracticeEmptyCopy(scope);
     return (
       <div className="mx-auto max-w-2xl px-4 py-16">
         <Card>
           <CardContent className="space-y-4 p-6 text-center">
-            <h1 className="text-2xl font-semibold">暂无题目</h1>
-            <p className="text-sm text-muted-foreground">当前范围没有可练习的题，可以换一个范围或题型。</p>
+            <h1 className="text-2xl font-semibold">{emptyCopy.title}</h1>
+            <p className="text-sm text-muted-foreground">{emptyCopy.description}</p>
             <PracticeFilterSummary mode={mode} scope={scope} type={type} order={order} />
-            <Button onClick={backToSelect}>返回重新选择</Button>
+            <Button onClick={backToSelect}>{exitTarget.label}</Button>
           </CardContent>
         </Card>
       </div>
@@ -778,7 +789,7 @@ function PracticePage() {
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <Button variant="ghost" size="sm" onClick={backToSelect} className="shrink-0 px-2">
             <ChevronLeft className="size-4" />
-            <span className="hidden sm:inline">重新选择</span>
+            <span className="hidden sm:inline">{exitTarget.label}</span>
             <span className="sm:hidden">返回</span>
           </Button>
           <div className="min-w-0 flex-1">
@@ -843,11 +854,11 @@ function PracticePage() {
                   {bookmarks.has(currentQuestion.id) ? <BookmarkCheck className="size-4 text-blue-500" /> : <BookmarkPlus className="size-4 text-muted-foreground hover:text-blue-500" />}
                 </button>
               </div>
-              <div className="max-h-[32dvh] min-h-0 overflow-y-auto pr-1 sm:max-h-[40dvh] lg:max-h-none lg:overflow-visible lg:pr-0">
+              <div ref={stemScrollRef} className="max-h-[32dvh] min-h-0 overflow-y-auto pr-1 sm:max-h-[40dvh] lg:max-h-none lg:overflow-visible lg:pr-0">
                 <StemContent stem={currentQuestion.stem} />
               </div>
             </CardHeader>
-            <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 pt-3 sm:space-y-4 sm:p-4 sm:pt-4">
+            <CardContent ref={answerScrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 pt-3 sm:space-y-4 sm:p-4 sm:pt-4">
               {currentIsHistoricalCorrect && (
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
                   这道题历史已做对，系统已把它计入绿色完成状态。顺序练习时会自动跳过，不需要重复作答。
@@ -1299,6 +1310,25 @@ function PracticePage() {
       </Dialog>
     </div>
   );
+}
+
+function getPracticeEmptyCopy(scope: string) {
+  if (scope === 'wrong') {
+    return {
+      title: '暂无错题',
+      description: '当前错题本没有需要重刷的题。继续答题后，做错的题会自动进入这里。',
+    };
+  }
+  if (scope === 'review') {
+    return {
+      title: '暂无待背题',
+      description: '当前没有标记为没记住的题。背题时点击“没记住”后会进入这里。',
+    };
+  }
+  return {
+    title: '暂无题目',
+    description: '当前范围没有可练习的题，可以换一个范围或题型。',
+  };
 }
 
 function PracticeFilterSummary({
