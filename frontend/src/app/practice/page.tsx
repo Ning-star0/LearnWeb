@@ -140,6 +140,7 @@ interface AnswerState {
   selectedOptions?: string[];
   judgeAnswer?: boolean | null;
   shortAnswer?: string;
+  showShortReference?: boolean;
   submitted?: boolean;
   result?: SubmitResult | null;
   studyAction?: string | null;
@@ -167,6 +168,7 @@ function PracticePage() {
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [judgeAnswer, setJudgeAnswer] = useState<boolean | null>(null);
   const [shortAnswer, setShortAnswer] = useState('');
+  const [showShortReference, setShowShortReference] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [aiExplanation, setAiExplanation] = useState<any>(null);
@@ -194,6 +196,7 @@ function PracticePage() {
     setSelectedOptions([]);
     setJudgeAnswer(null);
     setShortAnswer('');
+    setShowShortReference(false);
     setSubmitted(false);
     setResult(null);
     setAiExplanation(null);
@@ -221,6 +224,7 @@ function PracticePage() {
     setSelectedOptions(state?.selectedOptions || []);
     setJudgeAnswer(state?.judgeAnswer ?? null);
     setShortAnswer(state?.shortAnswer || '');
+    setShowShortReference(Boolean(state?.showShortReference));
     setSubmitted(Boolean(state?.submitted));
     setResult(state?.result || null);
     setStudyAction(state?.studyAction || null);
@@ -427,10 +431,26 @@ function PracticePage() {
     if (currentQuestion.type === 'SINGLE') return Boolean(selectedOption);
     if (currentQuestion.type === 'MULTIPLE') return selectedOptions.length > 0;
     if (currentQuestion.type === 'JUDGE') return judgeAnswer !== null;
-    if (currentQuestion.type === 'SHORT') return shortAnswer.trim().length > 0;
     return false;
-  }, [currentQuestion, submitted, submittingAnswer, currentIsHistoricalCorrect, selectedOption, selectedOptions, judgeAnswer, shortAnswer]);
-  const canMarkUncertain = mode === 'quiz' && Boolean(currentQuestion) && !submitted && !submittingAnswer && !currentIsHistoricalCorrect;
+  }, [currentQuestion, submitted, submittingAnswer, currentIsHistoricalCorrect, selectedOption, selectedOptions, judgeAnswer]);
+  const canRevealShortReference = mode === 'quiz'
+    && currentQuestion?.type === 'SHORT'
+    && !submitted
+    && !submittingAnswer
+    && !currentIsHistoricalCorrect
+    && shortAnswer.trim().length > 0;
+  const canSelfEvaluateShort = mode === 'quiz'
+    && currentQuestion?.type === 'SHORT'
+    && showShortReference
+    && !submitted
+    && !submittingAnswer
+    && !currentIsHistoricalCorrect;
+  const canMarkUncertain = mode === 'quiz'
+    && Boolean(currentQuestion)
+    && !submitted
+    && !submittingAnswer
+    && !currentIsHistoricalCorrect
+    && !(currentQuestion?.type === 'SHORT' && showShortReference);
 
   const previousQuestion = useCallback(() => {
     if (currentIndex <= 0 || actionLocked) return;
@@ -519,6 +539,12 @@ function PracticePage() {
     }
   }, [currentIndex, currentQuestion, savingStudyAction, studyAction]);
 
+  const handleShowShortReference = () => {
+    if (!currentQuestion || currentQuestion.type !== 'SHORT' || !canRevealShortReference) return;
+    setShowShortReference(true);
+    saveAnswerState(currentQuestion.id, { shortAnswer, showShortReference: true });
+  };
+
   const handleSubmit = async (answerOverride?: unknown) => {
     if (!currentQuestion || submitted || submittingAnswer || currentIsHistoricalCorrect) return;
     const requestQuestionId = currentQuestion.id;
@@ -536,8 +562,8 @@ function PracticePage() {
           userAnswer = judgeAnswer;
           break;
         case 'SHORT':
-          userAnswer = true;
-          break;
+          handleShowShortReference();
+          return;
       }
     }
 
@@ -559,6 +585,7 @@ function PracticePage() {
         selectedOptions: !isUncertain && currentQuestion.type === 'MULTIPLE' && Array.isArray(userAnswer) ? userAnswer : selectedOptions,
         judgeAnswer: !isUncertain && currentQuestion.type === 'JUDGE' ? Boolean(userAnswer) : judgeAnswer,
         shortAnswer,
+        showShortReference,
         submitted: true,
         result: submitResult,
         quizUncertain: isUncertain,
@@ -731,6 +758,14 @@ function PracticePage() {
 
       if (mode !== 'quiz' || !currentQuestion || submitted) return;
 
+      if (currentQuestion.type === 'SHORT' && showShortReference && canSelfEvaluateShort) {
+        if (event.key === '1' || event.key === '2') {
+          event.preventDefault();
+          void handleSubmit(event.key === '1');
+          return;
+        }
+      }
+
       if (event.key === '0' && canMarkUncertain) {
         event.preventDefault();
         void handleSubmit('UNCERTAIN');
@@ -780,6 +815,8 @@ function PracticePage() {
     toggleMultipleOption,
     currentIsHistoricalCorrect,
     canMarkUncertain,
+    showShortReference,
+    canSelfEvaluateShort,
   ]);
 
   if (authLoading || loading) {
@@ -848,9 +885,14 @@ function PracticePage() {
             <ArrowLeft className="size-4" />
             上一题
           </Button>
-          {mode === 'quiz' && !submitted && (currentQuestion.type === 'MULTIPLE' || currentQuestion.type === 'SHORT') && (
-            <Button size="sm" onClick={() => handleSubmit()} disabled={!canSubmit} className="min-w-0 px-2">
-              {submittingAnswer ? '提交中...' : '提交答案'}
+          {mode === 'quiz' && !submitted && (currentQuestion.type === 'MULTIPLE' || (currentQuestion.type === 'SHORT' && !showShortReference)) && (
+            <Button
+              size="sm"
+              onClick={() => currentQuestion.type === 'SHORT' ? handleShowShortReference() : handleSubmit()}
+              disabled={currentQuestion.type === 'SHORT' ? !canRevealShortReference : !canSubmit}
+              className="min-w-0 px-2"
+            >
+              {currentQuestion.type === 'SHORT' ? '查看答案' : submittingAnswer ? '提交中...' : '提交答案'}
             </Button>
           )}
           {canMarkUncertain && (
@@ -1004,7 +1046,7 @@ function PracticePage() {
 
               {currentQuestion.type === 'SHORT' && (
                 <div className="space-y-4">
-                  {(mode === 'study' || submitted) && (
+                  {(mode === 'study' || showShortReference || submitted) && (
                     <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-950 sm:p-4">
                       <p className="mb-2 text-sm font-medium">参考答案</p>
                       <div className="max-h-[28dvh] overflow-y-auto rounded-md bg-white/60 p-2 text-sm leading-relaxed sm:max-h-72">
@@ -1014,9 +1056,9 @@ function PracticePage() {
                       </div>
                     </div>
                   )}
-                  {mode === 'quiz' && !submitted && (
+                  {mode === 'quiz' && !submitted && !showShortReference && (
                     <Textarea
-                      placeholder="输入你的答案，提交后对照参考答案自查。"
+                      placeholder="输入你的答案，然后查看参考答案自评。"
                       value={shortAnswer}
                       onChange={(event) => {
                         setShortAnswer(event.target.value);
@@ -1024,6 +1066,21 @@ function PracticePage() {
                       }}
                       rows={7}
                     />
+                  )}
+                  {mode === 'quiz' && !submitted && showShortReference && (
+                    <div className="rounded-lg border bg-muted/30 p-3">
+                      <p className="mb-3 text-sm text-muted-foreground">对照参考答案后选择结果，系统会按你的选择保存记录。</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button onClick={() => handleSubmit(true)} disabled={!canSelfEvaluateShort}>
+                          <CheckCircle2 className="size-4" />
+                          已掌握
+                        </Button>
+                        <Button variant="outline" onClick={() => handleSubmit(false)} disabled={!canSelfEvaluateShort}>
+                          <XCircle className="size-4" />
+                          没掌握
+                        </Button>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
@@ -1039,15 +1096,18 @@ function PracticePage() {
                       : 'border-red-200 bg-red-50 text-red-950'
                 }`}>
                   <div className="flex items-center gap-2 font-medium">
-                    {quizUncertain || result.uncertain ? <HelpCircle className="size-4" /> : currentQuestion.type !== 'SHORT' && (result.isCorrect ? <CheckCircle2 className="size-4" /> : <XCircle className="size-4" />)}
+                    {quizUncertain || result.uncertain ? <HelpCircle className="size-4" /> : (result.isCorrect ? <CheckCircle2 className="size-4" /> : <XCircle className="size-4" />)}
                     {quizUncertain || result.uncertain
                       ? '已标记不确定'
                       : currentQuestion.type === 'SHORT'
-                      ? '请对照参考答案自查'
+                      ? result.isCorrect ? '已标记掌握' : '已标记未掌握'
                       : result.isCorrect ? '回答正确' : '回答错误'}
                   </div>
                   {(quizUncertain || result.uncertain) && (
                     <p className="mt-2 break-words text-sm">这道题不会计入错题本；之后仍可重新作答。</p>
+                  )}
+                  {!quizUncertain && !result.uncertain && currentQuestion.type === 'SHORT' && !result.isCorrect && (
+                    <p className="mt-2 break-words text-sm">这道题会保留在错题本，之后可以继续重练。</p>
                   )}
                   {!quizUncertain && !result.uncertain && !result.isCorrect && currentQuestion.type !== 'SHORT' && (
                     <p className="mt-2 break-words text-sm">正确答案：{formatAnswer(result.correctAnswer)}</p>
@@ -1168,10 +1228,14 @@ function PracticePage() {
                 </div>
               )}
 
-              {mode === 'quiz' && !submitted && (currentQuestion.type === 'MULTIPLE' || currentQuestion.type === 'SHORT') && (
+              {mode === 'quiz' && !submitted && (currentQuestion.type === 'MULTIPLE' || (currentQuestion.type === 'SHORT' && !showShortReference)) && (
                 <div className="flex gap-2 w-full">
-                  <Button onClick={() => handleSubmit()} className="flex-1" disabled={!canSubmit}>
-                    {submittingAnswer ? '提交中...' : '提交答案'}
+                  <Button
+                    onClick={() => currentQuestion.type === 'SHORT' ? handleShowShortReference() : handleSubmit()}
+                    className="flex-1"
+                    disabled={currentQuestion.type === 'SHORT' ? !canRevealShortReference : !canSubmit}
+                  >
+                    {currentQuestion.type === 'SHORT' ? '查看答案' : submittingAnswer ? '提交中...' : '提交答案'}
                   </Button>
                   <Button
                     variant="outline"
