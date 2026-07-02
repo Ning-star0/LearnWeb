@@ -319,6 +319,7 @@ export class PracticeService {
     });
 
     // 答错自动加入错题本
+    let wrongQuestionRemoved = false;
     if (isCorrect === false) {
       await this.prisma.wrongQuestion.upsert({
         where: {
@@ -335,15 +336,17 @@ export class PracticeService {
         },
       });
     } else if (isCorrect === true) {
-      await this.prisma.wrongQuestion.updateMany({
+      const updateResult = await this.prisma.wrongQuestion.updateMany({
         where: { userId, questionId, mastered: false },
         data: { mastered: true },
       });
+      wrongQuestionRemoved = updateResult.count > 0;
     }
 
     return {
       isCorrect,
       uncertain: isUncertain,
+      wrongQuestionRemoved,
       correctAnswer:
         type === 'SHORT' ? question.answerRaw || question.answerJson : question.answerJson,
       explanation: question.explanation,

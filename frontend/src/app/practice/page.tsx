@@ -131,6 +131,7 @@ interface PracticeStats {
 interface SubmitResult {
   isCorrect: boolean | null;
   uncertain?: boolean;
+  wrongQuestionRemoved?: boolean;
   correctAnswer?: unknown;
 }
 
@@ -552,6 +553,9 @@ function PracticePage() {
         setSubmitted(true);
         setResult(submitResult);
         setQuizUncertain(isUncertain || Boolean(submitResult.uncertain));
+        if (scope === 'wrong' && submitResult.wrongQuestionRemoved) {
+          toast.success('已做对，已自动移出错题本');
+        }
       }
 
       if (mode === 'quiz' && !isUncertain && submitResult.isCorrect === false) {
@@ -1021,6 +1025,9 @@ function PracticePage() {
                   )}
                   {!quizUncertain && !result.uncertain && !result.isCorrect && currentQuestion.type !== 'SHORT' && (
                     <p className="mt-2 break-words text-sm">正确答案：{formatAnswer(result.correctAnswer)}</p>
+                  )}
+                  {!quizUncertain && !result.uncertain && result.wrongQuestionRemoved && (
+                    <p className="mt-2 break-words text-sm">这道题已从错题本移出；返回错题本后不会再显示。</p>
                   )}
                 </div>
               )}
