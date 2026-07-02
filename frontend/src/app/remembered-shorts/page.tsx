@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight, Brain, CheckCircle2, Search } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -47,6 +47,7 @@ export default function RememberedShortsPage() {
   const [items, setItems] = useState<RememberedShortItem[]>([]);
   const [search, setSearch] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
+  const contentRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -64,6 +65,10 @@ export default function RememberedShortsPage() {
   useEffect(() => {
     setCurrentIndex((index) => Math.min(index, Math.max(0, filteredItems.length - 1)));
   }, [filteredItems.length]);
+
+  useEffect(() => {
+    contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentIndex]);
 
   const currentItem = filteredItems[currentIndex] || null;
   const answer = currentItem ? formatAnswer(currentItem.question.answerRaw, currentItem.question.answerJson) : '';
@@ -115,7 +120,7 @@ export default function RememberedShortsPage() {
             </p>
           </div>
           {practiceIds ? (
-            <Link href={`/practice?ids=${practiceIds}&mode=study&restart=1`} className="shrink-0">
+            <Link href={`/practice?ids=${practiceIds}&mode=study&order=sequential&restart=1`} className="shrink-0">
               <Button size="sm" variant="outline">
                 <Brain className="size-4" />
                 重背
@@ -149,7 +154,7 @@ export default function RememberedShortsPage() {
         <EmptyState title="没有符合搜索条件的大题" description="换个关键词再试。" />
       ) : (
         <>
-          <main className="min-h-0 flex-1 overflow-y-auto rounded-lg border bg-background">
+          <main ref={contentRef} className="min-h-0 flex-1 overflow-y-auto rounded-lg border bg-background">
             <section className="border-b p-3 sm:p-4">
               <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 <span>{currentItem.question.book?.name || '未标记教材'}</span>
