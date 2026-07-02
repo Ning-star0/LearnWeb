@@ -399,6 +399,10 @@ function PracticePage() {
   const canGoPrevious = currentIndex > 0 && !actionLocked;
   const canGoNext = !actionLocked;
   const isLastQuestion = currentIndex >= questions.length - 1;
+  const shouldRemoveCurrentWrongQuestion = scope === 'wrong' && Boolean(result?.wrongQuestionRemoved);
+  const nextButtonLabel = shouldRemoveCurrentWrongQuestion
+    ? isLastQuestion ? '移出并返回错题本' : '移出并继续'
+    : isLastQuestion ? '完成' : '下一题';
   const currentStudyStatus = studyAction || currentQuestion?.studyStatus || 'unmarked';
   const aiActionDisabled = aiLoading || (aiCooldown > 0 && !aiExplanation);
   const aiButtonText = aiLoading
@@ -437,6 +441,22 @@ function PracticePage() {
 
   const nextQuestion = useCallback(() => {
     if (actionLocked) return;
+    if (scope === 'wrong' && currentQuestion && result?.wrongQuestionRemoved) {
+      const nextList = questions.filter((question) => question.id !== currentQuestion.id);
+      resetState();
+      setAnswerStates((current) => {
+        const next = { ...current };
+        delete next[currentQuestion.id];
+        return next;
+      });
+      setQuestions(nextList);
+      if (nextList.length === 0) {
+        backToSelect();
+      } else {
+        setCurrentIndex(Math.min(currentIndex, nextList.length - 1));
+      }
+      return;
+    }
     resetState();
     if (currentIndex < questions.length - 1) {
       const nextIndex = findNextPracticeIndex(currentIndex, 1);
@@ -448,7 +468,7 @@ function PracticePage() {
     } else {
       backToSelect();
     }
-  }, [actionLocked, backToSelect, currentIndex, findNextPracticeIndex, questions.length]);
+  }, [actionLocked, backToSelect, currentIndex, currentQuestion, findNextPracticeIndex, questions, result?.wrongQuestionRemoved, scope]);
 
   const jumpToQuestion = (index: number) => {
     if (actionLocked) return;
@@ -847,7 +867,7 @@ function PracticePage() {
             </Button>
           </Link>
           <Button variant="outline" size="sm" onClick={nextQuestion} disabled={!canGoNext} className="min-w-0 px-2">
-            {isLastQuestion ? '完成' : '下一题'}
+            {nextButtonLabel}
             <ArrowRight className="size-4" />
           </Button>
         </div>
@@ -1168,7 +1188,7 @@ function PracticePage() {
 
               {mode === 'quiz' && submitted && (
                 <Button onClick={nextQuestion} className="w-full" disabled={!canGoNext}>
-                  {isLastQuestion ? '完成学习' : '下一题'}
+                  {shouldRemoveCurrentWrongQuestion ? nextButtonLabel : isLastQuestion ? '完成学习' : '下一题'}
                   <ArrowRight className="size-4" />
                 </Button>
               )}
@@ -1179,7 +1199,7 @@ function PracticePage() {
                   上一题
                 </Button>
                 <Button variant="outline" onClick={nextQuestion} disabled={!canGoNext}>
-                  下一题
+                  {nextButtonLabel}
                   <ArrowRight className="size-4" />
                 </Button>
               </div>
