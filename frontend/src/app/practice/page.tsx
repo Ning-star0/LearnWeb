@@ -449,6 +449,12 @@ function PracticePage() {
         delete next[currentQuestion.id];
         return next;
       });
+      setPracticeStats((current) => current ? {
+        ...current,
+        totalCount: Math.max(0, current.totalCount - 1),
+        historicalWrongCount: Math.max(0, current.historicalWrongCount - 1),
+        pendingCount: Math.max(0, current.pendingCount - 1),
+      } : current);
       setQuestions(nextList);
       if (nextList.length === 0) {
         backToSelect();
@@ -1498,7 +1504,7 @@ function QuizQuestionList({
     <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
       <div className="flex flex-wrap gap-x-2 gap-y-1 text-xs leading-5 text-muted-foreground sm:shrink-0 sm:whitespace-nowrap">
         <span className="font-medium text-foreground">题号</span>
-        <span>总 {stats?.totalCount ?? questions.length}</span>
+        <span>总 {questions.length}</span>
         <span className="text-emerald-600">历史对 {historicalCorrectCount}</span>
         <span className="text-emerald-600">对 {correctCount}</span>
         <span className="text-red-600">错 {wrongCount}</span>
