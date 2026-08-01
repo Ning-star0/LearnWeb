@@ -7,6 +7,8 @@ ENV_FILE="$APP_ROOT/shared/app.env"
 CURRENT_LINK="$APP_ROOT/current"
 NGINX_TARGET=/etc/nginx/sites-available/learn.aurorastar.cn
 SERVICE_TARGET=/etc/systemd/system/mistake-atlas.service
+BACKUP_SERVICE_TARGET=/etc/systemd/system/mistake-atlas-backup.service
+BACKUP_TIMER_TARGET=/etc/systemd/system/mistake-atlas-backup.timer
 LOCK_FILE=/run/mistake-atlas-deploy.lock
 
 exec 9>"$LOCK_FILE"
@@ -93,6 +95,8 @@ rm -f "$SMOKE_LOG"
 if [[ -f "$NGINX_TARGET" ]]; then cp "$NGINX_TARGET" "$NGINX_BACKUP"; fi
 ln -sfn "$RELEASE" "$CURRENT_LINK"
 install -m 0644 "$RELEASE/deploy/systemd/mistake-atlas.service" "$SERVICE_TARGET"
+install -m 0644 "$RELEASE/deploy/systemd/mistake-atlas-backup.service" "$BACKUP_SERVICE_TARGET"
+install -m 0644 "$RELEASE/deploy/systemd/mistake-atlas-backup.timer" "$BACKUP_TIMER_TARGET"
 install -m 0644 "$RELEASE/nginx/learn.aurorastar.cn.conf" "$NGINX_TARGET"
 CUTOVER=1
 
@@ -100,6 +104,7 @@ systemctl daemon-reload
 nginx -t
 systemctl restart mistake-atlas.service
 systemctl enable mistake-atlas.service >/dev/null
+systemctl enable --now mistake-atlas-backup.timer >/dev/null
 systemctl reload nginx
 
 for _ in $(seq 1 30); do

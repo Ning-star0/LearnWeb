@@ -1,0 +1,10 @@
+[Unit]
+Description=Mistake Atlas verified backup
+After=postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/mistake-atlas/current/deploy/scripts/backup-mistake-atlas.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

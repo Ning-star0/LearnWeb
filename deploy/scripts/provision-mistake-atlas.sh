@@ -13,6 +13,7 @@ fi
 
 install -d -m 0750 -o root -g mistake-atlas "$SHARED_DIR"
 install -d -m 0750 -o mistake-atlas -g mistake-atlas "$DATA_DIR" "$DATA_DIR/uploads" "$DATA_DIR/imports" "$DATA_DIR/exports"
+install -d -m 0700 -o root -g root "$DATA_DIR/backups"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   DB_PASSWORD="$(openssl rand -hex 32)"

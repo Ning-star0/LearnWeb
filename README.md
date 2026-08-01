@@ -51,5 +51,24 @@ npm audit --omit=dev
 - 私有数据：`/opt/mistake-atlas/data`
 - 发布目录：`/opt/mistake-atlas/releases/<git-commit>`
 - 当前版本：`/opt/mistake-atlas/current`
+- 自动备份：`mistake-atlas-backup.timer` 每天 03:15（Asia/Shanghai）执行
+- 备份目录：`/opt/mistake-atlas/data/backups`，保留最近 7 份日备份、4 份周备份、6 份月备份
+
+手动创建并验证一份备份：
+
+```bash
+systemctl start mistake-atlas-backup.service
+systemctl status mistake-atlas-backup.service
+cat /opt/mistake-atlas/data/backups/last-success.json
+```
+
+恢复操作会覆盖数据库，并把恢复前的图片和导入目录保留为 `*.pre-restore-<时间>`；必须在服务器上明确传入 `--confirm`：
+
+```bash
+/opt/mistake-atlas/current/deploy/scripts/restore-mistake-atlas.sh \
+  /opt/mistake-atlas/data/backups/daily/<备份目录> --confirm
+```
+
+如有已挂载的异地存储，可在 `app.env` 设置 `BACKUP_REMOTE_DIR`，每日备份会额外复制一份到该目录。
 
 环境文件和私有数据不得提交到 Git。旧 NestJS 后端保留在 `backend/` 作为历史代码，不接收线上流量。

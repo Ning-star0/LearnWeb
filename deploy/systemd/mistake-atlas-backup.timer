@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Mistake Atlas backup every day
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 Asia/Shanghai
+Persistent=true
+RandomizedDelaySec=15m
+Unit=mistake-atlas-backup.service
+
+[Install]
+WantedBy=timers.target
