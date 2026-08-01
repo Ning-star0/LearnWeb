@@ -9,6 +9,10 @@ NGINX_TARGET=/etc/nginx/sites-available/learn.aurorastar.cn
 SERVICE_TARGET=/etc/systemd/system/mistake-atlas.service
 
 test -f "$ENV_FILE"
+install -d -m 0750 -o mistake-atlas -g mistake-atlas "$APP_ROOT/data/imports"
+if ! grep -q '^IMPORT_ROOT=' "$ENV_FILE"; then
+  printf 'IMPORT_ROOT=%s/data/imports\n' "$APP_ROOT" >> "$ENV_FILE"
+fi
 git -C "$REPOSITORY" fetch origin main
 git -C "$REPOSITORY" checkout main
 git -C "$REPOSITORY" pull --ff-only origin main

@@ -34,6 +34,25 @@ enum AttemptSource {
   AI
 }
 
+enum ImportSourceType {
+  MARKDOWN
+  ZIP
+  JSON
+}
+
+enum ImportJobStatus {
+  PREVIEWED
+  COMPLETED
+  ROLLED_BACK
+  FAILED
+}
+
+enum ImportConflictStrategy {
+  SKIP
+  UPDATE_BASIC
+  CREATE_NEW
+}
+
 enum QuestionType {
   SINGLE_CHOICE
   MULTIPLE_CHOICE
@@ -167,6 +186,8 @@ model ErrorType {
 model Question {
   id                   String                   @id @default(cuid())
   code                 String                   @unique
+  externalId           String?
+  contentFingerprint   String?
   subjectId            String
   subject              Subject                  @relation(fields: [subjectId], references: [id], onDelete: Restrict)
   textbookId           String
@@ -196,6 +217,9 @@ model Question {
   masteryOverride      MasteryOverride?
   archivedAt           DateTime?
   deletedAt            DateTime?
+  occurredAt           DateTime                 @default(now())
+  importJobId          String?
+  importJob            ImportJob?               @relation(fields: [importJobId], references: [id], onDelete: SetNull)
   createdAt            DateTime                 @default(now())
   updatedAt            DateTime                 @updatedAt
   knowledgePoints      QuestionKnowledgePoint[]
@@ -204,6 +228,9 @@ model Question {
   attachments          Attachment[]
 
   @@index([subjectId, status])
+  @@unique([subjectId, externalId])
+  @@index([subjectId, contentFingerprint])
+  @@index([importJobId])
   @@index([chapterId])
   @@index([nextReviewAt])
   @@index([createdAt])
@@ -259,6 +286,9 @@ model Attachment {
   mimeType     String
   size         Int
   sha256       String
+  width        Int?
+  height       Int?
+  deletedAt    DateTime?
   createdAt    DateTime @default(now())
 
   @@index([questionId])
@@ -285,6 +315,29 @@ model LearningSettings {
   reviewIntervals        Int[]    @default([1, 3, 7, 14, 30])
   timezone               String   @default("Asia/Shanghai")
   updatedAt              DateTime @updatedAt
+}
+
+model ImportJob {
+  id               String                 @id @default(cuid())
+  sourceType       ImportSourceType
+  originalName     String?
+  storedFileName   String?
+  status           ImportJobStatus        @default(PREVIEWED)
+  conflictStrategy ImportConflictStrategy @default(SKIP)
+  totalCount       Int                    @default(0)
+  successCount     Int                    @default(0)
+  skippedCount     Int                    @default(0)
+  failedCount      Int                    @default(0)
+  preview          Json
+  rollbackData     Json?
+  errorDetail      Json?
+  completedAt      DateTime?
+  rolledBackAt     DateTime?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  questions        Question[]
+
+  @@index([status, createdAt])
 }
 
 model AuditLog {

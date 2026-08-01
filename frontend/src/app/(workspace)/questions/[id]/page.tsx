@@ -121,7 +121,7 @@ export default async function QuestionDetailPage({ params, searchParams }: {
             <StatusPill tone={statusTone}>{statusLabel}</StatusPill>
             {question.masteryOverride ? <StatusPill tone="amber">人工覆盖：{question.masteryOverride === MasteryOverride.FORCE_MASTERED ? '掌握' : '学习中'}</StatusPill> : null}
             {question.errorTypes.map(({ errorType }) => <StatusPill key={errorType.id}>{errorType.name}</StatusPill>)}
-            <StatusPill>{['', '普通', '较高', '紧急'][question.priority]}优先级</StatusPill>
+            <StatusPill>{['', '低', '普通', '高', '紧急'][question.priority]}优先级</StatusPill>
           </div>
           <div className="paper-grid mt-6 rounded-xl border border-slate-200 p-6 sm:p-8"><MarkdownContent>{question.bodyMarkdown}</MarkdownContent></div>
           {question.attachments.length ? <section className="mt-7"><h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900"><ImageIcon className="size-4" />原题图片</h2><div className="mt-3 grid gap-3 sm:grid-cols-2">{question.attachments.map((file) => <a key={file.id} href={`/api/attachments/${file.id}`} target="_blank" rel="noreferrer"><Image src={`/api/attachments/${file.id}`} alt={file.originalName} width={1200} height={800} unoptimized className="max-h-80 w-full rounded-xl border border-slate-200 object-contain" /></a>)}</div></section> : null}

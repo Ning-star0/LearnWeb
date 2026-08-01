@@ -37,6 +37,7 @@ SQL
     printf 'APP_URL=https://learn.aurorastar.cn\n'
     printf 'APP_TIMEZONE=Asia/Shanghai\n'
     printf 'UPLOAD_ROOT=%s/uploads\n' "$DATA_DIR"
+    printf 'IMPORT_ROOT=%s/imports\n' "$DATA_DIR"
     printf 'AI_BASE_URL=\nAI_API_KEY=\nAI_MODEL=\nAI_TIMEOUT_MS=60000\n'
   } > "$ENV_FILE"
   chown root:mistake-atlas "$ENV_FILE"
@@ -44,6 +45,10 @@ SQL
   printf '%s\n' "$ADMIN_INITIAL_PASSWORD" > "$INITIAL_PASSWORD_FILE"
   chown root:root "$INITIAL_PASSWORD_FILE"
   chmod 0600 "$INITIAL_PASSWORD_FILE"
+fi
+
+if ! grep -q '^IMPORT_ROOT=' "$ENV_FILE"; then
+  printf 'IMPORT_ROOT=%s/imports\n' "$DATA_DIR" >> "$ENV_FILE"
 fi
 
 echo "Provisioned Mistake Atlas database, service account, and private data directories."

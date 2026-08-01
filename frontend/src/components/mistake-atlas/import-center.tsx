@@ -1,39 +1,88 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { CheckCircle2, Eye, FileText, Upload } from 'lucide-react';
-import { importMarkdownAction } from '@/app/actions/math-actions';
+import { useActionState, useState } from 'react';
+import { AlertCircle, CheckCircle2, FileText, LoaderCircle, Upload } from 'lucide-react';
+import { confirmImportJobAction, previewMarkdownImportAction, type ImportPreviewState } from '@/app/actions/import-actions';
 
-const template = `# 指数函数极限中的变量代换
-- 教材：未指定教材
-- 章节：未分类章节
-- 题型：计算题
-- 错误类型：方法没有想到
-- 知识点：
+const template = `---
+schema_version: "1.0"
+external_id: "math-2026-000001"
+subject: "数学"
+book: "未指定教材"
+chapter_path:
+  - "未分类章节"
+question_type: "计算题"
+source:
+  page: 1
+  question_number: "1"
+difficulty: 3
+priority: "MEDIUM"
+occurred_at: "2026-08-01"
+knowledge_points: []
+error_types:
+  - "其他"
+tags:
+  - "待整理"
+image_files: []
+next_review_at: "2026-08-03"
+---
 
-## 题目
+# 题目
+
 计算极限：$\\lim_{x \\to \\infty} x(a^{1/x}-1)$
 
-## 错因
+## 我的错因
+
 没有想到使用变量代换。
 
-## 复盘
+## 一句话提醒
+
 出现 $1/x$ 时先考虑令 $t=1/x$。
+
+## 复盘备注
+
+先把无穷远处的极限转化为 $t\\to0^+$。
 `;
 
-function preview(raw: string) {
-  return raw.split(/^---\s*$/m).map((block) => block.trim()).filter(Boolean).map((block, index) => ({
-    index: index + 1,
-    title: block.match(/^#\s+(.+)$/m)?.[1]?.trim() || '缺少标题',
-    textbook: block.match(/^-\s*教材[：:]\s*(.+)$/m)?.[1]?.trim() || '缺少教材',
-    chapter: block.match(/^-\s*章节[：:]\s*(.+)$/m)?.[1]?.trim() || '缺少章节',
-    valid: Boolean(block.match(/^#\s+(.+)$/m) && block.includes('## 题目') && block.includes('## 错因')),
-  }));
-}
-
 export function ImportCenter() {
-  const [markdown, setMarkdown] = useState(template);
-  const [previewed, setPreviewed] = useState(false);
-  const rows = useMemo(() => preview(markdown), [markdown]);
-  return <form action={importMarkdownAction} className="space-y-5"><div className="atlas-card p-6"><div className="flex items-center gap-3"><div className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><FileText className="size-5" /></div><div><h2 className="font-semibold text-slate-900">标准 Markdown 导入</h2><p className="mt-1 text-xs text-slate-400">多道题之间使用单独一行 <code>---</code> 分隔；导入前必须先预览。</p></div></div><textarea name="markdown" value={markdown} onChange={(event) => { setMarkdown(event.target.value); setPreviewed(false); }} className="mt-5 min-h-[420px] w-full rounded-xl border border-slate-200 bg-slate-950 p-5 font-mono text-sm leading-6 text-slate-100 outline-none focus:border-blue-400" /><div className="mt-4 flex justify-end"><button type="button" onClick={() => setPreviewed(true)} className="atlas-button-secondary"><Eye className="size-4" />生成导入预览</button></div></div>{previewed ? <div className="atlas-card p-6"><h2 className="font-semibold text-slate-900">预览：{rows.length} 道题</h2><div className="mt-4 divide-y divide-slate-100">{rows.map((row) => <div key={row.index} className="flex items-center gap-3 py-3"><CheckCircle2 className={`size-5 ${row.valid ? 'text-emerald-600' : 'text-rose-500'}`} /><div className="flex-1"><div className="text-sm font-semibold text-slate-800">{row.index}. {row.title}</div><div className="mt-1 text-xs text-slate-400">{row.textbook} / {row.chapter}</div></div><span className={`text-xs font-semibold ${row.valid ? 'text-emerald-600' : 'text-rose-600'}`}>{row.valid ? '结构有效' : '需要补充'}</span></div>)}</div><button disabled={!rows.length || rows.some((row) => !row.valid)} className="atlas-button-primary mt-5 w-full disabled:opacity-50"><Upload className="size-4" />确认导入 {rows.length} 道题</button></div> : null}</form>;
+  const [state, previewAction, pending] = useActionState<ImportPreviewState, FormData>(previewMarkdownImportAction, {});
+  const [revision, setRevision] = useState(0);
+  const [previewRevision, setPreviewRevision] = useState(-1);
+  const previewCurrent = Boolean(state.jobId) && previewRevision === revision;
+  const rows = previewCurrent ? state.rows ?? [] : [];
+  const canConfirm = previewCurrent && rows.length > 0 && rows.every((row) => row.valid);
+  const confirmAction = state.jobId ? confirmImportJobAction.bind(null, state.jobId) : undefined;
+
+  return <div className="space-y-5">
+    <form action={previewAction} onSubmit={() => setPreviewRevision(revision)} className="atlas-card p-6">
+      <div className="flex items-center gap-3">
+        <div className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><FileText className="size-5" /></div>
+        <div><h2 className="font-semibold text-slate-900">标准 Markdown / ZIP 导入</h2><p className="mt-1 text-xs text-slate-400">支持粘贴、多选 .md，或单独上传含 questions/ 与 images/ 的 ZIP；预览会检查格式、分类、重复项和真实图片内容。</p></div>
+      </div>
+      <label className="mt-5 block"><span className="atlas-label">Markdown 文件（可多选）或单个 ZIP</span><input name="files" type="file" accept=".md,.zip,text/markdown,text/plain,application/zip" multiple onChange={() => setRevision((value) => value + 1)} className="block w-full rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600" /></label>
+      <label className="mt-4 block"><span className="atlas-label">粘贴 Markdown</span><textarea name="markdown" defaultValue={template} onChange={() => setRevision((value) => value + 1)} className="mt-1 min-h-[460px] w-full rounded-xl border border-slate-200 bg-slate-950 p-5 font-mono text-sm leading-6 text-slate-100 outline-none focus:border-blue-400" /></label>
+      {state.error ? <div role="alert" className="mt-4 flex gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"><AlertCircle className="mt-0.5 size-4 shrink-0" />{state.error}</div> : null}
+      <div className="mt-4 flex justify-end"><button disabled={pending} className="atlas-button-secondary disabled:cursor-wait disabled:opacity-60">{pending ? <LoaderCircle className="size-4 animate-spin" /> : <Upload className="size-4" />}{pending ? '正在解析并检查…' : '生成服务端预览'}</button></div>
+    </form>
+
+    {previewCurrent ? <div className="atlas-card p-6">
+      <div className="flex items-center justify-between gap-4"><h2 className="font-semibold text-slate-900">预览：{rows.length} 道题</h2><span className="text-xs text-slate-400">{state.sourceType === 'ZIP' ? 'ZIP' : 'Markdown'} · 作业 {state.jobId?.slice(-8)}</span></div>
+      <div className="mt-4 divide-y divide-slate-100">{rows.map((row) => <div key={row.key} className="flex items-start gap-3 py-4">
+        {row.valid ? <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600" /> : <AlertCircle className="mt-0.5 size-5 shrink-0 text-rose-500" />}
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-semibold text-slate-800">{row.sourceName} · 第 {row.documentIndex} 题 · {row.title}</div>
+          <div className="mt-1 text-xs text-slate-400">{row.book} / {row.chapter}</div>
+          {row.conflict ? <div className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">检测到重复：{row.conflict.reason}，现有题目 {row.conflict.code}「{row.conflict.title}」</div> : null}
+          {row.issues.length ? <ul className="mt-2 space-y-1 text-xs text-rose-600">{row.issues.map((issue) => <li key={issue}>· {issue}</li>)}</ul> : null}
+        </div>
+        <span className={`shrink-0 text-xs font-semibold ${row.valid ? 'text-emerald-600' : 'text-rose-600'}`}>{row.valid ? '可导入' : '需要修正'}</span>
+      </div>)}</div>
+
+      {canConfirm && confirmAction ? <form action={confirmAction} className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <label><span className="atlas-label">发现重复时</span><select name="strategy" required defaultValue="SKIP" className="atlas-input"><option value="SKIP">跳过重复题（推荐）</option><option value="UPDATE_BASIC">更新现有题的基本信息</option><option value="CREATE_NEW">仍作为新题导入</option></select></label>
+        <p className="mt-2 text-[11px] leading-5 text-slate-500">系统不会静默覆盖。更新基本信息不修改已有重做轨迹；本次操作完成后可从导入历史整批回滚。</p>
+        <button className="atlas-button-primary mt-4 w-full"><Upload className="size-4" />确认执行导入</button>
+      </form> : <div className="mt-5 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">存在解析或分类错误，不能确认导入。请修改内容后重新生成预览。</div>}
+    </div> : state.jobId ? <div className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">内容在预览后发生了变化，请重新生成预览。</div> : null}
+  </div>;
 }
