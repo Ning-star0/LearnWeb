@@ -5,8 +5,10 @@ import { Archive, ArchiveRestore, ArrowLeft, Award, CalendarClock, Check, ImageI
 import { notFound } from 'next/navigation';
 import {
   deleteAttemptAction,
+  deleteAttachmentAction,
   deleteQuestionAction,
   recordAttemptAction,
+  restoreAttachmentAction,
   setMasteryOverrideAction,
   setQuestionArchivedAction,
   updateAttemptAction,
@@ -124,7 +126,7 @@ export default async function QuestionDetailPage({ params, searchParams }: {
             <StatusPill>{['', '低', '普通', '高', '紧急'][question.priority]}优先级</StatusPill>
           </div>
           <div className="paper-grid mt-6 rounded-xl border border-slate-200 p-6 sm:p-8"><MarkdownContent>{question.bodyMarkdown}</MarkdownContent></div>
-          {question.attachments.length ? <section className="mt-7"><h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900"><ImageIcon className="size-4" />原题图片</h2><div className="mt-3 grid gap-3 sm:grid-cols-2">{question.attachments.map((file) => <a key={file.id} href={`/api/attachments/${file.id}`} target="_blank" rel="noreferrer"><Image src={`/api/attachments/${file.id}`} alt={file.originalName} width={1200} height={800} unoptimized className="max-h-80 w-full rounded-xl border border-slate-200 object-contain" /></a>)}</div></section> : null}
+          {question.attachments.length ? <section className="mt-7"><h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900"><ImageIcon className="size-4" />原题图片</h2><div className="mt-3 grid gap-3 sm:grid-cols-2">{question.attachments.map((file) => file.deletedAt ? <div key={file.id} className="grid min-h-28 place-items-center rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center"><div><div className="text-xs text-slate-400">已删除：{file.originalName}</div><form action={restoreAttachmentAction.bind(null, file.id)}><button className="atlas-button-secondary mt-3">恢复图片</button></form></div></div> : <div key={file.id} className="rounded-xl border border-slate-200 p-2"><a href={`/api/attachments/${file.id}`} target="_blank" rel="noreferrer"><Image src={`/api/attachments/${file.id}`} alt={file.originalName} width={1200} height={800} unoptimized className="max-h-80 w-full rounded-lg object-contain" /></a><div className="mt-2 flex items-center justify-between gap-2"><span className="truncate text-[11px] text-slate-400">{file.originalName}</span><form action={deleteAttachmentAction.bind(null, file.id)}><DangerSubmit label="删除" confirmText="确定删除这张图片吗？删除后可以在当前题目中恢复。" /></form></div></div>)}</div></section> : null}
           <section className="mt-7"><h2 className="text-sm font-semibold text-slate-900">我的错因</h2><p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-600">{question.wrongReason}</p></section>
           {question.reflection ? <section className="mt-6"><h2 className="text-sm font-semibold text-slate-900">复盘总结</h2><p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-600">{question.reflection}</p></section> : null}
           {question.reminder ? <section className="mt-6 rounded-xl border-l-4 border-blue-500 bg-blue-50 p-5"><div className="text-xs font-semibold text-blue-700">一句话提醒</div><p className="mt-2 text-sm leading-6 text-blue-900">{question.reminder}</p></section> : null}

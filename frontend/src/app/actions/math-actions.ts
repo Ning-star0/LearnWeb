@@ -56,6 +56,13 @@ async function saveAttachment(file: File, questionId: string) {
   await saveImageAttachment(prisma, questionId, file.name, Buffer.from(await file.arrayBuffer()));
 }
 
+async function saveAttachments(formData: FormData, questionId: string) {
+  const files = [...formData.getAll('images'), ...formData.getAll('image')].filter((value): value is File => value instanceof File && value.size > 0);
+  if (files.length > 10) throw new Error('单次最多上传 10 张图片。');
+  if (files.reduce((sum, file) => sum + file.size, 0) > 50 * 1024 * 1024) throw new Error('单次图片总大小不能超过 50MB。');
+  for (const file of files) await saveAttachment(file, questionId);
+}
+
 export async function createQuestionAction(formData: FormData) {
   await requireUser();
   const subject = await prisma.subject.findUnique({ where: { slug: 'mathematics' } });
@@ -99,8 +106,7 @@ export async function createQuestionAction(formData: FormData) {
     },
   });
 
-  const image = formData.get('image');
-  if (image instanceof File && image.size) await saveAttachment(image, question.id);
+  await saveAttachments(formData, question.id);
   await prisma.auditLog.create({ data: { action: 'QUESTION_CREATED', entity: 'Question', entityId: question.id } });
   revalidatePath('/');
   revalidatePath('/questions');
@@ -140,8 +146,7 @@ export async function updateQuestionAction(questionId: string, formData: FormDat
       },
     });
   });
-  const image = formData.get('image');
-  if (image instanceof File && image.size) await saveAttachment(image, questionId);
+  await saveAttachments(formData, questionId);
   revalidatePath(`/questions/${questionId}`);
   revalidatePath('/questions');
   redirect(`/questions/${questionId}?updated=1`);
@@ -164,6 +169,28 @@ export async function restoreQuestionAction(questionId: string) {
     await tx.auditLog.create({ data: { action: 'QUESTION_RESTORED', entity: 'Question', entityId: questionId } });
   });
   revalidatePath('/questions'); revalidatePath('/trash');
+}
+
+export async function deleteAttachmentAction(attachmentId: string) {
+  await requireUser();
+  const attachment = await prisma.attachment.findFirst({ where: { id: attachmentId, question: { subject: { slug: 'mathematics' } } }, select: { id: true, questionId: true, deletedAt: true } });
+  if (!attachment || attachment.deletedAt) throw new Error('图片不存在或已经删除。');
+  await prisma.$transaction([
+    prisma.attachment.update({ where: { id: attachment.id }, data: { deletedAt: new Date() } }),
+    prisma.auditLog.create({ data: { action: 'ATTACHMENT_DELETED', entity: 'Attachment', entityId: attachment.id, detail: { questionId: attachment.questionId } } }),
+  ]);
+  revalidateMathQuestion(attachment.questionId);
+}
+
+export async function restoreAttachmentAction(attachmentId: string) {
+  await requireUser();
+  const attachment = await prisma.attachment.findFirst({ where: { id: attachmentId, deletedAt: { not: null }, question: { subject: { slug: 'mathematics' }, status: { not: QuestionStatus.DELETED } } }, select: { id: true, questionId: true } });
+  if (!attachment) throw new Error('图片不存在，或所属题目尚未恢复。');
+  await prisma.$transaction([
+    prisma.attachment.update({ where: { id: attachment.id }, data: { deletedAt: null } }),
+    prisma.auditLog.create({ data: { action: 'ATTACHMENT_RESTORED', entity: 'Attachment', entityId: attachment.id, detail: { questionId: attachment.questionId } } }),
+  ]);
+  revalidateMathQuestion(attachment.questionId);
 }
 
 export async function recordAttemptAction(questionId: string, formData: FormData) {
