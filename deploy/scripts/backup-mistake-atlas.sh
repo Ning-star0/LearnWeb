@@ -31,7 +31,7 @@ tar -C "$DATA_ROOT" -czf "$TEMP_DIR/uploads.tar.gz" uploads
 tar -C "$DATA_ROOT" -czf "$TEMP_DIR/imports.tar.gz" imports
 
 QUESTION_COUNT="$(psql "$DATABASE_URL" -Atc 'SELECT COUNT(*) FROM "Question" WHERE "status" <> '\''DELETED'\'';')"
-ATTEMPT_COUNT="$(psql "$DATABASE_URL" -Atc 'SELECT COUNT(*) FROM "ReviewAttempt";')"
+ATTEMPT_COUNT="$(psql "$DATABASE_URL" -Atc 'SELECT COUNT(*) FROM "Attempt";')"
 ATTACHMENT_COUNT="$(psql "$DATABASE_URL" -Atc 'SELECT COUNT(*) FROM "Attachment" WHERE "deletedAt" IS NULL;')"
 RELEASE_COMMIT="$(basename "$(readlink -f "$APP_ROOT/current")")"
 

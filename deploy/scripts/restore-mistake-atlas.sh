@@ -73,7 +73,7 @@ set -a
 source "$BACKUP_DIR/counts.env"
 set +a
 RESTORED_QUESTIONS="$(psql "$DATABASE_URL" -Atc 'SELECT COUNT(*) FROM "Question" WHERE "status" <> '\''DELETED'\'';')"
-RESTORED_ATTEMPTS="$(psql "$DATABASE_URL" -Atc 'SELECT COUNT(*) FROM "ReviewAttempt";')"
+RESTORED_ATTEMPTS="$(psql "$DATABASE_URL" -Atc 'SELECT COUNT(*) FROM "Attempt";')"
 RESTORED_ATTACHMENTS="$(psql "$DATABASE_URL" -Atc 'SELECT COUNT(*) FROM "Attachment" WHERE "deletedAt" IS NULL;')"
 if [[ "$RESTORED_QUESTIONS" != "$QUESTION_COUNT" || "$RESTORED_ATTEMPTS" != "$ATTEMPT_COUNT" || "$RESTORED_ATTACHMENTS" != "$ATTACHMENT_COUNT" ]]; then
   echo "Restore completed but row-count verification failed." >&2
