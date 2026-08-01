@@ -1,28 +1,33 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import { AlertCircle, CheckCircle2, FileJson, FileText, LoaderCircle, Upload } from 'lucide-react';
+import { AlertCircle, Check, CheckCircle2, Copy, FileJson, FileText, LoaderCircle, Upload } from 'lucide-react';
 import { confirmImportJobAction, previewJsonImportAction, previewMarkdownImportAction, type ImportPreviewState, type JsonImportPreviewState } from '@/app/actions/import-actions';
 
 const template = `---
 schema_version: "1.0"
 external_id: "math-2026-000001"
 subject: "数学"
-book: "未指定教材"
+title: "指数函数极限——变量代换"
+book: "张宇 1000 题"
 chapter_path:
-  - "未分类章节"
+  - "第一章 函数、极限与连续"
+  - "函数极限"
 question_type: "计算题"
 source:
-  page: 1
-  question_number: "1"
-difficulty: 3
-priority: "MEDIUM"
+  page: "36"
+  question_number: "1.9"
+difficulty: 4
+priority: "HIGH"
 occurred_at: "2026-08-01"
-knowledge_points: []
+knowledge_points:
+  - "重要极限"
+  - "变量代换"
 error_types:
-  - "其他"
+  - "方法选择错误"
 tags:
-  - "待整理"
+  - "高等数学"
+  - "极限"
 image_files: []
 next_review_at: "2026-08-03"
 ---
@@ -48,6 +53,7 @@ export function ImportCenter() {
   const [state, previewAction, pending] = useActionState<ImportPreviewState, FormData>(previewMarkdownImportAction, {});
   const [revision, setRevision] = useState(0);
   const [previewRevision, setPreviewRevision] = useState(-1);
+  const [copied, setCopied] = useState(false);
   const previewCurrent = Boolean(state.jobId) && previewRevision === revision;
   const rows = previewCurrent ? state.rows ?? [] : [];
   const canConfirm = previewCurrent && rows.length > 0 && rows.every((row) => row.valid);
@@ -59,8 +65,33 @@ export function ImportCenter() {
         <div className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><FileText className="size-5" /></div>
         <div><h2 className="font-semibold text-slate-900">标准 Markdown / ZIP 导入</h2><p className="mt-1 text-xs text-slate-400">支持粘贴、多选 .md，或单独上传含 questions/ 与 images/ 的 ZIP；预览会检查格式、分类、重复项和真实图片内容。</p></div>
       </div>
+      <details className="mt-5 overflow-hidden rounded-xl border border-blue-100 bg-blue-50/60">
+        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-blue-900">展开标准 Markdown 模板（可一键复制）</summary>
+        <div className="border-t border-blue-100 px-4 pb-4 pt-3">
+          <div className="flex flex-col gap-3 text-xs leading-5 text-slate-600 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p>推荐用此格式录入单题或多题；JSON 仅用于整库备份与迁移。</p>
+              <p className="mt-1">必填：版本、学科、教材、章节、题型、发生日期、错因类型、题目正文和“我的错因”。无图片时保留 <code className="rounded bg-white px-1 py-0.5">image_files: []</code>。</p>
+              <p className="mt-1">教材、章节、知识点和错因类型请使用系统中已有名称；批量录入时可连续粘贴多个完整模板，并为每题更换唯一的 external_id。</p>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                await navigator.clipboard.writeText(template);
+                setCopied(true);
+                window.setTimeout(() => setCopied(false), 2000);
+              }}
+              className="atlas-button-secondary shrink-0"
+            >
+              {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+              {copied ? '已复制' : '复制模板'}
+            </button>
+          </div>
+          <pre className="mt-3 max-h-[520px] overflow-auto rounded-xl bg-slate-950 p-4 text-xs leading-5 text-slate-100"><code>{template}</code></pre>
+        </div>
+      </details>
       <label className="mt-5 block"><span className="atlas-label">Markdown 文件（可多选）或单个 ZIP</span><input name="files" type="file" accept=".md,.zip,text/markdown,text/plain,application/zip" multiple onChange={() => setRevision((value) => value + 1)} className="block w-full rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600" /></label>
-      <label className="mt-4 block"><span className="atlas-label">粘贴 Markdown</span><textarea name="markdown" placeholder={template} onChange={() => setRevision((value) => value + 1)} className="mt-1 min-h-[360px] w-full rounded-xl border border-slate-200 bg-slate-950 p-5 font-mono text-sm leading-6 text-slate-100 outline-none placeholder:text-slate-500 focus:border-blue-400" /></label>
+      <label className="mt-4 block"><span className="atlas-label">粘贴 Markdown</span><textarea name="markdown" placeholder="把复制并填写好的标准 Markdown 粘贴到这里……" onChange={() => setRevision((value) => value + 1)} className="mt-1 min-h-[360px] w-full rounded-xl border border-slate-200 bg-slate-950 p-5 font-mono text-sm leading-6 text-slate-100 outline-none placeholder:text-slate-500 focus:border-blue-400" /></label>
       {state.error ? <div role="alert" className="mt-4 flex gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"><AlertCircle className="mt-0.5 size-4 shrink-0" />{state.error}</div> : null}
       <div className="mt-4 flex justify-end"><button disabled={pending} className="atlas-button-secondary disabled:cursor-wait disabled:opacity-60">{pending ? <LoaderCircle className="size-4 animate-spin" /> : <Upload className="size-4" />}{pending ? '正在解析并检查…' : '生成服务端预览'}</button></div>
     </form>
