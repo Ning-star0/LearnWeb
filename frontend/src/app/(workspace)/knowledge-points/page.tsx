@@ -1,10 +1,13 @@
-import { Network, Plus, Search } from 'lucide-react';
-import { PageHeader, ProgressBar, StatusPill } from '@/components/mistake-atlas/ui';
+import { Plus, Sigma } from 'lucide-react';
+import { createKnowledgePointAction } from '@/app/actions/math-actions';
+import { PageHeader, SectionTitle, StatusPill } from '@/components/mistake-atlas/ui';
+import { prisma } from '@/lib/prisma';
 
-const points = [
-  ['函数极限', '变量代换', 6, 33], ['函数极限', '等价无穷小', 5, 40], ['定积分', '换元积分法', 4, 50], ['复合函数', '链式法则', 4, 25], ['连续性', '左右极限', 3, 67],
-];
-
-export default function KnowledgePointsPage() {
-  return <><PageHeader eyebrow="Knowledge map" title="知识点" description="知识点按教材章节组织，可查看每个知识点的错题数、重做数与掌握率。" action={<button className="atlas-button-primary"><Plus className="size-4" />新建知识点</button>} /><div className="atlas-card overflow-hidden"><div className="border-b border-slate-100 p-5"><div className="relative max-w-lg"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input className="atlas-input pl-9" placeholder="搜索知识点…" /></div></div><div className="divide-y divide-slate-100">{points.map(([chapter, point, count, progress]) => <div key={String(point)} className="grid gap-4 p-5 sm:grid-cols-[44px_minmax(0,1fr)_120px_220px] sm:items-center"><div className="grid size-10 place-items-center rounded-xl bg-slate-100 text-slate-500"><Network className="size-5" /></div><div><h3 className="font-semibold text-slate-900">{point}</h3><p className="mt-1 text-xs text-slate-400">张宇 1000 题 / {chapter}</p></div><StatusPill>{count} 道错题</StatusPill><div><div className="mb-2 flex justify-between text-xs text-slate-500"><span>掌握率</span><strong>{progress}%</strong></div><ProgressBar value={Number(progress)} /></div></div>)}</div></div></>;
+export default async function KnowledgePointsPage() {
+  const math = await prisma.subject.findUniqueOrThrow({ where: { slug: 'mathematics' } });
+  const [points, chapters] = await Promise.all([
+    prisma.knowledgePoint.findMany({ where: { chapter: { textbook: { subjectId: math.id } } }, include: { chapter: { include: { textbook: true } }, _count: { select: { questions: true } } }, orderBy: { name: 'asc' } }),
+    prisma.chapter.findMany({ where: { textbook: { subjectId: math.id } }, include: { textbook: true }, orderBy: { sortOrder: 'asc' } }),
+  ]);
+  return <><PageHeader eyebrow="Mathematics · Knowledge map" title="数学知识点" description="每个知识点必须挂在教材章节下，一道错题可以关联多个知识点。" /><div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]"><div className="atlas-card overflow-hidden"><div className="divide-y divide-slate-100">{points.map((point) => <div key={point.id} className="flex items-center gap-4 p-5"><div className="grid size-9 place-items-center rounded-lg bg-blue-50 text-blue-700"><Sigma className="size-4" /></div><div className="min-w-0 flex-1"><div className="font-semibold text-slate-800">{point.name}</div><div className="mt-1 truncate text-xs text-slate-400">{point.chapter.textbook.name} / {point.chapter.name}</div></div><StatusPill tone="blue">{point._count.questions} 题</StatusPill></div>)}{!points.length ? <div className="p-8 text-center text-sm text-slate-400">还没有知识点。</div> : null}</div></div><form action={createKnowledgePointAction} className="atlas-card h-fit p-5"><SectionTitle title="添加知识点" /><div className="space-y-4"><label><span className="atlas-label">所属章节 *</span><select name="chapterId" required className="atlas-input"><option value="">选择章节</option>{chapters.map((chapter) => <option key={chapter.id} value={chapter.id}>{chapter.textbook.name} / {chapter.name}</option>)}</select></label><label><span className="atlas-label">知识点名称 *</span><input name="name" required className="atlas-input" /></label><label><span className="atlas-label">说明</span><textarea name="description" className="min-h-24 w-full rounded-lg border border-slate-200 p-3 text-sm" /></label><button className="atlas-button-primary w-full"><Plus className="size-4" />添加知识点</button></div></form></div></>;
 }

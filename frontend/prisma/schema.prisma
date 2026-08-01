@@ -1,0 +1,283 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum QuestionStatus {
+  ACTIVE
+  MASTERED
+  ARCHIVED
+  DELETED
+}
+
+enum AttemptResult {
+  INDEPENDENT_CORRECT
+  HINTED_CORRECT
+  UNDERSTOOD_AFTER_REVIEW
+  WRONG
+  UNABLE
+  SKIPPED
+}
+
+enum QuestionType {
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+  FILL_BLANK
+  CALCULATION
+  PROOF
+  TRUE_FALSE
+  COMPREHENSIVE
+  OTHER
+}
+
+model User {
+  id                 String    @id @default(cuid())
+  username           String    @unique
+  displayName        String    @default("主人")
+  passwordHash       String
+  mustChangePassword Boolean   @default(true)
+  sessionVersion     Int       @default(1)
+  lastLoginAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  sessions           Session[]
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model LoginThrottle {
+  key          String    @id
+  failureCount Int       @default(0)
+  windowStart  DateTime  @default(now())
+  blockedUntil DateTime?
+  updatedAt    DateTime  @updatedAt
+}
+
+model Subject {
+  id          String      @id @default(cuid())
+  slug        String      @unique
+  name        String
+  shortName   String
+  description String?
+  icon        String      @default("BookOpen")
+  color       String      @default("#2458d3")
+  enabled     Boolean     @default(false)
+  sortOrder   Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  textbooks   Textbook[]
+  errorTypes  ErrorType[]
+  questions   Question[]
+}
+
+model Textbook {
+  id          String     @id @default(cuid())
+  subjectId   String
+  subject     Subject    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  sortOrder   Int        @default(0)
+  active      Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  chapters    Chapter[]
+  questions   Question[]
+
+  @@unique([subjectId, name])
+  @@index([subjectId, sortOrder])
+}
+
+model Chapter {
+  id              String           @id @default(cuid())
+  textbookId      String
+  textbook        Textbook         @relation(fields: [textbookId], references: [id], onDelete: Cascade)
+  parentId        String?
+  parent          Chapter?         @relation("ChapterTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children        Chapter[]        @relation("ChapterTree")
+  name            String
+  sortOrder       Int              @default(0)
+  active          Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  knowledgePoints KnowledgePoint[]
+  questions       Question[]
+
+  @@unique([textbookId, parentId, name])
+  @@index([textbookId, sortOrder])
+}
+
+model KnowledgePoint {
+  id          String                   @id @default(cuid())
+  chapterId   String
+  chapter     Chapter                  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  active      Boolean                  @default(true)
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  questions   QuestionKnowledgePoint[]
+
+  @@unique([chapterId, name])
+  @@index([chapterId])
+}
+
+model ErrorType {
+  id          String              @id @default(cuid())
+  subjectId   String
+  subject     Subject             @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  color       String              @default("slate")
+  active      Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  questions   QuestionErrorType[]
+
+  @@unique([subjectId, name])
+  @@index([subjectId])
+}
+
+model Question {
+  id                   String                   @id @default(cuid())
+  code                 String                   @unique
+  subjectId            String
+  subject              Subject                  @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  textbookId           String
+  textbook             Textbook                 @relation(fields: [textbookId], references: [id], onDelete: Restrict)
+  chapterId            String
+  chapter              Chapter                  @relation(fields: [chapterId], references: [id], onDelete: Restrict)
+  title                String
+  bodyMarkdown         String
+  wrongReason          String
+  reflection           String?
+  reminder             String?
+  sourcePage           String?
+  sourceQuestionNumber String?
+  tags                 String[]
+  questionType         QuestionType
+  difficulty           Int                      @default(3)
+  priority             Int                      @default(2)
+  status               QuestionStatus           @default(ACTIVE)
+  correctStreak        Int                      @default(0)
+  attemptCount         Int                      @default(0)
+  wrongCount           Int                      @default(0)
+  nextReviewAt         DateTime?
+  masteredAt           DateTime?
+  manuallyMastered     Boolean                  @default(false)
+  archivedAt           DateTime?
+  deletedAt            DateTime?
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  knowledgePoints      QuestionKnowledgePoint[]
+  errorTypes           QuestionErrorType[]
+  attempts             Attempt[]
+  attachments          Attachment[]
+
+  @@index([subjectId, status])
+  @@index([chapterId])
+  @@index([nextReviewAt])
+  @@index([createdAt])
+}
+
+model QuestionKnowledgePoint {
+  questionId       String
+  knowledgePointId String
+  primary          Boolean        @default(false)
+  question         Question       @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  knowledgePoint   KnowledgePoint @relation(fields: [knowledgePointId], references: [id], onDelete: Cascade)
+
+  @@id([questionId, knowledgePointId])
+  @@index([knowledgePointId])
+}
+
+model QuestionErrorType {
+  questionId  String
+  errorTypeId String
+  primary     Boolean   @default(false)
+  question    Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  errorType   ErrorType @relation(fields: [errorTypeId], references: [id], onDelete: Cascade)
+
+  @@id([questionId, errorTypeId])
+  @@index([errorTypeId])
+}
+
+model Attempt {
+  id              String        @id @default(cuid())
+  questionId      String
+  question        Question      @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  result          AttemptResult
+  attemptedAt     DateTime      @default(now())
+  durationSeconds Int?
+  note            String?
+  nextReviewAt    DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([questionId, attemptedAt])
+  @@index([attemptedAt])
+}
+
+model Attachment {
+  id           String   @id @default(cuid())
+  questionId   String
+  question     Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  originalName String
+  storageName  String   @unique
+  mimeType     String
+  size         Int
+  sha256       String
+  createdAt    DateTime @default(now())
+
+  @@index([questionId])
+}
+
+model SiteSettings {
+  id                String   @id @default("site")
+  siteName          String   @default("Mistake Atlas")
+  siteSubtitle      String   @default("个人学习档案")
+  siteDescription   String   @default("记录错因、管理重做、看见知识薄弱处")
+  accessTitle       String   @default("这是一个私人学习空间")
+  accessDescription String   @default("只有获得主人授权的设备才能进入。")
+  homeGreeting      String   @default("今天也从一道错题开始")
+  brandColor        String   @default("#2458d3")
+  iconMimeType      String?
+  iconData          Bytes?
+  updatedAt         DateTime @updatedAt
+}
+
+model LearningSettings {
+  id                     String   @id @default("learning")
+  masteryThreshold       Int      @default(3)
+  repeatedErrorThreshold Int      @default(3)
+  reviewIntervals        Int[]    @default([1, 3, 7, 14, 30])
+  timezone               String   @default("Asia/Shanghai")
+  updatedAt              DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  entity    String?
+  entityId  String?
+  ip        String?
+  detail    Json?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}

@@ -1,54 +1,55 @@
-# Mistake Atlas
+# Mistake Atlas / 个人学习系统
 
-个人数学错题管理系统，单用户、私有部署、PC 端优先。
+单用户、私有部署、PC 优先的个人学习档案。系统可扩展到多个学科，当前完整启用数学；408、英语和政治保留通用框架。
 
-当前仓库已从原思政刷题系统切换到 Mistake Atlas 第一阶段产品框架。当前阶段用于确认信息架构、页面结构与视觉方向，界面中的题目和统计均为明确标注的演示数据；真实鉴权、PostgreSQL 数据模型、图片、Markdown 导入和 AI Provider 将在后续阶段接入。
+线上地址：<https://learn.aurorastar.cn>
 
-## 当前已搭建
+## 当前能力
 
-- 首页仪表盘与未来 7 天复习预报
-- 错题库、错题详情和新增错题表单
-- 今日复习、已做对、已掌握、反复错误
-- 教材与章节、知识点、错误类型
-- Markdown/ZIP/JSON 导入导出入口
-- 周报与学习预报
-- AI 上下文预览框架
-- 学习规则、账号安全、Provider 和备份设置框架
-- 回收站
-- 独立登录页视觉框架
+- 主人密码门禁与设备会话；
+- 可修改网站名称、图标、品牌色及阻止页文案；
+- 数学教材、章节、知识点与错误类型；
+- 错题 Markdown/LaTeX、图片、新增、编辑、软删除和恢复；
+- 重做记录及“连续独立做对 N 次”掌握规则；
+- 到期复习、统计、周报、预报、Markdown 导入和 JSON 导出；
+- 可选 OpenAI 兼容 AI 学习分析。
+
+详细状态见 [`docs/mistake-atlas/foundation-status.md`](docs/mistake-atlas/foundation-status.md)。
 
 ## 技术栈
 
-- Next.js 16 App Router
-- React 19
-- TypeScript
-- Tailwind CSS 4
-- Lucide Icons
+- Next.js 16 App Router / React 19 / TypeScript / Tailwind CSS 4
+- PostgreSQL / Prisma 6
+- Argon2id / JOSE 签名会话
+- Nginx / systemd / HTTPS
 
-## 本地运行
+## 本地开发
 
 ```powershell
 cd frontend
+Copy-Item .env.example .env
 npm ci
+npx prisma migrate deploy
+npm run db:seed
 npm run dev -- -p 3001
 ```
-
-访问 <http://localhost:3001>。
 
 ## 验证
 
 ```powershell
 cd frontend
+npm test
 npm run lint
 npm run build
+npm audit --omit=dev
 ```
 
-## 下一阶段
+## 生产环境
 
-1. PostgreSQL + Prisma 数据模型与迁移；
-2. 单用户初始化、Argon2id、HttpOnly 安全会话；
-3. 教材、章节、知识点、错误类型和错题 CRUD；
-4. 重做历史与连续 3 次独立正确掌握规则；
-5. 鉴权图片、Markdown 导入预览和完整 JSON 导出。
+- 应用服务：`mistake-atlas.service`
+- 环境文件：`/opt/mistake-atlas/shared/app.env`
+- 私有数据：`/opt/mistake-atlas/data`
+- 发布目录：`/opt/mistake-atlas/releases/<git-commit>`
+- 当前版本：`/opt/mistake-atlas/current`
 
-旧 NestJS 后端暂时保留在 `backend/` 作为历史代码，不再进入新系统线上流量。最终数据层接入后会按迁移计划移除或归档。
+环境文件和私有数据不得提交到 Git。旧 NestJS 后端保留在 `backend/` 作为历史代码，不接收线上流量。

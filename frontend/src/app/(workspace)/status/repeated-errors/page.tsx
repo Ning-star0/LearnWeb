@@ -1,8 +1,9 @@
-import { CircleAlert, Flame, History } from 'lucide-react';
-import { PageHeader, StatCard, StatusPill } from '@/components/mistake-atlas/ui';
-import { questions } from '@/lib/mistake-atlas-data';
+import { PageHeader } from '@/components/mistake-atlas/ui';
+import { QuestionList } from '@/components/mistake-atlas/question-list';
+import { prisma } from '@/lib/prisma';
 
-export default function RepeatedErrorsPage() {
-  const repeated = questions.filter((question) => question.status === '反复错误' || question.attempts >= 3);
-  return <><PageHeader eyebrow="Repeated errors" title="反复错误" description="汇总总错误不少于 3 次、最近反复失败或掌握后再次出错的高风险题。" /><div className="grid gap-4 sm:grid-cols-3"><StatCard label="高风险错题" value="4" note="需要优先重做" icon={CircleAlert} tone="amber" /><StatCard label="掌握后回退" value="1" note="最近 30 天" icon={History} tone="slate" /><StatCard label="最多错误次数" value="5" note="分段函数连续性" icon={Flame} tone="amber" /></div><div className="mt-5 space-y-3">{repeated.map((question) => <div key={question.id} className="atlas-card grid gap-4 p-5 md:grid-cols-[minmax(0,1fr)_160px_140px] md:items-center"><div><div className="flex flex-wrap gap-2"><h3 className="font-semibold text-slate-900">{question.title}</h3><StatusPill tone="red">{question.errorType}</StatusPill></div><p className="mt-1 text-xs text-slate-400">{question.chapter} · {question.knowledge}</p></div><div className="text-sm"><span className="text-xs text-slate-400">重做轨迹</span><div className="mt-2 flex gap-1">{Array.from({ length: question.attempts }).map((_, i) => <span key={i} className={`size-3 rounded-full ${i === question.attempts - 1 ? 'bg-rose-500' : i % 2 ? 'bg-emerald-500' : 'bg-amber-400'}`} />)}</div></div><button className="atlas-button-primary">安排重点复习</button></div>)}</div></>;
+export default async function RepeatedErrorsPage() {
+  const [math, settings] = await Promise.all([prisma.subject.findUniqueOrThrow({ where: { slug: 'mathematics' } }), prisma.learningSettings.upsert({ where: { id: 'learning' }, update: {}, create: {} })]);
+  const questions = await prisma.question.findMany({ where: { subjectId: math.id, status: 'ACTIVE', wrongCount: { gte: settings.repeatedErrorThreshold } }, include: { textbook: true, chapter: true, knowledgePoints: { include: { knowledgePoint: true } }, errorTypes: { include: { errorType: true } } }, orderBy: [{ wrongCount: 'desc' }, { updatedAt: 'desc' }] });
+  return <><PageHeader eyebrow="Mathematics · Repeated errors" title="反复错误" description={`累计做错或完全不会达到 ${settings.repeatedErrorThreshold} 次的数学错题，需要优先复盘错因。`} /><QuestionList questions={questions} emptyText="目前没有达到反复错误阈值的错题。" /></>;
 }

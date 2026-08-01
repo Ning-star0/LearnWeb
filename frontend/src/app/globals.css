@@ -62,3 +62,27 @@ button, a { -webkit-tap-highlight-color: transparent; }
   background-image: linear-gradient(#e9eef5 1px, transparent 1px), linear-gradient(90deg, #e9eef5 1px, transparent 1px);
   background-size: 24px 24px;
 }
+
+.atlas-markdown {
+  color: #334155;
+  font-size: 0.95rem;
+  line-height: 1.85;
+  overflow-wrap: anywhere;
+}
+
+.atlas-markdown > *:first-child { margin-top: 0; }
+.atlas-markdown > *:last-child { margin-bottom: 0; }
+.atlas-markdown h1, .atlas-markdown h2, .atlas-markdown h3 { margin: 1.4em 0 0.6em; color: #0f172a; font-weight: 700; }
+.atlas-markdown h1 { font-size: 1.5rem; }
+.atlas-markdown h2 { font-size: 1.25rem; }
+.atlas-markdown h3 { font-size: 1.05rem; }
+.atlas-markdown p, .atlas-markdown ul, .atlas-markdown ol, .atlas-markdown blockquote, .atlas-markdown pre, .atlas-markdown table { margin: 0.9em 0; }
+.atlas-markdown ul, .atlas-markdown ol { padding-left: 1.5rem; }
+.atlas-markdown ul { list-style: disc; }
+.atlas-markdown ol { list-style: decimal; }
+.atlas-markdown blockquote { border-left: 3px solid #93c5fd; padding-left: 1rem; color: #64748b; }
+.atlas-markdown code { border-radius: 0.3rem; background: #f1f5f9; padding: 0.15em 0.35em; font-size: 0.88em; }
+.atlas-markdown pre { overflow-x: auto; border-radius: 0.75rem; background: #0f172a; padding: 1rem; color: #e2e8f0; }
+.atlas-markdown pre code { background: transparent; padding: 0; }
+.atlas-markdown table { width: 100%; border-collapse: collapse; }
+.atlas-markdown th, .atlas-markdown td { border: 1px solid #e2e8f0; padding: 0.5rem 0.75rem; text-align: left; }
