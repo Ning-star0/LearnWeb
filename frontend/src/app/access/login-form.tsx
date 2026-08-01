@@ -4,18 +4,18 @@ import { useActionState } from 'react';
 import { ArrowRight, LoaderCircle } from 'lucide-react';
 import { loginAction, type LoginState } from './actions';
 
-export function LoginForm({ username, nextPath }: { username: string; nextPath: string }) {
+export function LoginForm({ nextPath }: { nextPath: string }) {
   const [state, action, pending] = useActionState<LoginState, FormData>(loginAction, undefined);
   return (
     <form action={action} className="mt-7 space-y-5">
       <input type="hidden" name="next" value={nextPath} />
       <label>
         <span className="atlas-label">用户名</span>
-        <input className="atlas-input" name="username" defaultValue={username} autoComplete="username" required />
+        <input className="atlas-input" name="username" autoComplete="username" required autoFocus />
       </label>
       <label>
         <span className="atlas-label">访问密码</span>
-        <input className="atlas-input" name="password" type="password" autoComplete="current-password" placeholder="输入主人密码" required autoFocus />
+        <input className="atlas-input" name="password" type="password" autoComplete="current-password" required />
       </label>
       {state?.error ? <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{state.error}</div> : null}
       <button disabled={pending} className="atlas-button-primary h-11 w-full disabled:cursor-wait disabled:opacity-70">
