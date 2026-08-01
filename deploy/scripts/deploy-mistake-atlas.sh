@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPOSITORY=/opt/LearnWeb
+APP_ROOT=/opt/mistake-atlas
+ENV_FILE="$APP_ROOT/shared/app.env"
+CURRENT_LINK="$APP_ROOT/current"
+NGINX_TARGET=/etc/nginx/sites-available/learn.aurorastar.cn
+SERVICE_TARGET=/etc/systemd/system/mistake-atlas.service
+
+test -f "$ENV_FILE"
+git -C "$REPOSITORY" fetch origin main
+git -C "$REPOSITORY" checkout main
+git -C "$REPOSITORY" pull --ff-only origin main
+COMMIT="$(git -C "$REPOSITORY" rev-parse HEAD)"
+RELEASE="$APP_ROOT/releases/$COMMIT"
+PREVIOUS="$(readlink -f "$CURRENT_LINK" 2>/dev/null || true)"
+NGINX_BACKUP="/etc/nginx/sites-available/learn.aurorastar.cn.pre-$COMMIT"
+SMOKE_PID=''
+CUTOVER=0
+
+rollback() {
+  status=$?
+  if [[ -n "$SMOKE_PID" ]]; then kill "$SMOKE_PID" >/dev/null 2>&1 || true; fi
+  if [[ $status -ne 0 && $CUTOVER -eq 1 && -n "$PREVIOUS" ]]; then
+    ln -sfn "$PREVIOUS" "$CURRENT_LINK"
+    if [[ -f "$NGINX_BACKUP" ]]; then cp "$NGINX_BACKUP" "$NGINX_TARGET"; fi
+    systemctl daemon-reload
+    systemctl restart mistake-atlas.service || true
+    nginx -t && systemctl reload nginx || true
+    echo "Deployment failed; application symlink and Nginx configuration were rolled back." >&2
+  fi
+  exit "$status"
+}
+trap rollback EXIT
+
+if [[ ! -d "$RELEASE" ]]; then
+  install -d -m 0755 "$RELEASE"
+  git -C "$REPOSITORY" archive "$COMMIT" | tar -x -C "$RELEASE"
+fi
+
+set -a
+source "$ENV_FILE"
+set +a
+
+cd "$RELEASE/frontend"
+npm ci
+npx prisma generate
+npx prisma migrate deploy
+npm run db:seed
+npm test
+npm run lint
+npm run build
+
+chown -R root:root "$RELEASE"
+chmod -R a+rX "$RELEASE"
+
+runuser -u mistake-atlas -- bash -c "set -a; source '$ENV_FILE'; set +a; cd '$RELEASE/frontend'; nohup npm run start -- -H 127.0.0.1 -p 3111 >/tmp/mistake-atlas-smoke.log 2>&1 & echo \$!" >/tmp/mistake-atlas-smoke.pid
+SMOKE_PID="$(cat /tmp/mistake-atlas-smoke.pid)"
+for _ in $(seq 1 30); do
+  if curl -fsS http://127.0.0.1:3111/api/health >/dev/null && curl -fsS http://127.0.0.1:3111/access >/dev/null; then break; fi
+  sleep 1
+done
+curl -fsS http://127.0.0.1:3111/api/health >/dev/null
+curl -fsS http://127.0.0.1:3111/access | grep -q '访问已被保护'
+kill "$SMOKE_PID" >/dev/null 2>&1 || true
+wait "$SMOKE_PID" 2>/dev/null || true
+SMOKE_PID=''
+
+if [[ -f "$NGINX_TARGET" ]]; then cp "$NGINX_TARGET" "$NGINX_BACKUP"; fi
+ln -sfn "$RELEASE" "$CURRENT_LINK"
+install -m 0644 "$RELEASE/deploy/systemd/mistake-atlas.service" "$SERVICE_TARGET"
+install -m 0644 "$RELEASE/nginx/learn.aurorastar.cn.conf" "$NGINX_TARGET"
+CUTOVER=1
+
+systemctl daemon-reload
+nginx -t
+systemctl restart mistake-atlas.service
+systemctl enable mistake-atlas.service >/dev/null
+systemctl reload nginx
+
+for _ in $(seq 1 30); do
+  if curl -fsS http://127.0.0.1:3011/api/health >/dev/null; then break; fi
+  sleep 1
+done
+curl -fsS http://127.0.0.1:3011/api/health | grep -q '"status":"ok"'
+curl -fsS https://learn.aurorastar.cn/access | grep -q '访问已被保护'
+systemctl is-active --quiet mistake-atlas.service
+
+CUTOVER=0
+trap - EXIT
+echo "Deployed Mistake Atlas release $COMMIT"
