@@ -9,7 +9,7 @@ Group=mistake-atlas
 WorkingDirectory=/opt/mistake-atlas/current/frontend
 Environment=NODE_ENV=production
 EnvironmentFile=/opt/mistake-atlas/shared/app.env
-ExecStart=/usr/bin/npm run start -- -p 3011
+ExecStart=/usr/bin/npm run start -- -H 127.0.0.1 -p 3011
 Restart=always
 RestartSec=5
 NoNewPrivileges=true
