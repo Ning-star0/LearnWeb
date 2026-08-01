@@ -17,6 +17,7 @@ RELEASE="$APP_ROOT/releases/$COMMIT"
 PREVIOUS="$(readlink -f "$CURRENT_LINK" 2>/dev/null || true)"
 NGINX_BACKUP="/etc/nginx/sites-available/learn.aurorastar.cn.pre-$COMMIT"
 SMOKE_PID=''
+SMOKE_PORT=33117
 CUTOVER=0
 
 rollback() {
@@ -55,14 +56,14 @@ npm run build
 chown -R root:root "$RELEASE"
 chmod -R a+rX "$RELEASE"
 
-runuser -u mistake-atlas -- bash -c "set -a; source '$ENV_FILE'; set +a; cd '$RELEASE/frontend'; nohup npm run start -- -H 127.0.0.1 -p 3111 >/tmp/mistake-atlas-smoke.log 2>&1 & echo \$!" >/tmp/mistake-atlas-smoke.pid
+runuser -u mistake-atlas -- bash -c "set -a; source '$ENV_FILE'; set +a; cd '$RELEASE/frontend'; nohup npm run start -- -H 127.0.0.1 -p '$SMOKE_PORT' >/tmp/mistake-atlas-smoke.log 2>&1 & echo \$!" >/tmp/mistake-atlas-smoke.pid
 SMOKE_PID="$(cat /tmp/mistake-atlas-smoke.pid)"
 for _ in $(seq 1 30); do
-  if curl -fsS http://127.0.0.1:3111/api/health >/dev/null && curl -fsS http://127.0.0.1:3111/access >/dev/null; then break; fi
+  if curl -fsS "http://127.0.0.1:$SMOKE_PORT/api/health" >/dev/null && curl -fsS "http://127.0.0.1:$SMOKE_PORT/access" >/dev/null; then break; fi
   sleep 1
 done
-curl -fsS http://127.0.0.1:3111/api/health >/dev/null
-curl -fsS http://127.0.0.1:3111/access | grep -q '访问已被保护'
+curl -fsS "http://127.0.0.1:$SMOKE_PORT/api/health" >/dev/null
+curl -fsS "http://127.0.0.1:$SMOKE_PORT/access" | grep -q '访问已被保护'
 kill "$SMOKE_PID" >/dev/null 2>&1 || true
 wait "$SMOKE_PID" 2>/dev/null || true
 SMOKE_PID=''
