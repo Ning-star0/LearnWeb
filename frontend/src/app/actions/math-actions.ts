@@ -319,21 +319,33 @@ export async function createTextbookAction(formData: FormData) {
   await requireUser();
   const subject = await prisma.subject.findUniqueOrThrow({ where: { slug: 'mathematics' } });
   const name = text(formData, 'name'); if (!name) return;
-  await prisma.textbook.create({ data: { subjectId: subject.id, name, description: text(formData, 'description') || null } });
+  const created = await prisma.textbook.create({ data: { subjectId: subject.id, name, description: text(formData, 'description') || null } });
+  await prisma.auditLog.create({ data: { action: 'TEXTBOOK_CREATED', entity: 'Textbook', entityId: created.id } });
   revalidatePath('/textbooks'); revalidatePath('/questions/new');
 }
 
 export async function createChapterAction(formData: FormData) {
   await requireUser();
   const name = text(formData, 'name'); const textbookId = text(formData, 'textbookId'); if (!name || !textbookId) return;
-  await prisma.chapter.create({ data: { name, textbookId, parentId: text(formData, 'parentId') || null } });
+  const math = await prisma.subject.findUniqueOrThrow({ where: { slug: 'mathematics' } });
+  const parentId = text(formData, 'parentId') || null;
+  const [book, parent] = await Promise.all([
+    prisma.textbook.findFirst({ where: { id: textbookId, subjectId: math.id } }),
+    parentId ? prisma.chapter.findUnique({ where: { id: parentId } }) : null,
+  ]);
+  if (!book || (parent && parent.textbookId !== book.id)) throw new Error('教材或父章节无效。');
+  const created = await prisma.chapter.create({ data: { name, textbookId, parentId } });
+  await prisma.auditLog.create({ data: { action: 'CHAPTER_CREATED', entity: 'Chapter', entityId: created.id } });
   revalidatePath('/textbooks'); revalidatePath('/knowledge-points'); revalidatePath('/questions/new');
 }
 
 export async function createKnowledgePointAction(formData: FormData) {
   await requireUser();
   const name = text(formData, 'name'); const chapterId = text(formData, 'chapterId'); if (!name || !chapterId) return;
-  await prisma.knowledgePoint.create({ data: { name, chapterId, description: text(formData, 'description') || null } });
+  const chapter = await prisma.chapter.findFirst({ where: { id: chapterId, textbook: { subject: { slug: 'mathematics' } } } });
+  if (!chapter) throw new Error('章节无效。');
+  const created = await prisma.knowledgePoint.create({ data: { name, chapterId, description: text(formData, 'description') || null } });
+  await prisma.auditLog.create({ data: { action: 'KNOWLEDGE_POINT_CREATED', entity: 'KnowledgePoint', entityId: created.id } });
   revalidatePath('/knowledge-points'); revalidatePath('/questions/new');
 }
 
@@ -341,6 +353,141 @@ export async function createErrorTypeAction(formData: FormData) {
   await requireUser();
   const subject = await prisma.subject.findUniqueOrThrow({ where: { slug: 'mathematics' } });
   const name = text(formData, 'name'); if (!name) return;
-  await prisma.errorType.create({ data: { subjectId: subject.id, name, description: text(formData, 'description') || null } });
+  const created = await prisma.errorType.create({ data: { subjectId: subject.id, name, description: text(formData, 'description') || null } });
+  await prisma.auditLog.create({ data: { action: 'ERROR_TYPE_CREATED', entity: 'ErrorType', entityId: created.id } });
   revalidatePath('/error-types'); revalidatePath('/questions/new');
+}
+
+function sortOrder(formData: FormData) {
+  const value = Number(text(formData, 'sortOrder') || '0');
+  if (!Number.isInteger(value) || value < -10_000 || value > 10_000) throw new Error('排序值必须是 -10000 到 10000 之间的整数。');
+  return value;
+}
+
+export async function updateTextbookAction(textbookId: string, formData: FormData) {
+  await requireUser();
+  const name = text(formData, 'name'); if (!name) throw new Error('教材名称不能为空。');
+  const book = await prisma.textbook.findFirst({ where: { id: textbookId, subject: { slug: 'mathematics' } } });
+  if (!book) throw new Error('教材不存在。');
+  await prisma.textbook.update({ where: { id: book.id }, data: { name, description: text(formData, 'description') || null, sortOrder: sortOrder(formData), active: formData.get('active') === 'on' } });
+  await prisma.auditLog.create({ data: { action: 'TEXTBOOK_UPDATED', entity: 'Textbook', entityId: book.id } });
+  revalidatePath('/textbooks'); revalidatePath('/questions'); revalidatePath('/questions/new');
+}
+
+export async function updateChapterAction(chapterId: string, formData: FormData) {
+  await requireUser();
+  const name = text(formData, 'name'); if (!name) throw new Error('章节名称不能为空。');
+  const chapter = await prisma.chapter.findFirst({ where: { id: chapterId, textbook: { subject: { slug: 'mathematics' } } } });
+  if (!chapter) throw new Error('章节不存在。');
+  const parentId = text(formData, 'parentId') || null;
+  if (parentId === chapter.id) throw new Error('章节不能以自己为父章节。');
+  if (parentId) {
+    const all = await prisma.chapter.findMany({ where: { textbookId: chapter.textbookId }, select: { id: true, parentId: true } });
+    const byId = new Map(all.map((item) => [item.id, item]));
+    if (!byId.has(parentId)) throw new Error('父章节必须属于同一本教材。');
+    let cursor: string | null = parentId;
+    while (cursor) { if (cursor === chapter.id) throw new Error('不能形成循环章节树。'); cursor = byId.get(cursor)?.parentId ?? null; }
+  }
+  await prisma.chapter.update({ where: { id: chapter.id }, data: { name, parentId, sortOrder: sortOrder(formData), active: formData.get('active') === 'on' } });
+  await prisma.auditLog.create({ data: { action: 'CHAPTER_UPDATED', entity: 'Chapter', entityId: chapter.id } });
+  revalidatePath('/textbooks'); revalidatePath('/knowledge-points'); revalidatePath('/questions'); revalidatePath('/questions/new');
+}
+
+export async function mergeChapterAction(sourceId: string, formData: FormData) {
+  await requireUser(); const targetId = text(formData, 'targetId');
+  if (!targetId || targetId === sourceId) throw new Error('请选择同一本教材中的不同目标章节。');
+  await prisma.$transaction(async (tx) => {
+    const [source, target] = await Promise.all([
+      tx.chapter.findFirst({ where: { id: sourceId, textbook: { subject: { slug: 'mathematics' } } }, include: { children: true, knowledgePoints: true } }),
+      tx.chapter.findFirst({ where: { id: targetId, textbook: { subject: { slug: 'mathematics' } } }, include: { children: true, knowledgePoints: true } }),
+    ]);
+    if (!source || !target || source.textbookId !== target.textbookId) throw new Error('来源和目标章节必须属于同一本数学教材。');
+    const all = await tx.chapter.findMany({ where: { textbookId: source.textbookId }, select: { id: true, parentId: true } });
+    const byId = new Map(all.map((item) => [item.id, item])); let cursor: string | null = target.id;
+    while (cursor) { if (cursor === source.id) throw new Error('不能把章节合并到自己的子章节。'); cursor = byId.get(cursor)?.parentId ?? null; }
+    const targetChildNames = new Set(target.children.map((item) => item.name));
+    const duplicateChild = source.children.find((item) => targetChildNames.has(item.name));
+    if (duplicateChild) throw new Error(`目标章节下已存在同名子章节：${duplicateChild.name}，请先改名或单独合并。`);
+
+    const targetPoints = new Map(target.knowledgePoints.map((item) => [item.name, item]));
+    for (const point of source.knowledgePoints) {
+      const sameName = targetPoints.get(point.name);
+      if (!sameName) { await tx.knowledgePoint.update({ where: { id: point.id }, data: { chapterId: target.id } }); continue; }
+      const links = await tx.questionKnowledgePoint.findMany({ where: { knowledgePointId: point.id } });
+      for (const link of links) {
+        const existing = await tx.questionKnowledgePoint.findUnique({ where: { questionId_knowledgePointId: { questionId: link.questionId, knowledgePointId: sameName.id } } });
+        if (existing) { if (link.primary && !existing.primary) await tx.questionKnowledgePoint.update({ where: { questionId_knowledgePointId: { questionId: link.questionId, knowledgePointId: sameName.id } }, data: { primary: true } }); }
+        else await tx.questionKnowledgePoint.create({ data: { questionId: link.questionId, knowledgePointId: sameName.id, primary: link.primary } });
+      }
+      await tx.questionKnowledgePoint.deleteMany({ where: { knowledgePointId: point.id } });
+      await tx.knowledgePoint.update({ where: { id: point.id }, data: { active: false } });
+    }
+    await tx.question.updateMany({ where: { chapterId: source.id }, data: { chapterId: target.id } });
+    await tx.chapter.updateMany({ where: { parentId: source.id }, data: { parentId: target.id } });
+    await tx.chapter.update({ where: { id: source.id }, data: { active: false } });
+    await tx.auditLog.create({ data: { action: 'CHAPTER_MERGED', entity: 'Chapter', entityId: source.id, detail: { targetId: target.id } } });
+  }, { maxWait: 10_000, timeout: 60_000 });
+  revalidatePath('/textbooks'); revalidatePath('/knowledge-points'); revalidatePath('/questions'); revalidatePath('/questions/new');
+}
+
+export async function updateKnowledgePointAction(pointId: string, formData: FormData) {
+  await requireUser();
+  const name = text(formData, 'name'); if (!name) throw new Error('知识点名称不能为空。');
+  const point = await prisma.knowledgePoint.findFirst({ where: { id: pointId, chapter: { textbook: { subject: { slug: 'mathematics' } } } } });
+  if (!point) throw new Error('知识点不存在。');
+  await prisma.knowledgePoint.update({ where: { id: point.id }, data: { name, description: text(formData, 'description') || null, active: formData.get('active') === 'on' } });
+  await prisma.auditLog.create({ data: { action: 'KNOWLEDGE_POINT_UPDATED', entity: 'KnowledgePoint', entityId: point.id } });
+  revalidatePath('/knowledge-points'); revalidatePath('/questions'); revalidatePath('/questions/new');
+}
+
+export async function mergeKnowledgePointAction(sourceId: string, formData: FormData) {
+  await requireUser(); const targetId = text(formData, 'targetId');
+  if (!targetId || targetId === sourceId) throw new Error('请选择不同的目标知识点。');
+  await prisma.$transaction(async (tx) => {
+    const [source, target] = await Promise.all([
+      tx.knowledgePoint.findFirst({ where: { id: sourceId, chapter: { textbook: { subject: { slug: 'mathematics' } } } } }),
+      tx.knowledgePoint.findFirst({ where: { id: targetId, chapter: { textbook: { subject: { slug: 'mathematics' } } } } }),
+    ]);
+    if (!source || !target) throw new Error('来源或目标知识点不存在。');
+    const links = await tx.questionKnowledgePoint.findMany({ where: { knowledgePointId: source.id } });
+    for (const link of links) {
+      const existing = await tx.questionKnowledgePoint.findUnique({ where: { questionId_knowledgePointId: { questionId: link.questionId, knowledgePointId: target.id } } });
+      if (existing) { if (link.primary && !existing.primary) await tx.questionKnowledgePoint.update({ where: { questionId_knowledgePointId: { questionId: link.questionId, knowledgePointId: target.id } }, data: { primary: true } }); }
+      else await tx.questionKnowledgePoint.create({ data: { questionId: link.questionId, knowledgePointId: target.id, primary: link.primary } });
+    }
+    await tx.questionKnowledgePoint.deleteMany({ where: { knowledgePointId: source.id } });
+    await tx.knowledgePoint.update({ where: { id: source.id }, data: { active: false } });
+    await tx.auditLog.create({ data: { action: 'KNOWLEDGE_POINT_MERGED', entity: 'KnowledgePoint', entityId: source.id, detail: { targetId: target.id, movedQuestions: links.length } } });
+  });
+  revalidatePath('/knowledge-points'); revalidatePath('/questions'); revalidatePath('/questions/new');
+}
+
+export async function updateErrorTypeAction(errorTypeId: string, formData: FormData) {
+  await requireUser();
+  const name = text(formData, 'name'); if (!name) throw new Error('错误类型名称不能为空。');
+  const item = await prisma.errorType.findFirst({ where: { id: errorTypeId, subject: { slug: 'mathematics' } } });
+  if (!item) throw new Error('错误类型不存在。');
+  await prisma.errorType.update({ where: { id: item.id }, data: { name, description: text(formData, 'description') || null, active: formData.get('active') === 'on' } });
+  await prisma.auditLog.create({ data: { action: 'ERROR_TYPE_UPDATED', entity: 'ErrorType', entityId: item.id } });
+  revalidatePath('/error-types'); revalidatePath('/questions'); revalidatePath('/questions/new');
+}
+
+export async function mergeErrorTypeAction(sourceId: string, formData: FormData) {
+  await requireUser(); const targetId = text(formData, 'targetId');
+  if (!targetId || targetId === sourceId) throw new Error('请选择不同的目标错误类型。');
+  await prisma.$transaction(async (tx) => {
+    const math = await tx.subject.findUniqueOrThrow({ where: { slug: 'mathematics' } });
+    const [source, target] = await Promise.all([tx.errorType.findFirst({ where: { id: sourceId, subjectId: math.id } }), tx.errorType.findFirst({ where: { id: targetId, subjectId: math.id } })]);
+    if (!source || !target) throw new Error('来源或目标错误类型不存在。');
+    const links = await tx.questionErrorType.findMany({ where: { errorTypeId: source.id } });
+    for (const link of links) {
+      const existing = await tx.questionErrorType.findUnique({ where: { questionId_errorTypeId: { questionId: link.questionId, errorTypeId: target.id } } });
+      if (existing) { if (link.primary && !existing.primary) await tx.questionErrorType.update({ where: { questionId_errorTypeId: { questionId: link.questionId, errorTypeId: target.id } }, data: { primary: true } }); }
+      else await tx.questionErrorType.create({ data: { questionId: link.questionId, errorTypeId: target.id, primary: link.primary } });
+    }
+    await tx.questionErrorType.deleteMany({ where: { errorTypeId: source.id } });
+    await tx.errorType.update({ where: { id: source.id }, data: { active: false } });
+    await tx.auditLog.create({ data: { action: 'ERROR_TYPE_MERGED', entity: 'ErrorType', entityId: source.id, detail: { targetId: target.id, movedQuestions: links.length } } });
+  });
+  revalidatePath('/error-types'); revalidatePath('/questions'); revalidatePath('/questions/new');
 }
