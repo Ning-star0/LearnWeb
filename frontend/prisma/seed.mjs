@@ -38,11 +38,12 @@ const textbook = await prisma.textbook.upsert({
   update: {},
   create: { subjectId: math.id, name: '未指定教材', description: '暂时无法归入具体教材的错题' },
 });
-await prisma.chapter.upsert({
-  where: { textbookId_parentId_name: { textbookId: textbook.id, parentId: null, name: '未分类章节' } },
-  update: {},
-  create: { textbookId: textbook.id, name: '未分类章节' },
+const uncategorizedChapter = await prisma.chapter.findFirst({
+  where: { textbookId: textbook.id, parentId: null, name: '未分类章节' },
 });
+if (!uncategorizedChapter) {
+  await prisma.chapter.create({ data: { textbookId: textbook.id, name: '未分类章节' } });
+}
 
 for (const [index, name] of ['方法没有想到', '概念理解不清', '条件遗漏', '计算失误', '符号错误', '步骤跳跃', '分类讨论不完整', '审题错误'].entries()) {
   await prisma.errorType.upsert({
