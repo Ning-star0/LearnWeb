@@ -63,7 +63,7 @@ for _ in $(seq 1 30); do
   sleep 1
 done
 curl -fsS "http://127.0.0.1:$SMOKE_PORT/api/health" >/dev/null
-curl -fsS "http://127.0.0.1:$SMOKE_PORT/access" | grep -q '访问已被保护'
+curl -fsS "http://127.0.0.1:$SMOKE_PORT/access" | grep -q 'Current content is being improved'
 kill "$SMOKE_PID" >/dev/null 2>&1 || true
 wait "$SMOKE_PID" 2>/dev/null || true
 SMOKE_PID=''
@@ -85,7 +85,7 @@ for _ in $(seq 1 30); do
   sleep 1
 done
 curl -fsS http://127.0.0.1:3011/api/health | grep -q '"status":"ok"'
-curl -fsS https://learn.aurorastar.cn/access | grep -q '访问已被保护'
+curl -fsS https://learn.aurorastar.cn/access | grep -q 'Current content is being improved'
 systemctl is-active --quiet mistake-atlas.service
 
 CUTOVER=0
