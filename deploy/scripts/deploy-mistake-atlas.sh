@@ -18,6 +18,7 @@ PREVIOUS="$(readlink -f "$CURRENT_LINK" 2>/dev/null || true)"
 NGINX_BACKUP="/etc/nginx/sites-available/learn.aurorastar.cn.pre-$COMMIT"
 SMOKE_PID=''
 SMOKE_PORT=33117
+SMOKE_LOG="/run/mistake-atlas-smoke-$COMMIT.log"
 CUTOVER=0
 
 rollback() {
@@ -60,7 +61,7 @@ if ss -H -ltn "sport = :$SMOKE_PORT" | grep -q .; then
   echo "Smoke-test port $SMOKE_PORT is already in use." >&2
   exit 1
 fi
-setsid runuser -u mistake-atlas -- bash -c "set -a; source '$ENV_FILE'; set +a; cd '$RELEASE/frontend'; exec npm run start -- -H 127.0.0.1 -p '$SMOKE_PORT'" >/tmp/mistake-atlas-smoke.log 2>&1 &
+setsid runuser -u mistake-atlas -- bash -c "set -a; source '$ENV_FILE'; set +a; cd '$RELEASE/frontend'; exec npm run start -- -H 127.0.0.1 -p '$SMOKE_PORT'" >"$SMOKE_LOG" 2>&1 &
 SMOKE_PID="$!"
 for _ in $(seq 1 30); do
   if curl -fsS "http://127.0.0.1:$SMOKE_PORT/api/health" >/dev/null && curl -fsS "http://127.0.0.1:$SMOKE_PORT/access" >/dev/null; then break; fi
@@ -71,6 +72,7 @@ curl -fsS "http://127.0.0.1:$SMOKE_PORT/access" | grep -q 'Current content is be
 kill -- -"$SMOKE_PID" >/dev/null 2>&1 || true
 wait "$SMOKE_PID" 2>/dev/null || true
 SMOKE_PID=''
+rm -f "$SMOKE_LOG"
 
 if [[ -f "$NGINX_TARGET" ]]; then cp "$NGINX_TARGET" "$NGINX_BACKUP"; fi
 ln -sfn "$RELEASE" "$CURRENT_LINK"
