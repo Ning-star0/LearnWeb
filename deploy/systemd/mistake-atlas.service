@@ -1,0 +1,14 @@
+[Unit]
+Description=Mistake Atlas Next.js Application
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/mistake-atlas/current/frontend
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/npm run start -- -p 3011
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
