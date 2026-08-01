@@ -8,11 +8,15 @@ export type MasteryAttemptResult =
 
 export function calculateMastery(results: MasteryAttemptResult[], threshold: number) {
   let correctStreak = 0;
+  let independentCorrectCount = 0;
   let wrongCount = 0;
   for (const result of results) {
-    if (result === 'INDEPENDENT_CORRECT') correctStreak += 1;
+    if (result === 'INDEPENDENT_CORRECT') {
+      correctStreak += 1;
+      independentCorrectCount += 1;
+    }
     else if (result !== 'SKIPPED') correctStreak = 0;
     if (result === 'WRONG' || result === 'UNABLE') wrongCount += 1;
   }
-  return { correctStreak, wrongCount, mastered: correctStreak >= threshold };
+  return { correctStreak, independentCorrectCount, wrongCount, mastered: correctStreak >= threshold };
 }

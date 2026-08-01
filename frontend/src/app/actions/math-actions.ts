@@ -3,7 +3,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { AttemptResult, QuestionStatus, QuestionType } from '@prisma/client';
+import { AttemptResult, AttemptSource, MasteryOverride, Prisma, QuestionStatus, QuestionType } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/auth';
@@ -16,8 +16,34 @@ function text(formData: FormData, key: string) {
 
 function optionalDate(value: string) {
   if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
+  const zonedValue = /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? `${value}T00:00:00+08:00`
+    : /(?:Z|[+-]\d{2}:\d{2})$/.test(value) ? value : `${value}+08:00`;
+  const date = new Date(zonedValue);
+  if (Number.isNaN(date.getTime())) throw new Error('日期或时间无效。');
+  return date;
+}
+
+function localDateTime(value: string) {
+  return optionalDate(value) ?? new Date();
+}
+
+function optionalBoundedNumber(formData: FormData, key: string, minimum: number, maximum: number) {
+  const raw = text(formData, key);
+  if (!raw) return null;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < minimum || value > maximum) throw new Error(`${key} 超出允许范围。`);
+  return value;
+}
+
+function revalidateMathQuestion(questionId: string) {
+  revalidatePath('/');
+  revalidatePath('/reviews');
+  revalidatePath('/questions');
+  revalidatePath('/status/correct');
+  revalidatePath('/status/mastered');
+  revalidatePath('/status/repeated-errors');
+  revalidatePath(`/questions/${questionId}`);
 }
 
 function questionCode() {
@@ -139,7 +165,13 @@ export async function deleteQuestionAction(questionId: string) {
 
 export async function restoreQuestionAction(questionId: string) {
   await requireUser();
-  await prisma.question.update({ where: { id: questionId }, data: { status: 'ACTIVE', deletedAt: null } });
+  await prisma.$transaction(async (tx) => {
+    const question = await tx.question.findFirst({ where: { id: questionId, subject: { slug: 'mathematics' }, status: QuestionStatus.DELETED } });
+    if (!question) throw new Error('回收站中找不到这道数学错题。');
+    await tx.question.update({ where: { id: questionId }, data: { status: QuestionStatus.ACTIVE, deletedAt: null } });
+    await recalculateQuestionInTransaction(tx, questionId);
+    await tx.auditLog.create({ data: { action: 'QUESTION_RESTORED', entity: 'Question', entityId: questionId } });
+  });
   revalidatePath('/questions'); revalidatePath('/trash');
 }
 
@@ -148,32 +180,146 @@ export async function recordAttemptAction(questionId: string, formData: FormData
   const result = text(formData, 'result') as AttemptResult;
   if (!Object.values(AttemptResult).includes(result)) throw new Error('重做结果无效。');
   const nextReviewAt = optionalDate(text(formData, 'nextReviewAt'));
-  await prisma.attempt.create({
-    data: {
-      questionId, result, nextReviewAt,
-      durationSeconds: Number(formData.get('durationMinutes')) > 0 ? Math.round(Number(formData.get('durationMinutes')) * 60) : null,
-      note: text(formData, 'note') || null,
-    },
+  const durationMinutes = optionalBoundedNumber(formData, 'durationMinutes', 0, 1440);
+  const confidence = optionalBoundedNumber(formData, 'confidence', 1, 5);
+  const change = await prisma.$transaction(async (tx) => {
+    const question = await tx.question.findFirst({
+      where: { id: questionId, subject: { slug: 'mathematics' }, status: { in: [QuestionStatus.ACTIVE, QuestionStatus.MASTERED] } },
+    });
+    if (!question) throw new Error('错题不存在、已归档或已删除。');
+    await tx.attempt.create({
+      data: {
+        questionId, result, nextReviewAt,
+        attemptedAt: localDateTime(text(formData, 'attemptedAt')),
+        durationSeconds: durationMinutes === null ? null : Math.round(durationMinutes * 60),
+        confidence: confidence === null ? null : Math.round(confidence),
+        errorReason: text(formData, 'errorReason') || null,
+        note: text(formData, 'note') || null,
+        source: AttemptSource.MANUAL,
+      },
+    });
+    if (result !== AttemptResult.INDEPENDENT_CORRECT && result !== AttemptResult.SKIPPED && (question.manuallyMastered || question.masteryOverride === MasteryOverride.FORCE_MASTERED)) {
+      await tx.question.update({ where: { id: questionId }, data: { manuallyMastered: false, masteryOverride: null } });
+    }
+    const updated = await recalculateQuestionInTransaction(tx, questionId, nextReviewAt);
+    await tx.auditLog.create({ data: { action: 'ATTEMPT_CREATED', entity: 'Question', entityId: questionId, detail: { result } } });
+    return { before: question.correctStreak, after: updated.correctStreak, statusChanged: question.status !== updated.status };
   });
-  await recalculateQuestion(questionId, nextReviewAt);
-  revalidatePath('/'); revalidatePath('/reviews'); revalidatePath('/questions'); revalidatePath(`/questions/${questionId}`);
-  redirect(`/questions/${questionId}?attempt=1`);
+  revalidateMathQuestion(questionId);
+  redirect(`/questions/${questionId}?attempt=1&from=${change.before}&to=${change.after}${change.statusChanged ? '&statusChanged=1' : ''}`);
 }
 
-export async function recalculateQuestion(questionId: string, explicitNextReview?: Date | null) {
+export async function updateAttemptAction(attemptId: string, formData: FormData) {
+  await requireUser();
+  const result = text(formData, 'result') as AttemptResult;
+  if (!Object.values(AttemptResult).includes(result)) throw new Error('重做结果无效。');
+  const nextReviewAt = optionalDate(text(formData, 'nextReviewAt'));
+  const durationMinutes = optionalBoundedNumber(formData, 'durationMinutes', 0, 1440);
+  const confidence = optionalBoundedNumber(formData, 'confidence', 1, 5);
+  const questionId = await prisma.$transaction(async (tx) => {
+    const attempt = await tx.attempt.findFirst({
+      where: { id: attemptId, question: { subject: { slug: 'mathematics' }, status: { not: QuestionStatus.DELETED } } },
+      select: { questionId: true },
+    });
+    if (!attempt) throw new Error('重做记录不存在。');
+    await tx.attempt.update({
+      where: { id: attemptId },
+      data: {
+        result, nextReviewAt,
+        attemptedAt: localDateTime(text(formData, 'attemptedAt')),
+        durationSeconds: durationMinutes === null ? null : Math.round(durationMinutes * 60),
+        confidence: confidence === null ? null : Math.round(confidence),
+        errorReason: text(formData, 'errorReason') || null,
+        note: text(formData, 'note') || null,
+      },
+    });
+    await recalculateQuestionInTransaction(tx, attempt.questionId, nextReviewAt);
+    await tx.auditLog.create({ data: { action: 'ATTEMPT_UPDATED', entity: 'Attempt', entityId: attemptId } });
+    return attempt.questionId;
+  });
+  revalidateMathQuestion(questionId);
+  redirect(`/questions/${questionId}?attemptUpdated=1`);
+}
+
+export async function deleteAttemptAction(attemptId: string) {
+  await requireUser();
+  const questionId = await prisma.$transaction(async (tx) => {
+    const attempt = await tx.attempt.findFirst({
+      where: { id: attemptId, question: { subject: { slug: 'mathematics' }, status: { not: QuestionStatus.DELETED } } },
+      select: { questionId: true },
+    });
+    if (!attempt) throw new Error('重做记录不存在。');
+    await tx.attempt.delete({ where: { id: attemptId } });
+    await recalculateQuestionInTransaction(tx, attempt.questionId);
+    await tx.auditLog.create({ data: { action: 'ATTEMPT_DELETED', entity: 'Attempt', entityId: attemptId } });
+    return attempt.questionId;
+  });
+  revalidateMathQuestion(questionId);
+  redirect(`/questions/${questionId}?attemptDeleted=1`);
+}
+
+export async function setMasteryOverrideAction(questionId: string, override: MasteryOverride | 'AUTO') {
+  await requireUser();
+  if (override !== 'AUTO' && !Object.values(MasteryOverride).includes(override)) throw new Error('掌握状态操作无效。');
+  await prisma.$transaction(async (tx) => {
+    const question = await tx.question.findFirst({
+      where: { id: questionId, subject: { slug: 'mathematics' }, status: { not: QuestionStatus.DELETED } },
+    });
+    if (!question) throw new Error('错题不存在。');
+    await tx.question.update({ where: { id: questionId }, data: {
+      masteryOverride: override === 'AUTO' ? null : override,
+      manuallyMastered: override === MasteryOverride.FORCE_MASTERED,
+      archivedAt: override === MasteryOverride.FORCE_MASTERED ? null : question.archivedAt,
+      status: override === MasteryOverride.FORCE_MASTERED
+        ? QuestionStatus.MASTERED
+        : question.status === QuestionStatus.ARCHIVED ? QuestionStatus.ARCHIVED : QuestionStatus.ACTIVE,
+      masteredAt: override === MasteryOverride.FORCE_MASTERED ? question.masteredAt || new Date() : null,
+    } });
+    await recalculateQuestionInTransaction(tx, questionId);
+    await tx.auditLog.create({
+      data: { action: override === 'AUTO' ? 'QUESTION_MASTERY_OVERRIDE_CLEARED' : 'QUESTION_MASTERY_OVERRIDDEN', entity: 'Question', entityId: questionId, detail: { override } },
+    });
+  });
+  revalidateMathQuestion(questionId);
+  redirect(`/questions/${questionId}?masteryChanged=1`);
+}
+
+export async function setQuestionArchivedAction(questionId: string, archived: boolean) {
+  await requireUser();
+  await prisma.$transaction(async (tx) => {
+    const question = await tx.question.findFirst({
+      where: { id: questionId, subject: { slug: 'mathematics' }, status: { not: QuestionStatus.DELETED } },
+    });
+    if (!question) throw new Error('错题不存在。');
+    await tx.question.update({
+      where: { id: questionId },
+      data: archived ? { status: QuestionStatus.ARCHIVED, archivedAt: new Date() } : { status: QuestionStatus.ACTIVE, archivedAt: null },
+    });
+    if (!archived) await recalculateQuestionInTransaction(tx, questionId);
+    await tx.auditLog.create({ data: { action: archived ? 'QUESTION_ARCHIVED' : 'QUESTION_UNARCHIVED', entity: 'Question', entityId: questionId } });
+  });
+  revalidateMathQuestion(questionId);
+  redirect(`/questions/${questionId}?archiveChanged=1`);
+}
+
+async function recalculateQuestionInTransaction(tx: Prisma.TransactionClient, questionId: string, explicitNextReview?: Date | null) {
   const [question, attempts, settings] = await Promise.all([
-    prisma.question.findUniqueOrThrow({ where: { id: questionId } }),
-    prisma.attempt.findMany({ where: { questionId }, orderBy: [{ attemptedAt: 'asc' }, { createdAt: 'asc' }] }),
-    prisma.learningSettings.upsert({ where: { id: 'learning' }, update: {}, create: {} }),
+    tx.question.findUniqueOrThrow({ where: { id: questionId } }),
+    tx.attempt.findMany({ where: { questionId }, orderBy: [{ attemptedAt: 'asc' }, { createdAt: 'asc' }] }),
+    tx.learningSettings.upsert({ where: { id: 'learning' }, update: {}, create: {} }),
   ]);
-  const { correctStreak, wrongCount, mastered } = calculateMastery(attempts.map((attempt) => attempt.result), settings.masteryThreshold);
-  await prisma.question.update({
+  const { correctStreak, independentCorrectCount, wrongCount, mastered } = calculateMastery(attempts.map((attempt) => attempt.result), settings.masteryThreshold);
+  const isProtected = question.status === QuestionStatus.DELETED || question.status === QuestionStatus.ARCHIVED;
+  const override = question.masteryOverride ?? (question.manuallyMastered ? MasteryOverride.FORCE_MASTERED : null);
+  const isMastered = override === MasteryOverride.FORCE_MASTERED || (override !== MasteryOverride.FORCE_ACTIVE && mastered);
+  return tx.question.update({
     where: { id: questionId },
     data: {
-      correctStreak, attemptCount: attempts.length, wrongCount,
-      status: mastered ? QuestionStatus.MASTERED : question.status === QuestionStatus.DELETED ? QuestionStatus.DELETED : QuestionStatus.ACTIVE,
-      masteredAt: mastered ? question.masteredAt || new Date() : null,
-      nextReviewAt: mastered ? explicitNextReview ?? null : explicitNextReview ?? question.nextReviewAt,
+      correctStreak, independentCorrectCount, attemptCount: attempts.length, wrongCount,
+      lastAttemptAt: attempts.at(-1)?.attemptedAt ?? null,
+      status: isProtected ? question.status : isMastered ? QuestionStatus.MASTERED : QuestionStatus.ACTIVE,
+      masteredAt: isMastered ? question.masteredAt || new Date() : null,
+      nextReviewAt: explicitNextReview === undefined ? question.nextReviewAt : explicitNextReview,
     },
   });
 }

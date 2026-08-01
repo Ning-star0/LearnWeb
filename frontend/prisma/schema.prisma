@@ -14,6 +14,11 @@ enum QuestionStatus {
   DELETED
 }
 
+enum MasteryOverride {
+  FORCE_MASTERED
+  FORCE_ACTIVE
+}
+
 enum AttemptResult {
   INDEPENDENT_CORRECT
   HINTED_CORRECT
@@ -21,6 +26,12 @@ enum AttemptResult {
   WRONG
   UNABLE
   SKIPPED
+}
+
+enum AttemptSource {
+  MANUAL
+  IMPORT
+  AI
 }
 
 enum QuestionType {
@@ -176,10 +187,13 @@ model Question {
   status               QuestionStatus           @default(ACTIVE)
   correctStreak        Int                      @default(0)
   attemptCount         Int                      @default(0)
+  independentCorrectCount Int                   @default(0)
   wrongCount           Int                      @default(0)
+  lastAttemptAt        DateTime?
   nextReviewAt         DateTime?
   masteredAt           DateTime?
   manuallyMastered     Boolean                  @default(false)
+  masteryOverride      MasteryOverride?
   archivedAt           DateTime?
   deletedAt            DateTime?
   createdAt            DateTime                 @default(now())
@@ -224,8 +238,11 @@ model Attempt {
   result          AttemptResult
   attemptedAt     DateTime      @default(now())
   durationSeconds Int?
+  confidence      Int?
+  errorReason     String?
   note            String?
   nextReviewAt    DateTime?
+  source          AttemptSource @default(MANUAL)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
