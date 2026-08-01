@@ -1,0 +1,13 @@
+import { DatabaseBackup, KeyRound, Lock, RotateCcw, Save, ShieldCheck } from 'lucide-react';
+import { PageHeader, StatusPill } from '@/components/mistake-atlas/ui';
+
+const settingsSections = [
+  { name: '学习规则', icon: RotateCcw },
+  { name: '账号与安全', icon: ShieldCheck },
+  { name: 'AI Provider', icon: KeyRound },
+  { name: '备份与存储', icon: DatabaseBackup },
+];
+
+export default function SettingsPage() {
+  return <><PageHeader eyebrow="System preferences" title="设置" description="单用户账号、安全会话、复习规则、AI Provider 与备份状态将在这里统一管理。" /><div className="grid gap-5 xl:grid-cols-[260px_minmax(0,1fr)]"><aside className="atlas-card h-fit p-3">{settingsSections.map(({ name, icon: Icon }, index) => <button key={name} className={`flex w-full items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium ${index === 0 ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}><Icon className="size-4" />{name}</button>)}</aside><div className="atlas-card p-6 sm:p-7"><div className="flex items-center justify-between border-b border-slate-100 pb-5"><div><h2 className="font-semibold text-slate-900">学习与复习规则</h2><p className="mt-1 text-xs text-slate-400">调整后只影响未来计划，不重写历史重做记录</p></div><StatusPill tone="blue">默认规则</StatusPill></div><div className="mt-6 grid gap-5 md:grid-cols-2"><label><span className="atlas-label">连续独立正确次数</span><select className="atlas-input"><option>3 次（推荐）</option></select><span className="mt-2 block text-xs text-amber-600">修改掌握阈值会触发全部题目的状态重算。</span></label><label><span className="atlas-label">默认时区</span><select className="atlas-input"><option>Asia/Shanghai (UTC+8)</option></select></label><label className="md:col-span-2"><span className="atlas-label">建议复习间隔</span><div className="flex flex-wrap gap-2">{[1,3,7,14,30].map((day) => <span key={day} className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700">{day} 天</span>)}</div></label><label><span className="atlas-label">反复错误阈值</span><select className="atlas-input"><option>累计错误不少于 3 次</option></select></label><label><span className="atlas-label">每周报告生成日</span><select className="atlas-input"><option>每周日 20:00</option></select></label></div><div className="mt-7 flex justify-end border-t border-slate-100 pt-6"><button className="atlas-button-primary"><Save className="size-4" />保存设置</button></div><div className="mt-7 rounded-xl bg-slate-50 p-5"><div className="flex gap-3"><Lock className="mt-0.5 size-5 text-slate-500" /><div><h3 className="text-sm font-semibold text-slate-800">安全功能将在数据层接入时启用</h3><p className="mt-1 text-xs leading-5 text-slate-500">包括 Argon2id 密码、HttpOnly 安全 Cookie、首次登录强制改密、登录限流与退出全部设备。</p></div></div></div></div></div></>;
+}
