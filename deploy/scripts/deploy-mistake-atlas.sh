@@ -7,6 +7,13 @@ ENV_FILE="$APP_ROOT/shared/app.env"
 CURRENT_LINK="$APP_ROOT/current"
 NGINX_TARGET=/etc/nginx/sites-available/learn.aurorastar.cn
 SERVICE_TARGET=/etc/systemd/system/mistake-atlas.service
+LOCK_FILE=/run/mistake-atlas-deploy.lock
+
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+  echo "Another Mistake Atlas deployment is already running." >&2
+  exit 1
+fi
 
 test -f "$ENV_FILE"
 install -d -m 0750 -o mistake-atlas -g mistake-atlas "$APP_ROOT/data/imports"
@@ -24,10 +31,12 @@ SMOKE_PID=''
 SMOKE_PORT=33117
 SMOKE_LOG="/run/mistake-atlas-smoke-$COMMIT.log"
 CUTOVER=0
+RELEASE_STAGING=''
 
 rollback() {
   status=$?
   if [[ -n "$SMOKE_PID" ]]; then kill -- -"$SMOKE_PID" >/dev/null 2>&1 || true; fi
+  if [[ -n "$RELEASE_STAGING" && -d "$RELEASE_STAGING" ]]; then rm -rf -- "$RELEASE_STAGING"; fi
   if [[ $status -ne 0 && $CUTOVER -eq 1 && -n "$PREVIOUS" ]]; then
     ln -sfn "$PREVIOUS" "$CURRENT_LINK"
     if [[ -f "$NGINX_BACKUP" ]]; then cp "$NGINX_BACKUP" "$NGINX_TARGET"; fi
@@ -41,8 +50,11 @@ rollback() {
 trap rollback EXIT
 
 if [[ ! -d "$RELEASE" ]]; then
-  install -d -m 0755 "$RELEASE"
-  git -C "$REPOSITORY" archive "$COMMIT" | tar -x -C "$RELEASE"
+  RELEASE_STAGING="$APP_ROOT/releases/.${COMMIT}.staging.$$"
+  install -d -m 0755 "$RELEASE_STAGING"
+  git -C "$REPOSITORY" archive "$COMMIT" | tar -x -C "$RELEASE_STAGING"
+  mv "$RELEASE_STAGING" "$RELEASE"
+  RELEASE_STAGING=''
 fi
 
 set -a
