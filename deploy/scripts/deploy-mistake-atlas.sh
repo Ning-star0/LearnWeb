@@ -115,6 +115,14 @@ curl -fsS http://127.0.0.1:3011/api/health | grep -q '"status":"ok"'
 curl -fsS https://learn.aurorastar.cn/access | grep -q 'Current content is being improved'
 systemctl is-active --quiet mistake-atlas.service
 
+mapfile -t RELEASES_BY_AGE < <(find "$APP_ROOT/releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -rn)
+for ((index=3; index<${#RELEASES_BY_AGE[@]}; index++)); do
+  OLD_RELEASE="${RELEASES_BY_AGE[$index]#* }"
+  if [[ "$OLD_RELEASE" == "$APP_ROOT/releases/"* && "$OLD_RELEASE" != "$(readlink -f "$CURRENT_LINK")" ]]; then
+    rm -rf -- "$OLD_RELEASE"
+  fi
+done
+
 CUTOVER=0
 trap - EXIT
 echo "Deployed Mistake Atlas release $COMMIT"

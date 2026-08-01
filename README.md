@@ -71,4 +71,12 @@ cat /opt/mistake-atlas/data/backups/last-success.json
 
 如有已挂载的异地存储，可在 `app.env` 设置 `BACKUP_REMOTE_DIR`，每日备份会额外复制一份到该目录。
 
+忘记密码时，在服务器生成一次性临时密码。该命令会注销全部旧会话，并要求下次登录后修改密码：
+
+```bash
+cd /opt/mistake-atlas/current/frontend
+set -a; source /opt/mistake-atlas/shared/app.env; set +a
+npm run admin:reset-password -- baixing --generate
+```
+
 环境文件和私有数据不得提交到 Git。旧 NestJS 后端保留在 `backend/` 作为历史代码，不接收线上流量。
