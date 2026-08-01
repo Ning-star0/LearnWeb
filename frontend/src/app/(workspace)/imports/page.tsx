@@ -2,7 +2,7 @@ import { ImportJobStatus } from '@prisma/client';
 import { Download, FileJson, History, RotateCcw } from 'lucide-react';
 import { rollbackImportJobAction } from '@/app/actions/import-actions';
 import { DangerSubmit } from '@/components/mistake-atlas/danger-submit';
-import { ImportCenter } from '@/components/mistake-atlas/import-center';
+import { ImportCenter, JsonImportCenter } from '@/components/mistake-atlas/import-center';
 import { PageHeader, StatusPill } from '@/components/mistake-atlas/ui';
 import { prisma } from '@/lib/prisma';
 
@@ -20,9 +20,9 @@ export default async function ImportsPage({ searchParams }: { searchParams: Prom
     {completed ? <div className="mb-5 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">导入作业已完成，结果已写入数学错题库。</div> : null}
     {rolledBack ? <div className="mb-5 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">导入作业已回滚：新建题目已移除，被更新题目已恢复。</div> : null}
     <div className="grid gap-5 2xl:grid-cols-[minmax(0,1.35fr)_380px]">
-      <ImportCenter />
+      <div className="space-y-5"><ImportCenter /><JsonImportCenter /></div>
       <aside className="space-y-5">
-        <div className="atlas-card p-5"><div className="flex items-center gap-2 font-semibold text-slate-800"><FileJson className="size-4" />完整 JSON</div><p className="mt-3 text-xs leading-6 text-slate-500">导出包含学科、教材、章节、知识点、错误类型、错题、重做轨迹和非敏感站点设置；不包含密码、会话、图标二进制和服务器密钥。</p><a href="/api/exports/full" className="atlas-button-secondary mt-4 w-full"><Download className="size-4" />立即下载</a></div>
+        <div className="atlas-card p-5"><div className="flex items-center gap-2 font-semibold text-slate-800"><FileJson className="size-4" />完整 JSON</div><p className="mt-3 text-xs leading-6 text-slate-500">导出包含学科、教材、章节、知识点、错误类型、错题、重做轨迹、附件元数据和非敏感站点设置；不包含图片文件、密码、会话、图标二进制和服务器密钥。</p><a href="/api/exports/full" className="atlas-button-secondary mt-4 w-full"><Download className="size-4" />立即下载</a></div>
         <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-xs leading-6 text-blue-900"><strong>正式模板规则</strong><br />必须包含 schema_version、数学科目、教材、完整章节路径、题型、首次做错日期、至少一个错误类型，以及“# 题目”“## 我的错因”两个正文区块。未知分类会阻止导入，不再静默忽略。</div>
       </aside>
     </div>

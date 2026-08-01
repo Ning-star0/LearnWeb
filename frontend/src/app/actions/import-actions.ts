@@ -3,16 +3,18 @@
 import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { ImportConflictStrategy, ImportJobStatus, ImportSourceType, Prisma } from '@prisma/client';
+import { ImportConflictStrategy, ImportJobStatus, ImportSourceType, MasteryOverride, Prisma, QuestionStatus } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/auth';
 import { persistPreparedImage, prepareImage, removeStoredAttachment, type PreparedImage } from '@/lib/attachments';
-import { parseMarkdownBatch, type ImportParseError, type ParsedImportQuestion } from '@/lib/imports/markdown';
+import { parseFullJsonExport, type FullJsonExport } from '@/lib/imports/full-json';
+import { parseMarkdownBatch, questionFingerprint, type ImportParseError, type ParsedImportQuestion } from '@/lib/imports/markdown';
 import { inspectImportZip, resolveZipImagePath, type InspectedImportZip } from '@/lib/imports/zip';
+import { calculateMastery } from '@/lib/mastery';
 import { prisma } from '@/lib/prisma';
 
-type PreviewRow = {
+export type PreviewRow = {
   key: string;
   sourceName: string;
   documentIndex: number;
@@ -32,6 +34,8 @@ export type ImportPreviewState = {
   rows?: PreviewRow[];
   sourceType?: ImportSourceType;
 };
+
+export type JsonImportPreviewState = ImportPreviewState & { notice?: string };
 
 type TaxonomyResolution = {
   textbookId: string | null;
@@ -240,6 +244,64 @@ export async function previewMarkdownImportAction(_previous: ImportPreviewState,
   }
 }
 
+type StoredJsonPreview = { data: FullJsonExport; rows: PreviewRow[] };
+
+async function findJsonConflict(client: Prisma.TransactionClient | typeof prisma, subjectId: string, item: FullJsonExport['questions'][number]) {
+  const select = { id: true, code: true, title: true } as const;
+  if (item.externalId) {
+    const match = await client.question.findUnique({ where: { subjectId_externalId: { subjectId, externalId: item.externalId } }, select });
+    if (match) return { questionId: match.id, code: match.code, title: match.title, reason: `external_id：${item.externalId}` };
+  }
+  const codeMatch = await client.question.findUnique({ where: { code: item.code }, select });
+  if (codeMatch) return { questionId: codeMatch.id, code: codeMatch.code, title: codeMatch.title, reason: `题目编号：${item.code}` };
+  const fingerprint = questionFingerprint(item.bodyMarkdown);
+  const match = await client.question.findFirst({ where: { subjectId, contentFingerprint: fingerprint }, select });
+  return match ? { questionId: match.id, code: match.code, title: match.title, reason: '题干内容指纹相同' } : null;
+}
+
+export async function previewJsonImportAction(_previous: JsonImportPreviewState, formData: FormData): Promise<JsonImportPreviewState> {
+  await requireUser();
+  try {
+    const files = formData.getAll('jsonFile').filter((value): value is File => value instanceof File && value.size > 0);
+    if (files.length !== 1 || !files[0].name.toLocaleLowerCase().endsWith('.json')) throw new Error('请选择一个由本系统导出的 .json 文件。');
+    if (files[0].size > 15 * 1024 * 1024) throw new Error('JSON 文件不能超过 15MB。');
+    const data = parseFullJsonExport(await files[0].text());
+    const subjectsByOldId = new Map(data.subjects.map((item) => [item.id, item]));
+    const books = data.subjects.flatMap((item) => item.textbooks);
+    const booksByOldId = new Map(books.map((item) => [item.id, item]));
+    const chaptersByOldId = new Map(books.flatMap((item) => item.chapters).map((item) => [item.id, item]));
+    const databaseSubjects = new Map((await prisma.subject.findMany()).map((item) => [item.slug, item]));
+    const rows: PreviewRow[] = [];
+    for (const [index, item] of data.questions.entries()) {
+      const exportedSubject = subjectsByOldId.get(item.subjectId)!;
+      const databaseSubject = databaseSubjects.get(exportedSubject.slug);
+      const issues: string[] = [];
+      if (exportedSubject.slug !== 'mathematics') issues.push(`当前版本只导入数学题，暂不导入 ${exportedSubject.name} 的具体题目`);
+      const conflict = databaseSubject ? await findJsonConflict(prisma, databaseSubject.id, item) : null;
+      rows.push({
+        key: `json:${item.id}`, sourceName: files[0].name, documentIndex: index + 1, title: item.title,
+        book: booksByOldId.get(item.textbookId)?.name || '—', chapter: chaptersByOldId.get(item.chapterId)?.name || '—',
+        valid: issues.length === 0, issues, conflict,
+      });
+    }
+    const attachmentCount = data.questions.reduce((sum, item) => sum + item.attachments.length, 0);
+    const job = await prisma.importJob.create({
+      data: {
+        sourceType: ImportSourceType.JSON, originalName: files[0].name.slice(0, 255), totalCount: data.questions.length,
+        failedCount: rows.filter((row) => !row.valid).length, preview: json({ data, rows } satisfies StoredJsonPreview),
+      },
+    });
+    await prisma.auditLog.create({ data: { action: 'JSON_IMPORT_PREVIEW_CREATED', entity: 'ImportJob', entityId: job.id, detail: { questions: data.questions.length, attachmentsWithoutFiles: attachmentCount } } });
+    revalidatePath('/imports');
+    return {
+      jobId: job.id, rows, sourceType: ImportSourceType.JSON,
+      notice: attachmentCount ? `JSON 只包含 ${attachmentCount} 条附件元数据，不包含图片文件；图片请通过服务器备份恢复。` : undefined,
+    };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : '无法生成 JSON 导入预览。' };
+  }
+}
+
 function storedPreview(value: Prisma.JsonValue): StoredPreview {
   return value as unknown as StoredPreview;
 }
@@ -263,6 +325,170 @@ function questionData(subjectId: string, importJobId: string, item: ParsedImport
   return { code: questionCode(), subjectId, importJobId, ...questionUpdateData(item, taxonomy, externalId) };
 }
 
+type JsonTaxonomyMaps = {
+  subjects: Map<string, string>; textbooks: Map<string, string>; chapters: Map<string, string>;
+  knowledgePoints: Map<string, string>; errorTypes: Map<string, string>;
+  created: { subjectIds: string[]; textbookIds: string[]; chapterIds: string[]; knowledgePointIds: string[]; errorTypeIds: string[] };
+};
+
+async function materializeJsonTaxonomy(tx: Prisma.TransactionClient, data: FullJsonExport): Promise<JsonTaxonomyMaps> {
+  const maps: JsonTaxonomyMaps = {
+    subjects: new Map(), textbooks: new Map(), chapters: new Map(), knowledgePoints: new Map(), errorTypes: new Map(),
+    created: { subjectIds: [], textbookIds: [], chapterIds: [], knowledgePointIds: [], errorTypeIds: [] },
+  };
+  for (const subject of data.subjects) {
+    let target = await tx.subject.findUnique({ where: { slug: subject.slug } });
+    if (!target) {
+      target = await tx.subject.create({ data: {
+        slug: subject.slug, name: subject.name, shortName: subject.shortName, description: subject.description,
+        icon: subject.icon, color: subject.color, enabled: subject.slug === 'mathematics', sortOrder: subject.sortOrder,
+      } });
+      maps.created.subjectIds.push(target.id);
+    }
+    maps.subjects.set(subject.id, target.id);
+    for (const book of subject.textbooks) {
+      let targetBook = await tx.textbook.findFirst({ where: { subjectId: target.id, name: book.name } });
+      if (!targetBook) {
+        targetBook = await tx.textbook.create({ data: { subjectId: target.id, name: book.name, description: book.description, sortOrder: book.sortOrder, active: book.active } });
+        maps.created.textbookIds.push(targetBook.id);
+      }
+      maps.textbooks.set(book.id, targetBook.id);
+    }
+    for (const errorType of subject.errorTypes) {
+      let targetError = await tx.errorType.findUnique({ where: { subjectId_name: { subjectId: target.id, name: errorType.name } } });
+      if (!targetError) {
+        targetError = await tx.errorType.create({ data: { subjectId: target.id, name: errorType.name, description: errorType.description, color: errorType.color, active: errorType.active } });
+        maps.created.errorTypeIds.push(targetError.id);
+      }
+      maps.errorTypes.set(errorType.id, targetError.id);
+    }
+  }
+
+  const pending = data.subjects.flatMap((subject) => subject.textbooks.flatMap((book) => book.chapters));
+  while (pending.length) {
+    let progressed = false;
+    for (let index = pending.length - 1; index >= 0; index--) {
+      const chapter = pending[index];
+      if (chapter.parentId && !maps.chapters.has(chapter.parentId)) continue;
+      const textbookId = maps.textbooks.get(chapter.textbookId)!;
+      const parentId = chapter.parentId ? maps.chapters.get(chapter.parentId)! : null;
+      let target = await tx.chapter.findFirst({ where: { textbookId, parentId, name: chapter.name } });
+      if (!target) {
+        target = await tx.chapter.create({ data: { textbookId, parentId, name: chapter.name, sortOrder: chapter.sortOrder, active: chapter.active } });
+        maps.created.chapterIds.push(target.id);
+      }
+      maps.chapters.set(chapter.id, target.id);
+      pending.splice(index, 1); progressed = true;
+    }
+    if (!progressed) throw new Error('JSON 章节树无法按父子顺序恢复。');
+  }
+  for (const subject of data.subjects) for (const book of subject.textbooks) for (const chapter of book.chapters) {
+    const chapterId = maps.chapters.get(chapter.id)!;
+    for (const point of chapter.knowledgePoints) {
+      let target = await tx.knowledgePoint.findUnique({ where: { chapterId_name: { chapterId, name: point.name } } });
+      if (!target) {
+        target = await tx.knowledgePoint.create({ data: { chapterId, name: point.name, description: point.description, active: point.active } });
+        maps.created.knowledgePointIds.push(target.id);
+      }
+      maps.knowledgePoints.set(point.id, target.id);
+    }
+  }
+  return maps;
+}
+
+function jsonQuestionUpdateData(item: FullJsonExport['questions'][number], maps: JsonTaxonomyMaps, externalId: string | null) {
+  return {
+    externalId, contentFingerprint: questionFingerprint(item.bodyMarkdown), textbookId: maps.textbooks.get(item.textbookId)!, chapterId: maps.chapters.get(item.chapterId)!,
+    title: item.title, bodyMarkdown: item.bodyMarkdown, wrongReason: item.wrongReason, reflection: item.reflection, reminder: item.reminder,
+    sourcePage: item.sourcePage, sourceQuestionNumber: item.sourceQuestionNumber, tags: item.tags, questionType: item.questionType,
+    difficulty: item.difficulty, priority: item.priority, occurredAt: new Date(item.occurredAt), nextReviewAt: item.nextReviewAt ? new Date(item.nextReviewAt) : null,
+    knowledgePoints: { create: item.knowledgePoints.map((point) => ({ knowledgePointId: maps.knowledgePoints.get(point.knowledgePointId)!, primary: point.primary })) },
+    errorTypes: { create: item.errorTypes.map((errorType) => ({ errorTypeId: maps.errorTypes.get(errorType.errorTypeId)!, primary: errorType.primary })) },
+  };
+}
+
+async function confirmJsonImportJob(jobId: string, strategy: ImportConflictStrategy) {
+  await prisma.$transaction(async (tx) => {
+    const job = await tx.importJob.findUnique({ where: { id: jobId } });
+    if (!job || job.sourceType !== ImportSourceType.JSON || job.status !== ImportJobStatus.PREVIEWED) throw new Error('JSON 导入作业不存在或已经处理。');
+    const preview = job.preview as unknown as StoredJsonPreview;
+    if (preview.rows.some((row) => !row.valid)) throw new Error('JSON 预览仍有错误，不能确认导入。');
+    const maps = await materializeJsonTaxonomy(tx, preview.data);
+    const settings = await tx.learningSettings.findUniqueOrThrow({ where: { id: 'learning' } });
+    const threshold = preview.data.learningSettings?.masteryThreshold ?? settings.masteryThreshold;
+    const createdQuestionIds: string[] = []; const updatedQuestions: Array<Record<string, unknown>> = [];
+    let skippedCount = 0;
+
+    for (const item of preview.data.questions) {
+      const subjectId = maps.subjects.get(item.subjectId)!;
+      const conflict = await findJsonConflict(tx, subjectId, item);
+      if (conflict && strategy === ImportConflictStrategy.SKIP) { skippedCount += 1; continue; }
+      if (conflict && strategy === ImportConflictStrategy.UPDATE_BASIC) {
+        const existing = await tx.question.findUniqueOrThrow({ where: { id: conflict.questionId }, include: { knowledgePoints: true, errorTypes: true } });
+        updatedQuestions.push({
+          id: existing.id,
+          data: {
+            externalId: existing.externalId, contentFingerprint: existing.contentFingerprint, textbookId: existing.textbookId, chapterId: existing.chapterId,
+            title: existing.title, bodyMarkdown: existing.bodyMarkdown, wrongReason: existing.wrongReason, reflection: existing.reflection,
+            reminder: existing.reminder, sourcePage: existing.sourcePage, sourceQuestionNumber: existing.sourceQuestionNumber, tags: existing.tags,
+            questionType: existing.questionType, difficulty: existing.difficulty, priority: existing.priority,
+            occurredAt: existing.occurredAt.toISOString(), nextReviewAt: existing.nextReviewAt?.toISOString() ?? null,
+          },
+          knowledgePointIds: existing.knowledgePoints.map((point) => point.knowledgePointId), errorTypeIds: existing.errorTypes.map((error) => error.errorTypeId),
+        });
+        await tx.questionKnowledgePoint.deleteMany({ where: { questionId: existing.id } });
+        await tx.questionErrorType.deleteMany({ where: { questionId: existing.id } });
+        await tx.question.update({ where: { id: existing.id }, data: jsonQuestionUpdateData(item, maps, item.externalId) });
+        continue;
+      }
+
+      const orderedAttempts = [...item.attempts].sort((left, right) => Date.parse(left.attemptedAt) - Date.parse(right.attemptedAt));
+      const mastery = calculateMastery(orderedAttempts.map((attempt) => attempt.result), threshold);
+      const override = item.masteryOverride ?? (item.manuallyMastered ? MasteryOverride.FORCE_MASTERED : null);
+      const mastered = override === MasteryOverride.FORCE_MASTERED || (override !== MasteryOverride.FORCE_ACTIVE && mastery.mastered);
+      const protectedStatus = item.status === QuestionStatus.ARCHIVED || item.status === QuestionStatus.DELETED;
+      const status = protectedStatus ? item.status : mastered ? QuestionStatus.MASTERED : QuestionStatus.ACTIVE;
+      const created = await tx.question.create({
+        data: {
+          code: conflict ? questionCode() : item.code, subjectId, importJobId: job.id,
+          ...jsonQuestionUpdateData(item, maps, conflict ? null : item.externalId),
+          status, correctStreak: mastery.correctStreak, independentCorrectCount: mastery.independentCorrectCount,
+          attemptCount: orderedAttempts.length, wrongCount: mastery.wrongCount,
+          lastAttemptAt: orderedAttempts.at(-1) ? new Date(orderedAttempts.at(-1)!.attemptedAt) : null,
+          masteredAt: mastered ? (item.masteredAt ? new Date(item.masteredAt) : new Date()) : null,
+          masteryOverride: override, manuallyMastered: override === MasteryOverride.FORCE_MASTERED,
+          archivedAt: status === QuestionStatus.ARCHIVED ? (item.archivedAt ? new Date(item.archivedAt) : new Date()) : null,
+          deletedAt: status === QuestionStatus.DELETED ? (item.deletedAt ? new Date(item.deletedAt) : new Date()) : null,
+          attempts: { create: orderedAttempts.map((attempt) => ({
+            result: attempt.result, attemptedAt: new Date(attempt.attemptedAt), durationSeconds: attempt.durationSeconds,
+            confidence: attempt.confidence, errorReason: attempt.errorReason, note: attempt.note,
+            nextReviewAt: attempt.nextReviewAt ? new Date(attempt.nextReviewAt) : null, source: attempt.source,
+          })) },
+        }, select: { id: true },
+      });
+      createdQuestionIds.push(created.id);
+    }
+
+    const siteBefore = await tx.siteSettings.findUnique({ where: { id: 'site' }, select: { siteName: true, siteSubtitle: true, siteDescription: true, accessTitle: true, accessDescription: true, homeGreeting: true, brandColor: true } });
+    const learningBefore = await tx.learningSettings.findUnique({ where: { id: 'learning' }, select: { masteryThreshold: true, repeatedErrorThreshold: true, reviewIntervals: true, timezone: true } });
+    if (preview.data.siteSettings) await tx.siteSettings.update({ where: { id: 'site' }, data: {
+      siteName: preview.data.siteSettings.siteName, siteSubtitle: preview.data.siteSettings.siteSubtitle, siteDescription: preview.data.siteSettings.siteDescription,
+      accessTitle: preview.data.siteSettings.accessTitle, accessDescription: preview.data.siteSettings.accessDescription,
+      homeGreeting: preview.data.siteSettings.homeGreeting, brandColor: preview.data.siteSettings.brandColor,
+    } });
+    if (preview.data.learningSettings) await tx.learningSettings.update({ where: { id: 'learning' }, data: {
+      masteryThreshold: preview.data.learningSettings.masteryThreshold, repeatedErrorThreshold: preview.data.learningSettings.repeatedErrorThreshold,
+      reviewIntervals: preview.data.learningSettings.reviewIntervals, timezone: preview.data.learningSettings.timezone,
+    } });
+    await tx.importJob.update({ where: { id: job.id }, data: {
+      status: ImportJobStatus.COMPLETED, conflictStrategy: strategy, successCount: createdQuestionIds.length + updatedQuestions.length,
+      skippedCount, failedCount: 0, completedAt: new Date(),
+      rollbackData: json({ kind: 'JSON', createdQuestionIds, updatedQuestions, createdTaxonomy: maps.created, siteBefore, learningBefore }),
+    } });
+    await tx.auditLog.create({ data: { action: 'JSON_IMPORT_COMPLETED', entity: 'ImportJob', entityId: job.id, detail: { created: createdQuestionIds.length, updated: updatedQuestions.length, skipped: skippedCount } } });
+  }, { maxWait: 10_000, timeout: 300_000 });
+}
+
 export async function confirmImportJobAction(jobId: string, formData: FormData) {
   await requireUser();
   const strategy = String(formData.get('strategy') || '') as ImportConflictStrategy;
@@ -270,6 +496,11 @@ export async function confirmImportJobAction(jobId: string, formData: FormData) 
 
   const preflightJob = await prisma.importJob.findUnique({ where: { id: jobId } });
   if (!preflightJob || preflightJob.status !== ImportJobStatus.PREVIEWED) throw new Error('导入作业不存在或已经处理。');
+  if (preflightJob.sourceType === ImportSourceType.JSON) {
+    await confirmJsonImportJob(jobId, strategy);
+    revalidatePath('/'); revalidatePath('/questions'); revalidatePath('/imports'); revalidatePath('/settings');
+    redirect(`/imports?completed=${jobId}`);
+  }
   const preflightPreview = storedPreview(preflightJob.preview);
   const preparedImages = new Map<string, PreparedImage>();
   if (preflightJob.sourceType === ImportSourceType.ZIP) {
@@ -384,7 +615,12 @@ export async function rollbackImportJobAction(jobId: string) {
   await prisma.$transaction(async (tx) => {
     const job = await tx.importJob.findUnique({ where: { id: jobId } });
     if (!job || job.status !== ImportJobStatus.COMPLETED || !job.rollbackData) throw new Error('该导入作业不能回滚。');
-    const rollback = job.rollbackData as unknown as { createdQuestionIds: string[]; updatedQuestions: RollbackQuestion[] };
+    const rollback = job.rollbackData as unknown as {
+      kind?: 'JSON'; createdQuestionIds: string[]; updatedQuestions: RollbackQuestion[];
+      createdTaxonomy?: { subjectIds: string[]; textbookIds: string[]; chapterIds: string[]; knowledgePointIds: string[]; errorTypeIds: string[] };
+      siteBefore?: { siteName: string; siteSubtitle: string; siteDescription: string; accessTitle: string; accessDescription: string; homeGreeting: string; brandColor: string } | null;
+      learningBefore?: { masteryThreshold: number; repeatedErrorThreshold: number; reviewIntervals: number[]; timezone: string } | null;
+    };
     const attachments = await tx.attachment.findMany({
       where: { questionId: { in: rollback.createdQuestionIds } },
       select: { storageName: true },
@@ -404,6 +640,17 @@ export async function rollbackImportJobAction(jobId: string) {
           errorTypes: { create: snapshot.errorTypeIds.map((errorTypeId, index) => ({ errorTypeId, primary: index === 0 })) },
         },
       });
+    }
+    if (rollback.kind === 'JSON') {
+      if (rollback.siteBefore) await tx.siteSettings.update({ where: { id: 'site' }, data: rollback.siteBefore });
+      if (rollback.learningBefore) await tx.learningSettings.update({ where: { id: 'learning' }, data: rollback.learningBefore });
+      if (rollback.createdTaxonomy) {
+        await tx.knowledgePoint.deleteMany({ where: { id: { in: rollback.createdTaxonomy.knowledgePointIds } } });
+        await tx.errorType.deleteMany({ where: { id: { in: rollback.createdTaxonomy.errorTypeIds } } });
+        await tx.chapter.deleteMany({ where: { id: { in: rollback.createdTaxonomy.chapterIds } } });
+        await tx.textbook.deleteMany({ where: { id: { in: rollback.createdTaxonomy.textbookIds } } });
+        await tx.subject.deleteMany({ where: { id: { in: rollback.createdTaxonomy.subjectIds } } });
+      }
     }
     await tx.importJob.update({ where: { id: job.id }, data: { status: ImportJobStatus.ROLLED_BACK, rolledBackAt: new Date() } });
     await tx.auditLog.create({ data: { action: 'IMPORT_ROLLED_BACK', entity: 'ImportJob', entityId: job.id, detail: { removed: rollback.createdQuestionIds.length, restored: rollback.updatedQuestions.length } } });

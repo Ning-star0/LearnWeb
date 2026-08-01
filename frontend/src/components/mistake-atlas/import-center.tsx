@@ -1,8 +1,8 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import { AlertCircle, CheckCircle2, FileText, LoaderCircle, Upload } from 'lucide-react';
-import { confirmImportJobAction, previewMarkdownImportAction, type ImportPreviewState } from '@/app/actions/import-actions';
+import { AlertCircle, CheckCircle2, FileJson, FileText, LoaderCircle, Upload } from 'lucide-react';
+import { confirmImportJobAction, previewJsonImportAction, previewMarkdownImportAction, type ImportPreviewState, type JsonImportPreviewState } from '@/app/actions/import-actions';
 
 const template = `---
 schema_version: "1.0"
@@ -60,7 +60,7 @@ export function ImportCenter() {
         <div><h2 className="font-semibold text-slate-900">标准 Markdown / ZIP 导入</h2><p className="mt-1 text-xs text-slate-400">支持粘贴、多选 .md，或单独上传含 questions/ 与 images/ 的 ZIP；预览会检查格式、分类、重复项和真实图片内容。</p></div>
       </div>
       <label className="mt-5 block"><span className="atlas-label">Markdown 文件（可多选）或单个 ZIP</span><input name="files" type="file" accept=".md,.zip,text/markdown,text/plain,application/zip" multiple onChange={() => setRevision((value) => value + 1)} className="block w-full rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600" /></label>
-      <label className="mt-4 block"><span className="atlas-label">粘贴 Markdown</span><textarea name="markdown" defaultValue={template} onChange={() => setRevision((value) => value + 1)} className="mt-1 min-h-[460px] w-full rounded-xl border border-slate-200 bg-slate-950 p-5 font-mono text-sm leading-6 text-slate-100 outline-none focus:border-blue-400" /></label>
+      <label className="mt-4 block"><span className="atlas-label">粘贴 Markdown</span><textarea name="markdown" placeholder={template} onChange={() => setRevision((value) => value + 1)} className="mt-1 min-h-[360px] w-full rounded-xl border border-slate-200 bg-slate-950 p-5 font-mono text-sm leading-6 text-slate-100 outline-none placeholder:text-slate-500 focus:border-blue-400" /></label>
       {state.error ? <div role="alert" className="mt-4 flex gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"><AlertCircle className="mt-0.5 size-4 shrink-0" />{state.error}</div> : null}
       <div className="mt-4 flex justify-end"><button disabled={pending} className="atlas-button-secondary disabled:cursor-wait disabled:opacity-60">{pending ? <LoaderCircle className="size-4 animate-spin" /> : <Upload className="size-4" />}{pending ? '正在解析并检查…' : '生成服务端预览'}</button></div>
     </form>
@@ -84,5 +84,29 @@ export function ImportCenter() {
         <button className="atlas-button-primary mt-4 w-full"><Upload className="size-4" />确认执行导入</button>
       </form> : <div className="mt-5 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">存在解析或分类错误，不能确认导入。请修改内容后重新生成预览。</div>}
     </div> : state.jobId ? <div className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">内容在预览后发生了变化，请重新生成预览。</div> : null}
+  </div>;
+}
+
+export function JsonImportCenter() {
+  const [state, previewAction, pending] = useActionState<JsonImportPreviewState, FormData>(previewJsonImportAction, {});
+  const [revision, setRevision] = useState(0);
+  const [previewRevision, setPreviewRevision] = useState(-1);
+  const previewCurrent = Boolean(state.jobId) && previewRevision === revision;
+  const rows = previewCurrent ? state.rows ?? [] : [];
+  const canConfirm = previewCurrent && rows.every((row) => row.valid);
+  const confirmAction = state.jobId ? confirmImportJobAction.bind(null, state.jobId) : undefined;
+  return <div className="atlas-card p-6">
+    <form action={previewAction} onSubmit={() => setPreviewRevision(revision)}>
+      <div className="flex items-center gap-3"><div className="grid size-10 place-items-center rounded-xl bg-violet-50 text-violet-700"><FileJson className="size-5" /></div><div><h2 className="font-semibold text-slate-900">完整 JSON 回迁</h2><p className="mt-1 text-xs text-slate-400">仅接受本系统导出的版本 1 文件；先验证全部跨表引用，再生成可回滚预览。</p></div></div>
+      <label className="mt-5 block"><span className="atlas-label">JSON 导出文件</span><input name="jsonFile" type="file" accept=".json,application/json" required onChange={() => setRevision((value) => value + 1)} className="block w-full rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600" /></label>
+      {state.error ? <div role="alert" className="mt-4 flex gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"><AlertCircle className="mt-0.5 size-4 shrink-0" />{state.error}</div> : null}
+      <button disabled={pending} className="atlas-button-secondary mt-4 w-full disabled:cursor-wait disabled:opacity-60">{pending ? <LoaderCircle className="size-4 animate-spin" /> : <Upload className="size-4" />}{pending ? '正在验证完整导出…' : '生成 JSON 预览'}</button>
+    </form>
+    {previewCurrent ? <div className="mt-5 border-t border-slate-100 pt-5">
+      <div className="flex items-center justify-between"><h3 className="text-sm font-semibold text-slate-800">预览：{rows.length} 道题</h3><span className="text-xs text-slate-400">作业 {state.jobId?.slice(-8)}</span></div>
+      {state.notice ? <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">{state.notice}</div> : null}
+      <div className="mt-3 max-h-72 divide-y divide-slate-100 overflow-y-auto">{rows.map((row) => <div key={row.key} className="flex gap-2 py-3 text-xs">{row.valid ? <CheckCircle2 className="size-4 shrink-0 text-emerald-600" /> : <AlertCircle className="size-4 shrink-0 text-rose-500" />}<div><div className="font-semibold text-slate-700">{row.title}</div><div className="mt-1 text-slate-400">{row.book} / {row.chapter}</div>{row.conflict ? <div className="mt-1 text-amber-700">重复：{row.conflict.reason}</div> : null}{row.issues.map((issue) => <div key={issue} className="mt-1 text-rose-600">{issue}</div>)}</div></div>)}</div>
+      {canConfirm && confirmAction ? <form action={confirmAction} className="mt-4 space-y-3"><select name="strategy" required defaultValue="SKIP" className="atlas-input"><option value="SKIP">跳过重复题（推荐）</option><option value="UPDATE_BASIC">更新重复题基本信息，保留原重做轨迹</option><option value="CREATE_NEW">重复题也作为新题导入</option></select><button className="atlas-button-primary w-full"><Upload className="size-4" />确认回迁 JSON</button></form> : <div className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">存在不支持的数据，不能确认导入。</div>}
+    </div> : state.jobId ? <div className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">文件在预览后发生变化，请重新生成预览。</div> : null}
   </div>;
 }

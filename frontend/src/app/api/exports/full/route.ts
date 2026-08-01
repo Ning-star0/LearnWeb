@@ -13,5 +13,6 @@ export async function GET() {
     prisma.learningSettings.findUnique({ where: { id: 'learning' } }),
   ]);
   const body = JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), subjects, questions, siteSettings, learningSettings }, null, 2);
+  await prisma.auditLog.create({ data: { action: 'FULL_JSON_EXPORTED', entity: 'System', detail: { subjects: subjects.length, questions: questions.length } } });
   return new NextResponse(body, { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename="mistake-atlas-${new Date().toISOString().slice(0, 10)}.json"`, 'Cache-Control': 'no-store' } });
 }
