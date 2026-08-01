@@ -6,17 +6,16 @@ const prisma = new PrismaClient();
 const username = process.env.ADMIN_USERNAME || 'baixing';
 const initialPassword = process.env.ADMIN_INITIAL_PASSWORD;
 
-if (!initialPassword || initialPassword.length < 12) {
-  throw new Error('ADMIN_INITIAL_PASSWORD 必须设置且至少 12 位。');
+const existingUser = await prisma.user.findUnique({ where: { username } });
+if (!existingUser) {
+  if (!initialPassword || initialPassword.length < 12) {
+    throw new Error('首次初始化时 ADMIN_INITIAL_PASSWORD 必须设置且至少 12 位。');
+  }
+  const passwordHash = await argon2.hash(initialPassword, { type: argon2.argon2id });
+  await prisma.user.create({
+    data: { username, displayName: '主人', passwordHash, mustChangePassword: true },
+  });
 }
-
-const passwordHash = await argon2.hash(initialPassword, { type: argon2.argon2id });
-
-await prisma.user.upsert({
-  where: { username },
-  update: {},
-  create: { username, displayName: '主人', passwordHash, mustChangePassword: true },
-});
 
 await prisma.siteSettings.upsert({ where: { id: 'site' }, update: {}, create: {} });
 await prisma.learningSettings.upsert({ where: { id: 'learning' }, update: {}, create: {} });
