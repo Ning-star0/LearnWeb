@@ -31,7 +31,7 @@ const frontMatterSchema = z.object({
   }).optional(),
   difficulty: z.coerce.number().int().min(1).max(5).default(3),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).default('MEDIUM'),
-  occurred_at: z.string().regex(datePattern, '必须使用 YYYY-MM-DD'),
+  occurred_at: z.union([z.literal('today'), z.string().regex(datePattern, '必须使用 YYYY-MM-DD 或 today')]),
   knowledge_points: z.array(z.string().trim().min(1).max(160)).max(50).default([]),
   error_types: z.array(z.string().trim().min(1).max(160)).min(1).max(30),
   tags: z.array(z.string().trim().min(1).max(80)).max(50).default([]),
@@ -109,6 +109,13 @@ function safeDateTime(value: string | undefined) {
   return date.toISOString();
 }
 
+function occurredAtDate(value: string) {
+  const shanghaiDate = value === 'today'
+    ? new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    : value;
+  return new Date(`${shanghaiDate}T00:00:00+08:00`).toISOString();
+}
+
 function parseOne(document: string, sourceName: string, documentIndex: number): ParsedImportQuestion {
   const frontMatter = document.match(/^---\s*\n([\s\S]*?)\n---\s*(?:\n|$)/);
   if (!frontMatter) throw new Error('缺少 YAML Front Matter，或起止分隔符格式不正确');
@@ -153,7 +160,7 @@ function parseOne(document: string, sourceName: string, documentIndex: number): 
     sourceQuestionNumber,
     difficulty: data.difficulty,
     priority: priorityValues[data.priority],
-    occurredAt: new Date(`${data.occurred_at}T00:00:00+08:00`).toISOString(),
+    occurredAt: occurredAtDate(data.occurred_at),
     knowledgePoints: [...new Set(data.knowledge_points)],
     errorTypes: [...new Set(data.error_types)],
     tags: [...new Set(data.tags)],

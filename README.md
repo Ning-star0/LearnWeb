@@ -11,7 +11,7 @@
 - 数学教材、章节、知识点与错误类型；
 - 错题 Markdown/LaTeX、图片、新增、编辑、软删除和恢复；
 - 重做记录及“连续独立做对 N 次”掌握规则；
-- 到期复习、统计、周报、预报、Markdown 导入和 JSON 导出；
+- 到期复习、统计、周报、预报、可自动建立分类的 Markdown 导入和 JSON 导出；
 - 可选 OpenAI 兼容 AI 学习分析。
 
 详细状态见 [`docs/mistake-atlas/foundation-status.md`](docs/mistake-atlas/foundation-status.md)。

@@ -23,7 +23,7 @@ export default async function ImportsPage({ searchParams }: { searchParams: Prom
       <div className="space-y-5"><ImportCenter /><JsonImportCenter /></div>
       <aside className="space-y-5">
         <div className="atlas-card p-5"><div className="flex items-center gap-2 font-semibold text-slate-800"><FileJson className="size-4" />完整 JSON</div><p className="mt-3 text-xs leading-6 text-slate-500">导出包含学科、教材、章节、知识点、错误类型、错题、重做轨迹、附件元数据和非敏感站点设置；不包含图片文件、密码、会话、图标二进制和服务器密钥。</p><a href="/api/exports/full" className="atlas-button-secondary mt-4 w-full"><Download className="size-4" />立即下载</a></div>
-        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-xs leading-6 text-blue-900"><strong>正式模板规则</strong><br />必须包含 schema_version、数学科目、教材、完整章节路径、题型、首次做错日期、至少一个错误类型，以及“# 题目”“## 我的错因”两个正文区块。未知分类会阻止导入，不再静默忽略。</div>
+        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-xs leading-6 text-blue-900"><strong>正式模板规则</strong><br />必须包含 schema_version、数学科目、教材、完整章节路径、题型、首次做错日期、至少一个错误类型，以及“# 题目”“## 我的错因”两个正文区块。勾选自动建立分类后，系统会在预览中列出新增项，确认时与题目一起写入并支持整批回滚。</div>
       </aside>
     </div>
 

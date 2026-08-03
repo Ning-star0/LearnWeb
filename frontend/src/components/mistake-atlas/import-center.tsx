@@ -6,7 +6,6 @@ import { confirmImportJobAction, previewJsonImportAction, previewMarkdownImportA
 
 const template = `---
 schema_version: "1.0"
-external_id: "math-2026-000001"
 subject: "数学"
 title: "指数函数极限——变量代换"
 book: "张宇 1000 题"
@@ -19,7 +18,7 @@ source:
   question_number: "1.9"
 difficulty: 4
 priority: "HIGH"
-occurred_at: "2026-08-01"
+occurred_at: "today"
 knowledge_points:
   - "重要极限"
   - "变量代换"
@@ -29,7 +28,6 @@ tags:
   - "高等数学"
   - "极限"
 image_files: []
-next_review_at: "2026-08-03"
 ---
 
 # 题目
@@ -71,8 +69,8 @@ export function ImportCenter() {
           <div className="flex flex-col gap-3 text-xs leading-5 text-slate-600 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p>推荐用此格式录入单题或多题；JSON 仅用于整库备份与迁移。</p>
-              <p className="mt-1">必填：版本、学科、教材、章节、题型、发生日期、错因类型、题目正文和“我的错因”。无图片时保留 <code className="rounded bg-white px-1 py-0.5">image_files: []</code>。</p>
-              <p className="mt-1">教材、章节、知识点和错因类型请使用系统中已有名称；批量录入时可连续粘贴多个完整模板，并为每题更换唯一的 external_id。</p>
+              <p className="mt-1">必填：版本、学科、教材、章节、题型、发生日期、错因类型、题目正文和“我的错因”。当天录入可写 <code className="rounded bg-white px-1 py-0.5">{'occurred_at: "today"'}</code>，无图片时保留 <code className="rounded bg-white px-1 py-0.5">image_files: []</code>。</p>
+              <p className="mt-1">默认会按文本自动建立尚不存在的教材、章节、知识点和错因类型；批量录入时可连续粘贴多个完整模板。external_id 为可选项，普通录入不需要填写。</p>
             </div>
             <button
               type="button"
@@ -90,8 +88,20 @@ export function ImportCenter() {
           <pre className="mt-3 max-h-[520px] overflow-auto rounded-xl bg-slate-950 p-4 text-xs leading-5 text-slate-100"><code>{template}</code></pre>
         </div>
       </details>
+      <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+        <input name="autoCreateTaxonomy" type="checkbox" defaultChecked onChange={() => setRevision((value) => value + 1)} className="mt-0.5 size-4 accent-emerald-600" />
+        <span>
+          <span className="block text-sm font-semibold text-emerald-900">自动建立 Markdown 中缺失的分类</span>
+          <span className="mt-1 block text-xs leading-5 text-emerald-700">预览会先列出将新建的教材、章节、知识点和错因类型，确认导入后才写入；停用中的同名分类仍会阻止导入。</span>
+        </span>
+      </label>
       <label className="mt-5 block"><span className="atlas-label">Markdown 文件（可多选）或单个 ZIP</span><input name="files" type="file" accept=".md,.zip,text/markdown,text/plain,application/zip" multiple onChange={() => setRevision((value) => value + 1)} className="block w-full rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600" /></label>
-      <label className="mt-4 block"><span className="atlas-label">粘贴 Markdown</span><textarea name="markdown" placeholder="把复制并填写好的标准 Markdown 粘贴到这里……" onChange={() => setRevision((value) => value + 1)} className="mt-1 min-h-[360px] w-full rounded-xl border border-slate-200 bg-slate-950 p-5 font-mono text-sm leading-6 text-slate-100 outline-none placeholder:text-slate-500 focus:border-blue-400" /></label>
+      <label className="mt-4 block"><span className="atlas-label">粘贴 Markdown</span><textarea name="markdown" placeholder="把复制并填写好的标准 Markdown 粘贴到这里……" onChange={() => setRevision((value) => value + 1)} onKeyDown={(event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+          event.preventDefault();
+          event.currentTarget.form?.requestSubmit();
+        }
+      }} className="mt-1 min-h-[360px] w-full rounded-xl border border-slate-200 bg-slate-950 p-5 font-mono text-sm leading-6 text-slate-100 outline-none placeholder:text-slate-500 focus:border-blue-400" /><span className="mt-1 block text-right text-[11px] text-slate-400">Ctrl / ⌘ + Enter 生成预览</span></label>
       {state.error ? <div role="alert" className="mt-4 flex gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"><AlertCircle className="mt-0.5 size-4 shrink-0" />{state.error}</div> : null}
       <div className="mt-4 flex justify-end"><button disabled={pending} className="atlas-button-secondary disabled:cursor-wait disabled:opacity-60">{pending ? <LoaderCircle className="size-4 animate-spin" /> : <Upload className="size-4" />}{pending ? '正在解析并检查…' : '生成服务端预览'}</button></div>
     </form>
@@ -104,6 +114,7 @@ export function ImportCenter() {
           <div className="text-sm font-semibold text-slate-800">{row.sourceName} · 第 {row.documentIndex} 题 · {row.title}</div>
           <div className="mt-1 text-xs text-slate-400">{row.book} / {row.chapter}</div>
           {row.conflict ? <div className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">检测到重复：{row.conflict.reason}，现有题目 {row.conflict.code}「{row.conflict.title}」</div> : null}
+          {row.taxonomyChanges?.length ? <div className="mt-2 rounded-lg bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-800"><span className="font-semibold">确认后自动建立：</span>{row.taxonomyChanges.join('；')}</div> : null}
           {row.issues.length ? <ul className="mt-2 space-y-1 text-xs text-rose-600">{row.issues.map((issue) => <li key={issue}>· {issue}</li>)}</ul> : null}
         </div>
         <span className={`shrink-0 text-xs font-semibold ${row.valid ? 'text-emerald-600' : 'text-rose-600'}`}>{row.valid ? '可导入' : '需要修正'}</span>

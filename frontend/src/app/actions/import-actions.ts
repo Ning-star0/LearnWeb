@@ -23,10 +23,11 @@ export type PreviewRow = {
   chapter: string;
   valid: boolean;
   issues: string[];
+  taxonomyChanges?: string[];
   conflict: null | { questionId: string; code: string; title: string; reason: string };
 };
 
-type StoredPreview = { items: ParsedImportQuestion[]; rows: PreviewRow[]; parseErrors: ImportParseError[] };
+type StoredPreview = { items: ParsedImportQuestion[]; rows: PreviewRow[]; parseErrors: ImportParseError[]; autoCreateTaxonomy?: boolean };
 
 export type ImportPreviewState = {
   error?: string;
@@ -43,7 +44,20 @@ type TaxonomyResolution = {
   knowledgePointIds: string[];
   errorTypeIds: string[];
   issues: string[];
+  creations: string[];
 };
+
+type CreatedTaxonomy = {
+  subjectIds: string[];
+  textbookIds: string[];
+  chapterIds: string[];
+  knowledgePointIds: string[];
+  errorTypeIds: string[];
+};
+
+function emptyCreatedTaxonomy(): CreatedTaxonomy {
+  return { subjectIds: [], textbookIds: [], chapterIds: [], knowledgePointIds: [], errorTypeIds: [] };
+}
 
 function questionCode() {
   const date = new Date().toISOString().slice(0, 10).replaceAll('-', '');
@@ -54,17 +68,58 @@ function json(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
-async function resolveTaxonomy(client: Prisma.TransactionClient | typeof prisma, subjectId: string, item: ParsedImportQuestion): Promise<TaxonomyResolution> {
+async function resolveTaxonomy(client: Prisma.TransactionClient | typeof prisma, subjectId: string, item: ParsedImportQuestion, autoCreate = false): Promise<TaxonomyResolution> {
   const issues: string[] = [];
-  const textbook = await client.textbook.findFirst({ where: { subjectId, name: item.book, active: true } });
-  if (!textbook) return { textbookId: null, chapterId: null, knowledgePointIds: [], errorTypeIds: [], issues: [`找不到启用的教材：${item.book}`] };
+  const creations: string[] = [];
+  const databaseErrors = await client.errorType.findMany({ where: { subjectId, name: { in: item.errorTypes } }, select: { id: true, name: true, active: true } });
+  const errorByName = new Map(databaseErrors.filter((error) => error.active).map((error) => [error.name, error.id]));
+  const inactiveErrorNames = new Set(databaseErrors.filter((error) => !error.active).map((error) => error.name));
+  for (const name of item.errorTypes) {
+    if (errorByName.has(name)) continue;
+    if (inactiveErrorNames.has(name)) issues.push(`错误类型已停用：${name}`);
+    else if (autoCreate) creations.push(`错误类型：${name}`);
+    else issues.push(`未知错误类型：${name}`);
+  }
+
+  const textbook = await client.textbook.findFirst({ where: { subjectId, name: item.book } });
+  if (!textbook) {
+    if (!autoCreate) issues.unshift(`找不到启用的教材：${item.book}`);
+    else {
+      creations.unshift(`教材：${item.book}`);
+      item.chapterPath.forEach((_, index) => creations.push(`章节：${item.book} / ${item.chapterPath.slice(0, index + 1).join(' / ')}`));
+      item.knowledgePoints.forEach((name) => creations.push(`知识点：${name}`));
+    }
+    return {
+      textbookId: null,
+      chapterId: null,
+      knowledgePointIds: [],
+      errorTypeIds: item.errorTypes.map((name) => errorByName.get(name)).filter((id): id is string => Boolean(id)),
+      issues,
+      creations,
+    };
+  }
+  if (!textbook.active) {
+    issues.unshift(`教材已停用：${item.book}`);
+    return { textbookId: null, chapterId: null, knowledgePointIds: [], errorTypeIds: [], issues, creations };
+  }
 
   let parentId: string | null = null;
   let chapterId: string | null = null;
-  for (const segment of item.chapterPath) {
-    const chapter: { id: string } | null = await client.chapter.findFirst({ where: { textbookId: textbook.id, parentId, name: segment, active: true }, select: { id: true } });
+  for (const [index, segment] of item.chapterPath.entries()) {
+    const chapter: { id: string; active: boolean } | null = await client.chapter.findFirst({ where: { textbookId: textbook.id, parentId, name: segment }, select: { id: true, active: true } });
     if (!chapter) {
-      issues.push(`章节路径不存在：${item.book} / ${item.chapterPath.join(' / ')}`);
+      if (!autoCreate) issues.push(`章节路径不存在：${item.book} / ${item.chapterPath.join(' / ')}`);
+      else {
+        for (let missingIndex = index; missingIndex < item.chapterPath.length; missingIndex += 1) {
+          creations.push(`章节：${item.book} / ${item.chapterPath.slice(0, missingIndex + 1).join(' / ')}`);
+        }
+        item.knowledgePoints.forEach((name) => creations.push(`知识点：${name}`));
+      }
+      chapterId = null;
+      break;
+    }
+    if (!chapter.active) {
+      issues.push(`章节已停用：${item.book} / ${item.chapterPath.slice(0, index + 1).join(' / ')}`);
       chapterId = null;
       break;
     }
@@ -72,24 +127,80 @@ async function resolveTaxonomy(client: Prisma.TransactionClient | typeof prisma,
     parentId = chapter.id;
   }
 
-  if (!chapterId) return { textbookId: textbook.id, chapterId: null, knowledgePointIds: [], errorTypeIds: [], issues };
-  const [points, errors] = await Promise.all([
-    item.knowledgePoints.length ? client.knowledgePoint.findMany({ where: { chapterId, name: { in: item.knowledgePoints }, active: true } }) : [],
-    client.errorType.findMany({ where: { subjectId, name: { in: item.errorTypes }, active: true } }),
-  ]);
-  const pointByName = new Map(points.map((point) => [point.name, point.id]));
-  const errorByName = new Map(errors.map((error) => [error.name, error.id]));
-  const missingPoints = item.knowledgePoints.filter((name) => !pointByName.has(name));
-  const missingErrors = item.errorTypes.filter((name) => !errorByName.has(name));
-  if (missingPoints.length) issues.push(`未知知识点：${missingPoints.join('、')}`);
-  if (missingErrors.length) issues.push(`未知错误类型：${missingErrors.join('、')}`);
+  if (!chapterId) return {
+    textbookId: textbook.id,
+    chapterId: null,
+    knowledgePointIds: [],
+    errorTypeIds: item.errorTypes.map((name) => errorByName.get(name)).filter((id): id is string => Boolean(id)),
+    issues,
+    creations,
+  };
+  const points = item.knowledgePoints.length
+    ? await client.knowledgePoint.findMany({ where: { chapterId, name: { in: item.knowledgePoints } }, select: { id: true, name: true, active: true } })
+    : [];
+  const pointByName = new Map(points.filter((point) => point.active).map((point) => [point.name, point.id]));
+  const inactivePointNames = new Set(points.filter((point) => !point.active).map((point) => point.name));
+  for (const name of item.knowledgePoints) {
+    if (pointByName.has(name)) continue;
+    if (inactivePointNames.has(name)) issues.push(`知识点已停用：${name}`);
+    else if (autoCreate) creations.push(`知识点：${name}`);
+    else issues.push(`未知知识点：${name}`);
+  }
   return {
     textbookId: textbook.id,
     chapterId,
     knowledgePointIds: item.knowledgePoints.map((name) => pointByName.get(name)).filter((id): id is string => Boolean(id)),
     errorTypeIds: item.errorTypes.map((name) => errorByName.get(name)).filter((id): id is string => Boolean(id)),
     issues,
+    creations,
   };
+}
+
+async function materializeTaxonomy(tx: Prisma.TransactionClient, subjectId: string, item: ParsedImportQuestion, created: CreatedTaxonomy): Promise<TaxonomyResolution> {
+  let textbook = await tx.textbook.findFirst({ where: { subjectId, name: item.book } });
+  if (!textbook) {
+    textbook = await tx.textbook.create({ data: { subjectId, name: item.book } });
+    created.textbookIds.push(textbook.id);
+  }
+  if (!textbook.active) throw new Error(`教材已停用：${item.book}`);
+
+  let parentId: string | null = null;
+  let chapterId: string | null = null;
+  for (const [index, segment] of item.chapterPath.entries()) {
+    let chapter: { id: string; active: boolean } | null = await tx.chapter.findFirst({ where: { textbookId: textbook.id, parentId, name: segment }, select: { id: true, active: true } });
+    if (!chapter) {
+      chapter = await tx.chapter.create({ data: { textbookId: textbook.id, parentId, name: segment }, select: { id: true, active: true } });
+      created.chapterIds.push(chapter.id);
+    }
+    if (!chapter.active) throw new Error(`章节已停用：${item.book} / ${item.chapterPath.slice(0, index + 1).join(' / ')}`);
+    chapterId = chapter.id;
+    parentId = chapter.id;
+  }
+  if (!chapterId) throw new Error('章节路径不能为空。');
+
+  const knowledgePointIds: string[] = [];
+  for (const name of item.knowledgePoints) {
+    let point = await tx.knowledgePoint.findFirst({ where: { chapterId, name } });
+    if (!point) {
+      point = await tx.knowledgePoint.create({ data: { chapterId, name } });
+      created.knowledgePointIds.push(point.id);
+    }
+    if (!point.active) throw new Error(`知识点已停用：${name}`);
+    knowledgePointIds.push(point.id);
+  }
+
+  const errorTypeIds: string[] = [];
+  for (const name of item.errorTypes) {
+    let errorType = await tx.errorType.findUnique({ where: { subjectId_name: { subjectId, name } } });
+    if (!errorType) {
+      errorType = await tx.errorType.create({ data: { subjectId, name } });
+      created.errorTypeIds.push(errorType.id);
+    }
+    if (!errorType.active) throw new Error(`错误类型已停用：${name}`);
+    errorTypeIds.push(errorType.id);
+  }
+
+  return { textbookId: textbook.id, chapterId, knowledgePointIds, errorTypeIds, issues: [], creations: [] };
 }
 
 async function findConflict(client: Prisma.TransactionClient | typeof prisma, subjectId: string, item: ParsedImportQuestion, taxonomy: TaxonomyResolution) {
@@ -174,6 +285,7 @@ export async function previewMarkdownImportAction(_previous: ImportPreviewState,
   let storedFileName: string | null = null;
   try {
     const input = await readImportInputs(formData);
+    const autoCreateTaxonomy = formData.get('autoCreateTaxonomy') === 'on';
     const items: ParsedImportQuestion[] = [];
     const parseErrors: ImportParseError[] = [];
     let documentCount = 0;
@@ -188,7 +300,7 @@ export async function previewMarkdownImportAction(_previous: ImportPreviewState,
     const subject = await prisma.subject.findUniqueOrThrow({ where: { slug: 'mathematics' } });
     const rows: PreviewRow[] = [];
     for (const item of items) {
-      const taxonomy = await resolveTaxonomy(prisma, subject.id, item);
+      const taxonomy = await resolveTaxonomy(prisma, subject.id, item, autoCreateTaxonomy);
       const conflict = await findConflict(prisma, subject.id, item, taxonomy);
       const issues = [...taxonomy.issues];
       if (item.imageFiles.length && !input.zip) issues.push('image_files 只能通过包含 images/ 目录的 ZIP 包导入');
@@ -213,6 +325,7 @@ export async function previewMarkdownImportAction(_previous: ImportPreviewState,
         chapter: item.chapterPath.join(' / '),
         valid: issues.length === 0,
         issues,
+        taxonomyChanges: taxonomy.creations,
         conflict,
       });
     }
@@ -222,7 +335,7 @@ export async function previewMarkdownImportAction(_previous: ImportPreviewState,
         title: '解析失败', book: '—', chapter: '—', valid: false, issues: [error.message], conflict: null,
       });
     }
-    const stored: StoredPreview = { items, rows, parseErrors };
+    const stored: StoredPreview = { items, rows, parseErrors, autoCreateTaxonomy };
     if (input.archiveBuffer) storedFileName = await savePendingArchive(input.archiveBuffer);
     const job = await prisma.importJob.create({
       data: {
@@ -235,7 +348,7 @@ export async function previewMarkdownImportAction(_previous: ImportPreviewState,
         errorDetail: parseErrors.length ? json(parseErrors) : undefined,
       },
     });
-    await prisma.auditLog.create({ data: { action: 'IMPORT_PREVIEW_CREATED', entity: 'ImportJob', entityId: job.id, detail: { total: documentCount, invalid: rows.filter((row) => !row.valid).length } } });
+    await prisma.auditLog.create({ data: { action: 'IMPORT_PREVIEW_CREATED', entity: 'ImportJob', entityId: job.id, detail: { total: documentCount, invalid: rows.filter((row) => !row.valid).length, autoCreateTaxonomy } } });
     revalidatePath('/imports');
     return { jobId: job.id, rows, sourceType: input.sourceType };
   } catch (error) {
@@ -527,16 +640,20 @@ export async function confirmImportJobAction(jobId: string, formData: FormData) 
     const subject = await tx.subject.findUniqueOrThrow({ where: { slug: 'mathematics' } });
     const createdQuestionIds: string[] = [];
     const updatedQuestions: Array<Record<string, unknown>> = [];
+    const createdTaxonomy = emptyCreatedTaxonomy();
     let skippedCount = 0;
 
     for (const item of preview.items) {
-      const taxonomy = await resolveTaxonomy(tx, subject.id, item);
-      if (taxonomy.issues.length) throw new Error(`${item.title}：${taxonomy.issues.join('；')}`);
-      const conflict = await findConflict(tx, subject.id, item, taxonomy);
+      const inspectedTaxonomy = await resolveTaxonomy(tx, subject.id, item, Boolean(preview.autoCreateTaxonomy));
+      if (inspectedTaxonomy.issues.length) throw new Error(`${item.title}：${inspectedTaxonomy.issues.join('；')}`);
+      const conflict = await findConflict(tx, subject.id, item, inspectedTaxonomy);
       if (conflict && strategy === ImportConflictStrategy.SKIP) {
         skippedCount += 1;
         continue;
       }
+      const taxonomy = preview.autoCreateTaxonomy
+        ? await materializeTaxonomy(tx, subject.id, item, createdTaxonomy)
+        : inspectedTaxonomy;
       if (conflict && strategy === ImportConflictStrategy.UPDATE_BASIC) {
         const existing = await tx.question.findUniqueOrThrow({
           where: { id: conflict.questionId },
@@ -581,10 +698,13 @@ export async function confirmImportJobAction(jobId: string, formData: FormData) 
         status: ImportJobStatus.COMPLETED, conflictStrategy: strategy,
         successCount: createdQuestionIds.length + updatedQuestions.length,
         skippedCount, failedCount: 0, completedAt: new Date(),
-        rollbackData: json({ createdQuestionIds, updatedQuestions }),
+        rollbackData: json({ createdQuestionIds, updatedQuestions, createdTaxonomy }),
       },
     });
-    await tx.auditLog.create({ data: { action: 'IMPORT_COMPLETED', entity: 'ImportJob', entityId: job.id, detail: { created: createdQuestionIds.length, updated: updatedQuestions.length, skipped: skippedCount, strategy } } });
+    await tx.auditLog.create({ data: { action: 'IMPORT_COMPLETED', entity: 'ImportJob', entityId: job.id, detail: {
+      created: createdQuestionIds.length, updated: updatedQuestions.length, skipped: skippedCount, strategy,
+      createdTaxonomy: createdTaxonomy.textbookIds.length + createdTaxonomy.chapterIds.length + createdTaxonomy.knowledgePointIds.length + createdTaxonomy.errorTypeIds.length,
+    } } });
     }, { maxWait: 10_000, timeout: 60_000 });
   } catch (error) {
     await Promise.all(writtenStorageNames.map((storageName) => removeStoredAttachment(storageName)));
@@ -594,6 +714,9 @@ export async function confirmImportJobAction(jobId: string, formData: FormData) 
   revalidatePath('/');
   revalidatePath('/questions');
   revalidatePath('/imports');
+  revalidatePath('/textbooks');
+  revalidatePath('/knowledge-points');
+  revalidatePath('/error-types');
   redirect(`/imports?completed=${jobId}`);
 }
 
@@ -644,13 +767,13 @@ export async function rollbackImportJobAction(jobId: string) {
     if (rollback.kind === 'JSON') {
       if (rollback.siteBefore) await tx.siteSettings.update({ where: { id: 'site' }, data: rollback.siteBefore });
       if (rollback.learningBefore) await tx.learningSettings.update({ where: { id: 'learning' }, data: rollback.learningBefore });
-      if (rollback.createdTaxonomy) {
-        await tx.knowledgePoint.deleteMany({ where: { id: { in: rollback.createdTaxonomy.knowledgePointIds } } });
-        await tx.errorType.deleteMany({ where: { id: { in: rollback.createdTaxonomy.errorTypeIds } } });
-        await tx.chapter.deleteMany({ where: { id: { in: rollback.createdTaxonomy.chapterIds } } });
-        await tx.textbook.deleteMany({ where: { id: { in: rollback.createdTaxonomy.textbookIds } } });
-        await tx.subject.deleteMany({ where: { id: { in: rollback.createdTaxonomy.subjectIds } } });
-      }
+    }
+    if (rollback.createdTaxonomy) {
+      await tx.knowledgePoint.deleteMany({ where: { id: { in: rollback.createdTaxonomy.knowledgePointIds } } });
+      await tx.errorType.deleteMany({ where: { id: { in: rollback.createdTaxonomy.errorTypeIds } } });
+      await tx.chapter.deleteMany({ where: { id: { in: rollback.createdTaxonomy.chapterIds } } });
+      await tx.textbook.deleteMany({ where: { id: { in: rollback.createdTaxonomy.textbookIds } } });
+      await tx.subject.deleteMany({ where: { id: { in: rollback.createdTaxonomy.subjectIds } } });
     }
     await tx.importJob.update({ where: { id: job.id }, data: { status: ImportJobStatus.ROLLED_BACK, rolledBackAt: new Date() } });
     await tx.auditLog.create({ data: { action: 'IMPORT_ROLLED_BACK', entity: 'ImportJob', entityId: job.id, detail: { removed: rollback.createdQuestionIds.length, restored: rollback.updatedQuestions.length } } });
@@ -659,5 +782,8 @@ export async function rollbackImportJobAction(jobId: string) {
   revalidatePath('/');
   revalidatePath('/questions');
   revalidatePath('/imports');
+  revalidatePath('/textbooks');
+  revalidatePath('/knowledge-points');
+  revalidatePath('/error-types');
   redirect(`/imports?rolledBack=${jobId}`);
 }

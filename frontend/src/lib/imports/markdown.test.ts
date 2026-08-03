@@ -73,3 +73,10 @@ test('相同题干生成稳定指纹', () => {
   const second = parseMarkdownBatch(valid.replace('计算：', '计 算：')).items[0].contentFingerprint;
   assert.equal(first, second);
 });
+
+test('首次做错日期支持 today 快捷值', () => {
+  const item = parseMarkdownBatch(valid.replace('occurred_at: "2026-08-01"', 'occurred_at: "today"')).items[0];
+  const shanghaiDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date(item.occurredAt));
+  const expected = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
+  assert.equal(shanghaiDate, expected);
+});
