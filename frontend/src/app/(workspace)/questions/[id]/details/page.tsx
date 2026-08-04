@@ -13,6 +13,7 @@ import {
   setQuestionArchivedAction,
   updateAttemptAction,
 } from '@/app/actions/math-actions';
+import { AnimatedLink } from '@/components/mistake-atlas/animated-link';
 import { DangerSubmit } from '@/components/mistake-atlas/danger-submit';
 import { MarkdownContent } from '@/components/mistake-atlas/markdown-content';
 import { PageHeader, StatusPill } from '@/components/mistake-atlas/ui';
@@ -103,13 +104,13 @@ export default async function QuestionDetailPage({ params, searchParams }: {
   const progressSteps = Math.min(settings.masteryThreshold, 10);
   const reference = questionReference(question);
 
-  return <>
+  return <div data-page-transition className="atlas-detail-enter">
     <PageHeader
       eyebrow={`${reference.page ? `${reference.page} · ` : ''}系统编号 ${question.code}`}
       title={reference.primary}
       description={`${question.title} · ${question.textbook.name} / ${question.chapter.name}`}
       action={<div className="flex flex-wrap gap-2">
-        <Link href={`/questions/${question.id}`} className="atlas-button-secondary"><ArrowLeft className="size-4" />返回做题</Link>
+        <AnimatedLink href={`/questions/${question.id}`} exit="right" className="atlas-button-secondary"><ArrowLeft className="size-4" />返回做题</AnimatedLink>
         <Link href={`/questions/${question.id}/edit`} className="atlas-button-secondary"><Pencil className="size-4" />编辑</Link>
         <form action={archiveAction}><button className="atlas-button-secondary">{question.status === 'ARCHIVED' ? <ArchiveRestore className="size-4" /> : <Archive className="size-4" />}{question.status === 'ARCHIVED' ? '取消归档' : '归档'}</button></form>
         <form action={deleteAction}><DangerSubmit label="移入回收站" confirmText="确定把这道错题移入回收站吗？历史重做记录会保留。" /></form>
@@ -180,5 +181,5 @@ export default async function QuestionDetailPage({ params, searchParams }: {
         <div className="atlas-card p-6"><div className="flex gap-3"><CalendarClock className="size-5 text-slate-400" /><div><div className="text-xs text-slate-400">下次复习</div><div className="mt-1 font-semibold text-slate-800">{question.nextReviewAt ? displayDate(question.nextReviewAt) : '未安排'}</div>{question.lastAttemptAt ? <div className="mt-2 text-xs text-slate-400">最近重做：{displayDate(question.lastAttemptAt)}</div> : null}</div></div></div>
       </aside>
     </div>
-  </>;
+  </div>;
 }
