@@ -50,6 +50,7 @@ function revalidateMathQuestion(questionId: string) {
   revalidatePath('/status/mastered');
   revalidatePath('/status/repeated-errors');
   revalidatePath(`/questions/${questionId}`);
+  revalidatePath(`/questions/${questionId}/details`);
 }
 
 function questionCode() {
@@ -233,6 +234,40 @@ export async function recordAttemptAction(questionId: string, formData: FormData
   });
   revalidateMathQuestion(questionId);
   redirect(`/questions/${questionId}?attempt=1&from=${change.before}&to=${change.after}${change.statusChanged ? '&statusChanged=1' : ''}`);
+}
+
+export async function recordQuickAttemptAction(questionId: string, result: AttemptResult, _formData: FormData) {
+  await requireUser();
+  void _formData;
+  if (result !== AttemptResult.INDEPENDENT_CORRECT && result !== AttemptResult.WRONG) throw new Error('快捷重做只支持做对或做错。');
+  const attemptedAt = new Date();
+  const change = await prisma.$transaction(async (tx) => {
+    const [question, settings] = await Promise.all([
+      tx.question.findFirst({
+        where: { id: questionId, subject: { slug: 'mathematics' }, status: { in: [QuestionStatus.ACTIVE, QuestionStatus.MASTERED] } },
+      }),
+      tx.learningSettings.upsert({ where: { id: 'learning' }, update: {}, create: {} }),
+    ]);
+    if (!question) throw new Error('错题不存在、已归档或已删除。');
+    await tx.attempt.create({ data: { questionId, result, attemptedAt, source: AttemptSource.MANUAL } });
+    if (result === AttemptResult.WRONG && (question.manuallyMastered || question.masteryOverride === MasteryOverride.FORCE_MASTERED)) {
+      await tx.question.update({ where: { id: questionId }, data: { manuallyMastered: false, masteryOverride: null } });
+    }
+    const updated = await recalculateQuestionInTransaction(tx, questionId);
+    const intervals = settings.reviewIntervals.length ? settings.reviewIntervals : [1, 3, 7, 14, 30];
+    const intervalIndex = result === AttemptResult.WRONG ? 0 : Math.min(updated.correctStreak, intervals.length - 1);
+    const nextReviewAt = updated.status === QuestionStatus.MASTERED
+      ? null
+      : new Date(attemptedAt.getTime() + intervals[intervalIndex] * 24 * 60 * 60 * 1000);
+    await tx.question.update({ where: { id: questionId }, data: { nextReviewAt } });
+    await tx.auditLog.create({ data: {
+      action: 'QUICK_ATTEMPT_CREATED', entity: 'Question', entityId: questionId,
+      detail: { result, attemptedAt: attemptedAt.toISOString(), nextReviewAt: nextReviewAt?.toISOString() ?? null },
+    } });
+    return { before: question.correctStreak, after: updated.correctStreak, statusChanged: question.status !== updated.status };
+  });
+  revalidateMathQuestion(questionId);
+  redirect(`/questions/${questionId}?attempt=1&result=${result === AttemptResult.INDEPENDENT_CORRECT ? 'correct' : 'wrong'}&from=${change.before}&to=${change.after}${change.statusChanged ? '&statusChanged=1' : ''}`);
 }
 
 export async function updateAttemptAction(attemptId: string, formData: FormData) {

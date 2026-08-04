@@ -100,6 +100,11 @@ export function AppShell({ children, site, user, subjects, counts }: {
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const practiceMode = /^\/questions\/[^/]+$/.test(pathname);
+  if (practiceMode) return <div className="min-h-screen bg-slate-50" style={{ '--atlas-blue': site.brandColor } as React.CSSProperties}>
+    {user.mustChangePassword ? <div className="border-b border-amber-200 bg-amber-50 px-6 py-2 text-center text-xs font-medium text-amber-800">首次登录必须先修改初始密码。</div> : null}
+    <main className="px-4 sm:px-6">{children}</main>
+  </div>;
   return (
     <div className="min-h-screen bg-[var(--atlas-canvas)] lg:grid lg:grid-cols-[272px_minmax(0,1fr)]" style={{ '--atlas-blue': site.brandColor } as React.CSSProperties}>
       <aside className="hidden border-r border-slate-200 lg:sticky lg:top-0 lg:block lg:h-screen"><Sidebar pathname={pathname} onNavigate={() => setOpen(false)} site={site} user={user} subjects={subjects} counts={counts} /></aside>

@@ -69,20 +69,6 @@ image_files: []
 
 已知 $a>0$ 且 $a\\ne1$。
 
-**我的原答案：**
-
-$0$
-
-**正确答案：**
-
-$\\ln a$
-
-**标准解法：**
-
-令 $t=1/x$，则 $t\\to0^+$，原式化为
-
-$$\\lim_{t\\to0^+}\\frac{a^t-1}{t}=\\ln a$$
-
 ## 我的错因
 
 **错误发生在哪里：**
@@ -149,7 +135,7 @@ export function ImportCenter() {
           <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-lg border border-blue-100 bg-white p-3"><div className="font-semibold text-slate-700">必填元数据</div><p className="mt-1 text-[11px] leading-5 text-slate-500">学科、教材、章节路径、例题/习题、题型、做错日期、至少一个错因类型。</p></div>
             <div className="rounded-lg border border-blue-100 bg-white p-3"><div className="font-semibold text-slate-700">可选元数据</div><p className="mt-1 text-[11px] leading-5 text-slate-500">标题、页码、题号、知识点、标签、图片、复习日期和 external_id。</p></div>
-            <div className="rounded-lg border border-blue-100 bg-white p-3"><div className="font-semibold text-slate-700">数学内容</div><p className="mt-1 text-[11px] leading-5 text-slate-500">行内公式使用 $...$，独立公式使用 $$...$$；选择题选项直接写在“题目”区块。</p></div>
+            <div className="rounded-lg border border-blue-100 bg-white p-3"><div className="font-semibold text-slate-700">数学题干</div><p className="mt-1 text-[11px] leading-5 text-slate-500">只写题目与必要条件，不记录原答案、正确答案或标准解法；公式支持 $...$ 和 $$...$$。</p></div>
             <div className="rounded-lg border border-blue-100 bg-white p-3"><div className="font-semibold text-slate-700">一次录入多题</div><p className="mt-1 text-[11px] leading-5 text-slate-500">每道题重复一份从 YAML 的 --- 到“复盘备注”的完整结构，直接首尾相接。</p></div>
           </div>
           <pre className="mt-3 max-h-[520px] overflow-auto rounded-xl bg-slate-950 p-4 text-xs leading-5 text-slate-100"><code>{template}</code></pre>
