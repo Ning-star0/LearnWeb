@@ -21,6 +21,7 @@ export type PreviewRow = {
   title: string;
   book: string;
   chapter: string;
+  materialType?: 'EXAMPLE' | 'EXERCISE';
   valid: boolean;
   issues: string[];
   taxonomyChanges?: string[];
@@ -323,6 +324,7 @@ export async function previewMarkdownImportAction(_previous: ImportPreviewState,
         title: item.title,
         book: item.book,
         chapter: item.chapterPath.join(' / '),
+        materialType: item.materialType,
         valid: issues.length === 0,
         issues,
         taxonomyChanges: taxonomy.creations,
@@ -394,6 +396,7 @@ export async function previewJsonImportAction(_previous: JsonImportPreviewState,
       rows.push({
         key: `json:${item.id}`, sourceName: files[0].name, documentIndex: index + 1, title: item.title,
         book: booksByOldId.get(item.textbookId)?.name || '—', chapter: chaptersByOldId.get(item.chapterId)?.name || '—',
+        materialType: item.materialType,
         valid: issues.length === 0, issues, conflict,
       });
     }
@@ -427,7 +430,7 @@ function questionUpdateData(item: ParsedImportQuestion, taxonomy: TaxonomyResolu
     title: item.title, bodyMarkdown: item.bodyMarkdown, wrongReason: item.wrongReason,
     reflection: item.reflection, reminder: item.reminder,
     sourcePage: item.sourcePage, sourceQuestionNumber: item.sourceQuestionNumber,
-    tags: item.tags, questionType: item.questionType, difficulty: item.difficulty, priority: item.priority,
+    tags: item.tags, materialType: item.materialType, questionType: item.questionType, difficulty: item.difficulty, priority: item.priority,
     occurredAt: new Date(item.occurredAt), nextReviewAt: item.nextReviewAt ? new Date(item.nextReviewAt) : null,
     knowledgePoints: { create: taxonomy.knowledgePointIds.map((knowledgePointId, index) => ({ knowledgePointId, primary: index === 0 })) },
     errorTypes: { create: taxonomy.errorTypeIds.map((errorTypeId, index) => ({ errorTypeId, primary: index === 0 })) },
@@ -513,7 +516,7 @@ function jsonQuestionUpdateData(item: FullJsonExport['questions'][number], maps:
   return {
     externalId, contentFingerprint: questionFingerprint(item.bodyMarkdown), textbookId: maps.textbooks.get(item.textbookId)!, chapterId: maps.chapters.get(item.chapterId)!,
     title: item.title, bodyMarkdown: item.bodyMarkdown, wrongReason: item.wrongReason, reflection: item.reflection, reminder: item.reminder,
-    sourcePage: item.sourcePage, sourceQuestionNumber: item.sourceQuestionNumber, tags: item.tags, questionType: item.questionType,
+    sourcePage: item.sourcePage, sourceQuestionNumber: item.sourceQuestionNumber, tags: item.tags, materialType: item.materialType, questionType: item.questionType,
     difficulty: item.difficulty, priority: item.priority, occurredAt: new Date(item.occurredAt), nextReviewAt: item.nextReviewAt ? new Date(item.nextReviewAt) : null,
     knowledgePoints: { create: item.knowledgePoints.map((point) => ({ knowledgePointId: maps.knowledgePoints.get(point.knowledgePointId)!, primary: point.primary })) },
     errorTypes: { create: item.errorTypes.map((errorType) => ({ errorTypeId: maps.errorTypes.get(errorType.errorTypeId)!, primary: errorType.primary })) },
@@ -544,7 +547,7 @@ async function confirmJsonImportJob(jobId: string, strategy: ImportConflictStrat
             externalId: existing.externalId, contentFingerprint: existing.contentFingerprint, textbookId: existing.textbookId, chapterId: existing.chapterId,
             title: existing.title, bodyMarkdown: existing.bodyMarkdown, wrongReason: existing.wrongReason, reflection: existing.reflection,
             reminder: existing.reminder, sourcePage: existing.sourcePage, sourceQuestionNumber: existing.sourceQuestionNumber, tags: existing.tags,
-            questionType: existing.questionType, difficulty: existing.difficulty, priority: existing.priority,
+            materialType: existing.materialType, questionType: existing.questionType, difficulty: existing.difficulty, priority: existing.priority,
             occurredAt: existing.occurredAt.toISOString(), nextReviewAt: existing.nextReviewAt?.toISOString() ?? null,
           },
           knowledgePointIds: existing.knowledgePoints.map((point) => point.knowledgePointId), errorTypeIds: existing.errorTypes.map((error) => error.errorTypeId),
@@ -666,7 +669,7 @@ export async function confirmImportJobAction(jobId: string, formData: FormData) 
             textbookId: existing.textbookId, chapterId: existing.chapterId, title: existing.title,
             bodyMarkdown: existing.bodyMarkdown, wrongReason: existing.wrongReason, reflection: existing.reflection,
             reminder: existing.reminder, sourcePage: existing.sourcePage, sourceQuestionNumber: existing.sourceQuestionNumber,
-            tags: existing.tags, questionType: existing.questionType, difficulty: existing.difficulty, priority: existing.priority,
+            tags: existing.tags, materialType: existing.materialType, questionType: existing.questionType, difficulty: existing.difficulty, priority: existing.priority,
             occurredAt: existing.occurredAt.toISOString(), nextReviewAt: existing.nextReviewAt?.toISOString() ?? null,
           },
           knowledgePointIds: existing.knowledgePoints.map((point) => point.knowledgePointId),
@@ -725,7 +728,7 @@ type RollbackQuestion = {
   data: {
     externalId: string | null; contentFingerprint: string | null; textbookId: string; chapterId: string; title: string;
     bodyMarkdown: string; wrongReason: string; reflection: string | null; reminder: string | null; sourcePage: string | null;
-    sourceQuestionNumber: string | null; tags: string[]; questionType: ParsedImportQuestion['questionType']; difficulty: number;
+    sourceQuestionNumber: string | null; tags: string[]; materialType: ParsedImportQuestion['materialType']; questionType: ParsedImportQuestion['questionType']; difficulty: number;
     priority: number; occurredAt: string; nextReviewAt: string | null;
   };
   knowledgePointIds: string[];

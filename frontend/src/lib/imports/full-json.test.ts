@@ -16,6 +16,7 @@ const fixture = {
 test('解析完整 JSON 导出并验证跨表引用', () => {
   const parsed = parseFullJsonExport(JSON.stringify(fixture));
   assert.equal(parsed.questions[0].title, '测试题');
+  assert.equal(parsed.questions[0].materialType, 'EXERCISE');
 });
 
 test('拒绝题目引用不存在的章节', () => {

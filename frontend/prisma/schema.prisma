@@ -64,6 +64,11 @@ enum QuestionType {
   OTHER
 }
 
+enum QuestionMaterialType {
+  EXAMPLE
+  EXERCISE
+}
+
 model User {
   id                 String    @id @default(cuid())
   username           String    @unique
@@ -202,6 +207,7 @@ model Question {
   sourcePage           String?
   sourceQuestionNumber String?
   tags                 String[]
+  materialType         QuestionMaterialType     @default(EXERCISE)
   questionType         QuestionType
   difficulty           Int                      @default(3)
   priority             Int                      @default(2)
@@ -228,6 +234,7 @@ model Question {
   attachments          Attachment[]
 
   @@index([subjectId, status])
+  @@index([subjectId, materialType])
   @@unique([subjectId, externalId])
   @@index([subjectId, contentFingerprint])
   @@index([importJobId])

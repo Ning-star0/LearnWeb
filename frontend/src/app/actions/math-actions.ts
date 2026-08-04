@@ -1,7 +1,7 @@
 'use server';
 
 import { randomBytes } from 'node:crypto';
-import { AttemptResult, AttemptSource, MasteryOverride, Prisma, QuestionStatus, QuestionType } from '@prisma/client';
+import { AttemptResult, AttemptSource, MasteryOverride, Prisma, QuestionMaterialType, QuestionStatus, QuestionType } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/auth';
@@ -33,6 +33,12 @@ function optionalBoundedNumber(formData: FormData, key: string, minimum: number,
   if (!raw) return null;
   const value = Number(raw);
   if (!Number.isFinite(value) || value < minimum || value > maximum) throw new Error(`${key} 超出允许范围。`);
+  return value;
+}
+
+function materialType(formData: FormData) {
+  const value = text(formData, 'materialType') as QuestionMaterialType;
+  if (!Object.values(QuestionMaterialType).includes(value)) throw new Error('请选择例题或习题。');
   return value;
 }
 
@@ -96,6 +102,7 @@ export async function createQuestionAction(formData: FormData) {
       sourcePage: text(formData, 'sourcePage') || null,
       sourceQuestionNumber: text(formData, 'sourceQuestionNumber') || null,
       tags: text(formData, 'tags').split(/[,，]/).map((item) => item.trim()).filter(Boolean),
+      materialType: materialType(formData),
       questionType: (text(formData, 'questionType') as QuestionType) || QuestionType.CALCULATION,
       difficulty: Math.min(5, Math.max(1, Number(formData.get('difficulty')) || 3)),
       priority: Math.min(4, Math.max(1, Number(formData.get('priority')) || 2)),
@@ -136,6 +143,7 @@ export async function updateQuestionAction(questionId: string, formData: FormDat
         reflection: text(formData, 'reflection') || null, reminder: text(formData, 'reminder') || null,
         sourcePage: text(formData, 'sourcePage') || null, sourceQuestionNumber: text(formData, 'sourceQuestionNumber') || null,
         tags: text(formData, 'tags').split(/[,，]/).map((item) => item.trim()).filter(Boolean),
+        materialType: materialType(formData),
         questionType: text(formData, 'questionType') as QuestionType,
         difficulty: Math.min(5, Math.max(1, Number(formData.get('difficulty')) || 3)),
         priority: Math.min(4, Math.max(1, Number(formData.get('priority')) || 2)),

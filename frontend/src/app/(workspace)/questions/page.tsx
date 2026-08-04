@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, Filter, Plus, Search } from 'lucide-react';
-import { AttemptResult, Prisma, QuestionStatus, QuestionType } from '@prisma/client';
+import { AttemptResult, Prisma, QuestionMaterialType, QuestionStatus, QuestionType } from '@prisma/client';
 import { redirect } from 'next/navigation';
 import { PageHeader } from '@/components/mistake-atlas/ui';
 import { QuestionList } from '@/components/mistake-atlas/question-list';
@@ -8,7 +8,7 @@ import { prisma } from '@/lib/prisma';
 
 type Query = {
   q?: string; status?: string; textbookId?: string; chapterId?: string; knowledgePointId?: string;
-  errorTypeId?: string; questionType?: string; priority?: string; difficulty?: string; review?: string;
+  errorTypeId?: string; materialType?: string; questionType?: string; priority?: string; difficulty?: string; review?: string;
   sort?: string; page?: string; deleted?: string;
 };
 
@@ -38,6 +38,7 @@ export default async function QuestionsPage({ searchParams }: { searchParams: Pr
   const difficulty = integer(query.difficulty, 1, 5);
   const status = query.status && Object.values(QuestionStatus).includes(query.status as QuestionStatus) ? query.status as QuestionStatus : undefined;
   const questionType = query.questionType && Object.values(QuestionType).includes(query.questionType as QuestionType) ? query.questionType as QuestionType : undefined;
+  const materialType = query.materialType && Object.values(QuestionMaterialType).includes(query.materialType as QuestionMaterialType) ? query.materialType as QuestionMaterialType : undefined;
   const now = new Date();
   const endOfToday = new Date(now); endOfToday.setHours(23, 59, 59, 999);
 
@@ -49,6 +50,7 @@ export default async function QuestionsPage({ searchParams }: { searchParams: Pr
     ...(query.chapterId ? { chapterId: query.chapterId } : {}),
     ...(query.knowledgePointId ? { knowledgePoints: { some: { knowledgePointId: query.knowledgePointId } } } : {}),
     ...(query.errorTypeId ? { errorTypes: { some: { errorTypeId: query.errorTypeId } } } : {}),
+    ...(materialType ? { materialType } : {}),
     ...(questionType ? { questionType } : {}),
     ...(priority ? { priority } : {}),
     ...(difficulty ? { difficulty } : {}),
@@ -105,6 +107,7 @@ export default async function QuestionsPage({ searchParams }: { searchParams: Pr
       <select name="chapterId" defaultValue={query.chapterId || ''} className="atlas-input"><option value="">全部章节</option>{chapters.map((item) => <option key={item.id} value={item.id}>{item.textbook.name} / {item.name}</option>)}</select>
       <select name="knowledgePointId" defaultValue={query.knowledgePointId || ''} className="atlas-input"><option value="">全部知识点</option>{points.map((item) => <option key={item.id} value={item.id}>{item.chapter.name} / {item.name}</option>)}</select>
       <select name="errorTypeId" defaultValue={query.errorTypeId || ''} className="atlas-input"><option value="">全部错误类型</option>{errorTypes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+      <select name="materialType" defaultValue={materialType || ''} className="atlas-input"><option value="">全部内容类型</option><option value="EXAMPLE">例题</option><option value="EXERCISE">习题</option></select>
       <select name="questionType" defaultValue={questionType || ''} className="atlas-input"><option value="">全部题型</option><option value="SINGLE_CHOICE">单选题</option><option value="MULTIPLE_CHOICE">多选题</option><option value="FILL_BLANK">填空题</option><option value="CALCULATION">计算题</option><option value="PROOF">证明题</option><option value="TRUE_FALSE">判断题</option><option value="COMPREHENSIVE">综合题</option><option value="OTHER">其他</option></select>
       <select name="status" defaultValue={status || ''} className="atlas-input"><option value="">全部有效状态</option><option value="ACTIVE">学习中</option><option value="MASTERED">已掌握</option><option value="ARCHIVED">已归档</option></select>
       <select name="review" defaultValue={query.review || ''} className="atlas-input"><option value="">全部复习安排</option><option value="OVERDUE">已逾期</option><option value="DUE_TODAY">今日待复习</option><option value="UNSCHEDULED">未安排复习</option></select>

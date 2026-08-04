@@ -43,6 +43,7 @@ const questionSchema = z.object({
   subjectId: id, textbookId: id, chapterId: id, title: z.string().min(1).max(500),
   bodyMarkdown: z.string().min(1).max(200_000), wrongReason: z.string().min(1).max(100_000), reflection: nullableText, reminder: nullableText,
   sourcePage: z.string().max(100).nullable(), sourceQuestionNumber: z.string().max(100).nullable(), tags: z.array(z.string().min(1).max(100)).max(100),
+  materialType: z.enum(['EXAMPLE', 'EXERCISE']).default('EXERCISE'),
   questionType: z.enum(['SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'FILL_BLANK', 'CALCULATION', 'PROOF', 'TRUE_FALSE', 'COMPREHENSIVE', 'OTHER']),
   difficulty: z.number().int().min(1).max(5), priority: z.number().int().min(1).max(4),
   status: z.enum(['ACTIVE', 'MASTERED', 'ARCHIVED', 'DELETED']), masteryOverride: z.enum(['FORCE_MASTERED', 'FORCE_ACTIVE']).nullable().optional(),

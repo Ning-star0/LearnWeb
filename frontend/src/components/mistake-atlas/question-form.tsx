@@ -3,7 +3,7 @@ import { ImagePlus, Save } from 'lucide-react';
 type InitialQuestion = {
   externalId: string | null; occurredAt: Date;
   title: string; bodyMarkdown: string; wrongReason: string; reflection: string | null;
-  reminder: string | null; textbookId: string; chapterId: string; questionType: string;
+  reminder: string | null; textbookId: string; chapterId: string; materialType: string; questionType: string;
   difficulty: number; priority: number; sourcePage: string | null; sourceQuestionNumber: string | null;
   tags: string[]; nextReviewAt: Date | null;
   knowledgePoints: { knowledgePointId: string }[]; errorTypes: { errorTypeId: string }[];
@@ -32,6 +32,7 @@ export function QuestionForm({ action, textbooks, chapters, knowledgePoints, err
           <label><span className="atlas-label">首次做错日期 *</span><input name="occurredAt" type="date" required className="atlas-input" defaultValue={occurredValue} /></label>
           <label><span className="atlas-label">教材 *</span><select name="textbookId" className="atlas-input" required defaultValue={initial?.textbookId}><option value="">选择教材</option>{textbooks.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
           <label><span className="atlas-label">章节 *</span><select name="chapterId" className="atlas-input" required defaultValue={initial?.chapterId}><option value="">选择章节</option>{chapters.map((item) => <option key={item.id} value={item.id}>{item.textbook.name} / {item.name}</option>)}</select></label>
+          <label><span className="atlas-label">内容类型 *</span><select name="materialType" className="atlas-input" required defaultValue={initial?.materialType || 'EXERCISE'}><option value="EXERCISE">习题</option><option value="EXAMPLE">例题</option></select></label>
           <label><span className="atlas-label">题型</span><select name="questionType" className="atlas-input" defaultValue={initial?.questionType || 'CALCULATION'}><option value="SINGLE_CHOICE">单选题</option><option value="MULTIPLE_CHOICE">多选题</option><option value="FILL_BLANK">填空题</option><option value="CALCULATION">计算题</option><option value="PROOF">证明题</option><option value="TRUE_FALSE">判断题</option><option value="COMPREHENSIVE">综合题</option><option value="OTHER">其他</option></select></label>
           <label><span className="atlas-label">下次复习时间</span><input name="nextReviewAt" type="datetime-local" className="atlas-input" defaultValue={reviewValue} /></label>
           <label><span className="atlas-label">难度（1-5）</span><input name="difficulty" type="number" min="1" max="5" className="atlas-input" defaultValue={initial?.difficulty || 3} /></label>

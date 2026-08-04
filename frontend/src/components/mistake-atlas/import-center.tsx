@@ -5,46 +5,107 @@ import { AlertCircle, Check, CheckCircle2, Copy, FileJson, FileText, LoaderCircl
 import { confirmImportJobAction, previewJsonImportAction, previewMarkdownImportAction, type ImportPreviewState, type JsonImportPreviewState } from '@/app/actions/import-actions';
 
 const template = `---
+# 模板版本：必填，不要修改
 schema_version: "1.0"
+
+# 学科：必填；当前数学模块统一写“数学”
 subject: "数学"
+
+# 题目标题：可选；不写时系统会从题干自动截取
 title: "指数函数极限——变量代换"
+
+# 教材与完整章节路径：必填；不存在时可由系统自动建立
 book: "张宇 1000 题"
 chapter_path:
   - "第一章 函数、极限与连续"
   - "函数极限"
+
+# 内容类型：必填；教材讲解中的题写“例题”，章节练习或习题册中的题写“习题”
+material_type: "例题"
+
+# 题型：必填
+# 可选值：单选题、多选题、填空题、计算题、证明题、判断题、综合题、其他
 question_type: "计算题"
+
+# 来源：可选；没有页码或题号时可删除整个 source 区块
 source:
   page: "36"
   question_number: "1.9"
+
+# 难度：1-5；1 最简单，5 最难；默认 3
 difficulty: 4
+
+# 优先级：LOW、MEDIUM、HIGH、URGENT；默认 MEDIUM
 priority: "HIGH"
+
+# 首次做错日期：必填；当天可写 today，历史题写 YYYY-MM-DD
 occurred_at: "today"
+
+# 知识点：可选；可以填写多个；没有时写 []
 knowledge_points:
   - "重要极限"
   - "变量代换"
+
+# 错因类型：必填，至少一个；可以填写多个
 error_types:
-  - "方法选择错误"
+  - "方法没有想到"
+
+# 自定义标签：可选；没有时写 []
 tags:
   - "高等数学"
   - "极限"
+
+# 图片文件：无图片写 []；有图片时请使用 ZIP 导入并填写 images/ 下的路径
 image_files: []
+
+# 以下两项都是可选项，需要时删除行首的 # 并修改内容
+# external_id: "math-2026-000001"
+# next_review_at: "YYYY-MM-DD"
 ---
 
 # 题目
 
 计算极限：$\\lim_{x \\to \\infty} x(a^{1/x}-1)$
 
+已知 $a>0$ 且 $a\\ne1$。
+
+**我的原答案：**
+
+$0$
+
+**正确答案：**
+
+$\\ln a$
+
+**标准解法：**
+
+令 $t=1/x$，则 $t\\to0^+$，原式化为
+
+$$\\lim_{t\\to0^+}\\frac{a^t-1}{t}=\\ln a$$
+
 ## 我的错因
 
-没有想到使用变量代换。
+**错误发生在哪里：**
+
+直接把 $a^{1/x}-1$ 看成趋近于 0，因此误判整个乘积为 0。
+
+**根本原因：**
+
+没有识别出“无穷大乘无穷小”是不定式，也没有想到令 $t=1/x$ 转化为熟悉的重要极限。
+
+**缺少的知识或方法：**
+
+$\\lim_{t\\to0}\\frac{a^t-1}{t}=\\ln a$，以及无穷远变量代换。
 
 ## 一句话提醒
 
-出现 $1/x$ 时先考虑令 $t=1/x$。
+看到 $x\\to\\infty$ 且式中出现 $1/x$，先尝试令 $t=1/x$。
 
 ## 复盘备注
 
-先把无穷远处的极限转化为 $t\\to0^+$。
+**这次如何改正：** 先判断是否为不定式，再选择等价无穷小、重要极限或变量代换。
+
+**相似题识别信号：** $a^{1/x}$、$(1+1/x)^x$、无穷大乘无穷小。
 `;
 
 export function ImportCenter() {
@@ -69,7 +130,7 @@ export function ImportCenter() {
           <div className="flex flex-col gap-3 text-xs leading-5 text-slate-600 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p>推荐用此格式录入单题或多题；JSON 仅用于整库备份与迁移。</p>
-              <p className="mt-1">必填：版本、学科、教材、章节、题型、发生日期、错因类型、题目正文和“我的错因”。当天录入可写 <code className="rounded bg-white px-1 py-0.5">{'occurred_at: "today"'}</code>，无图片时保留 <code className="rounded bg-white px-1 py-0.5">image_files: []</code>。</p>
+              <p className="mt-1">必填：版本、学科、教材、章节、内容类型（例题/习题）、题型、发生日期、错因类型、题目正文和“我的错因”。当天录入可写 <code className="rounded bg-white px-1 py-0.5">{'occurred_at: "today"'}</code>，无图片时保留 <code className="rounded bg-white px-1 py-0.5">image_files: []</code>。</p>
               <p className="mt-1">默认会按文本自动建立尚不存在的教材、章节、知识点和错因类型；批量录入时可连续粘贴多个完整模板。external_id 为可选项，普通录入不需要填写。</p>
             </div>
             <button
@@ -84,6 +145,12 @@ export function ImportCenter() {
               {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
               {copied ? '已复制' : '复制模板'}
             </button>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-lg border border-blue-100 bg-white p-3"><div className="font-semibold text-slate-700">必填元数据</div><p className="mt-1 text-[11px] leading-5 text-slate-500">学科、教材、章节路径、例题/习题、题型、做错日期、至少一个错因类型。</p></div>
+            <div className="rounded-lg border border-blue-100 bg-white p-3"><div className="font-semibold text-slate-700">可选元数据</div><p className="mt-1 text-[11px] leading-5 text-slate-500">标题、页码、题号、知识点、标签、图片、复习日期和 external_id。</p></div>
+            <div className="rounded-lg border border-blue-100 bg-white p-3"><div className="font-semibold text-slate-700">数学内容</div><p className="mt-1 text-[11px] leading-5 text-slate-500">行内公式使用 $...$，独立公式使用 $$...$$；选择题选项直接写在“题目”区块。</p></div>
+            <div className="rounded-lg border border-blue-100 bg-white p-3"><div className="font-semibold text-slate-700">一次录入多题</div><p className="mt-1 text-[11px] leading-5 text-slate-500">每道题重复一份从 YAML 的 --- 到“复盘备注”的完整结构，直接首尾相接。</p></div>
           </div>
           <pre className="mt-3 max-h-[520px] overflow-auto rounded-xl bg-slate-950 p-4 text-xs leading-5 text-slate-100"><code>{template}</code></pre>
         </div>
@@ -112,7 +179,7 @@ export function ImportCenter() {
         {row.valid ? <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600" /> : <AlertCircle className="mt-0.5 size-5 shrink-0 text-rose-500" />}
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-slate-800">{row.sourceName} · 第 {row.documentIndex} 题 · {row.title}</div>
-          <div className="mt-1 text-xs text-slate-400">{row.book} / {row.chapter}</div>
+          <div className="mt-1 text-xs text-slate-400">{row.book} / {row.chapter}{row.materialType ? ` · ${row.materialType === 'EXAMPLE' ? '例题' : '习题'}` : ''}</div>
           {row.conflict ? <div className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">检测到重复：{row.conflict.reason}，现有题目 {row.conflict.code}「{row.conflict.title}」</div> : null}
           {row.taxonomyChanges?.length ? <div className="mt-2 rounded-lg bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-800"><span className="font-semibold">确认后自动建立：</span>{row.taxonomyChanges.join('；')}</div> : null}
           {row.issues.length ? <ul className="mt-2 space-y-1 text-xs text-rose-600">{row.issues.map((issue) => <li key={issue}>· {issue}</li>)}</ul> : null}
@@ -147,7 +214,7 @@ export function JsonImportCenter() {
     {previewCurrent ? <div className="mt-5 border-t border-slate-100 pt-5">
       <div className="flex items-center justify-between"><h3 className="text-sm font-semibold text-slate-800">预览：{rows.length} 道题</h3><span className="text-xs text-slate-400">作业 {state.jobId?.slice(-8)}</span></div>
       {state.notice ? <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">{state.notice}</div> : null}
-      <div className="mt-3 max-h-72 divide-y divide-slate-100 overflow-y-auto">{rows.map((row) => <div key={row.key} className="flex gap-2 py-3 text-xs">{row.valid ? <CheckCircle2 className="size-4 shrink-0 text-emerald-600" /> : <AlertCircle className="size-4 shrink-0 text-rose-500" />}<div><div className="font-semibold text-slate-700">{row.title}</div><div className="mt-1 text-slate-400">{row.book} / {row.chapter}</div>{row.conflict ? <div className="mt-1 text-amber-700">重复：{row.conflict.reason}</div> : null}{row.issues.map((issue) => <div key={issue} className="mt-1 text-rose-600">{issue}</div>)}</div></div>)}</div>
+      <div className="mt-3 max-h-72 divide-y divide-slate-100 overflow-y-auto">{rows.map((row) => <div key={row.key} className="flex gap-2 py-3 text-xs">{row.valid ? <CheckCircle2 className="size-4 shrink-0 text-emerald-600" /> : <AlertCircle className="size-4 shrink-0 text-rose-500" />}<div><div className="font-semibold text-slate-700">{row.title}</div><div className="mt-1 text-slate-400">{row.book} / {row.chapter}{row.materialType ? ` · ${row.materialType === 'EXAMPLE' ? '例题' : '习题'}` : ''}</div>{row.conflict ? <div className="mt-1 text-amber-700">重复：{row.conflict.reason}</div> : null}{row.issues.map((issue) => <div key={issue} className="mt-1 text-rose-600">{issue}</div>)}</div></div>)}</div>
       {canConfirm && confirmAction ? <form action={confirmAction} className="mt-4 space-y-3"><select name="strategy" required defaultValue="SKIP" className="atlas-input"><option value="SKIP">跳过重复题（推荐）</option><option value="UPDATE_BASIC">更新重复题基本信息，保留原重做轨迹</option><option value="CREATE_NEW">重复题也作为新题导入</option></select><button className="atlas-button-primary w-full"><Upload className="size-4" />确认回迁 JSON</button></form> : <div className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">存在不支持的数据，不能确认导入。</div>}
     </div> : state.jobId ? <div className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">文件在预览后发生变化，请重新生成预览。</div> : null}
   </div>;

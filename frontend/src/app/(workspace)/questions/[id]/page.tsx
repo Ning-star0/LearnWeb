@@ -120,6 +120,7 @@ export default async function QuestionDetailPage({ params, searchParams }: {
       <article className="space-y-5">
         <div className="atlas-card p-6 sm:p-8">
           <div className="flex flex-wrap gap-2">
+            <StatusPill tone={question.materialType === 'EXAMPLE' ? 'amber' : 'slate'}>{question.materialType === 'EXAMPLE' ? '例题' : '习题'}</StatusPill>
             <StatusPill tone={statusTone}>{statusLabel}</StatusPill>
             {question.masteryOverride ? <StatusPill tone="amber">人工覆盖：{question.masteryOverride === MasteryOverride.FORCE_MASTERED ? '掌握' : '学习中'}</StatusPill> : null}
             {question.errorTypes.map(({ errorType }) => <StatusPill key={errorType.id}>{errorType.name}</StatusPill>)}

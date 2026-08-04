@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { QuestionType } from '@prisma/client';
+import { QuestionMaterialType, QuestionType } from '@prisma/client';
 import { parseMarkdownBatch } from './markdown.ts';
 
 const valid = `---
@@ -11,6 +11,7 @@ book: "张宇1000题"
 chapter_path:
   - "第一章 函数、极限与连续"
   - "函数极限"
+material_type: "例题"
 question_type: "计算题"
 source:
   page: 36
@@ -51,6 +52,7 @@ test('解析正式 YAML Front Matter 与 Markdown 区块', () => {
   assert.equal(result.items[0].externalId, 'math-2026-000001');
   assert.equal(result.items[0].questionType, QuestionType.CALCULATION);
   assert.deepEqual(result.items[0].chapterPath, ['第一章 函数、极限与连续', '函数极限']);
+  assert.equal(result.items[0].materialType, QuestionMaterialType.EXAMPLE);
   assert.equal(result.items[0].priority, 3);
   assert.equal(result.items[0].sourceQuestionNumber, '1.9');
   assert.equal(result.items[0].reminder, '优先令 $t=1/x$。');
@@ -58,6 +60,13 @@ test('解析正式 YAML Front Matter 与 Markdown 区块', () => {
 
 test('同一批内容可包含多个正式文档', () => {
   const result = parseMarkdownBatch(`${valid}\n${valid.replace('math-2026-000001', 'math-2026-000002')}`);
+  assert.equal(result.documentCount, 2);
+  assert.equal(result.items.length, 2);
+});
+
+test('模板版本前有 YAML 注释时仍可批量拆分', () => {
+  const commented = valid.replace('schema_version: "1.0"', '# 模板版本\nschema_version: "1.0"');
+  const result = parseMarkdownBatch(`${commented}\n${commented.replace('math-2026-000001', 'math-2026-000003')}`);
   assert.equal(result.documentCount, 2);
   assert.equal(result.items.length, 2);
 });

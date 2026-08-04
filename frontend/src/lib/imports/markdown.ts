@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { QuestionType } from '@prisma/client';
+import { QuestionMaterialType, QuestionType } from '@prisma/client';
 import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
 
@@ -15,6 +15,7 @@ const questionTypes = {
 } as const;
 
 const priorityValues = { LOW: 1, MEDIUM: 2, HIGH: 3, URGENT: 4 } as const;
+const materialTypes = { 例题: QuestionMaterialType.EXAMPLE, 习题: QuestionMaterialType.EXERCISE } as const;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 const frontMatterSchema = z.object({
@@ -24,6 +25,7 @@ const frontMatterSchema = z.object({
   subject: z.enum(['数学', 'mathematics', 'MATH']),
   book: z.string().trim().min(1).max(160),
   chapter_path: z.array(z.string().trim().min(1).max(160)).min(1).max(12),
+  material_type: z.enum(['例题', '习题']).default('习题'),
   question_type: z.enum(Object.keys(questionTypes) as [keyof typeof questionTypes, ...(keyof typeof questionTypes)[]]),
   source: z.object({
     page: z.union([z.string(), z.number()]).optional(),
@@ -47,6 +49,7 @@ export type ParsedImportQuestion = {
   title: string;
   book: string;
   chapterPath: string[];
+  materialType: QuestionMaterialType;
   questionType: QuestionType;
   sourcePage: string | null;
   sourceQuestionNumber: string | null;
@@ -73,7 +76,7 @@ function normalizeLineEndings(value: string) {
 
 function documentStarts(raw: string) {
   const starts: number[] = [];
-  const pattern = /^---\s*\n(?=schema_version\s*:)/gm;
+  const pattern = /^---\s*\n(?=(?:[ \t]*#.*\n|[ \t]*\n)*schema_version\s*:)/gm;
   for (const match of raw.matchAll(pattern)) starts.push(match.index ?? 0);
   return starts;
 }
@@ -155,6 +158,7 @@ function parseOne(document: string, sourceName: string, documentIndex: number): 
     title: data.title ?? fallbackTitle ?? data.external_id ?? `导入错题 ${documentIndex}`,
     book: data.book,
     chapterPath: data.chapter_path,
+    materialType: materialTypes[data.material_type],
     questionType: questionTypes[data.question_type],
     sourcePage,
     sourceQuestionNumber,
