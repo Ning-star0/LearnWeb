@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { printMathMarkdown } from './math-rendering';
+
+test('块公式中的普通分式提升为印刷式大分式', () => {
+  assert.equal(printMathMarkdown('$$x=\\frac{1}{2}$$'), '$$x=\\dfrac{1}{2}$$');
+});
+
+test('行内公式保持紧凑且不被改写', () => {
+  assert.equal(printMathMarkdown('条件为 $x=\\frac{1}{2}$。'), '条件为 $x=\\frac{1}{2}$。');
+});
+
+test('已经使用大分式时不会重复改写', () => {
+  assert.equal(printMathMarkdown('$$\\dfrac{a}{b}$$'), '$$\\dfrac{a}{b}$$');
+});

@@ -94,6 +94,24 @@ $\\lim_{t\\to0}\\frac{a^t-1}{t}=\\ln a$，以及无穷远变量代换。
 **相似题识别信号：** $a^{1/x}$、$(1+1/x)^x$、无穷大乘无穷小。
 `;
 
+const formulaTemplate = `复杂公式请单独使用下面的印刷式结构：
+
+$$
+\\begin{aligned}
+&\\text{已知条件：} \\\\
+&f(x)=\\dfrac{分子}{分母} \\\\
+&\\lim_{x \\to x_0} f(x)
+\\end{aligned}
+$$
+
+排版规则：
+1. 简短变量关系才使用行内公式 $...$。
+2. 含分式、极限、根式、求和、积分、矩阵或多层指数时，必须使用独立公式 $$...$$。
+3. 分数统一写成 \\dfrac{分子}{分母}，禁止用 a/b、1/2 这类斜线分数代替。
+4. 多个条件或推导步骤使用 aligned 环境，每个逻辑步骤单独一行，并用 \\\\ 换行。
+5. 分段函数使用 cases 环境；矩阵使用 pmatrix 或 bmatrix 环境。
+6. 括号使用 \\left( \\right)、\\left[ \\right]，使高度随公式自动匹配。`;
+
 const aiPrompt = `请把我接下来提供的数学错题整理成可直接导入“个人学习档案”的标准 Markdown。
 
 必须严格遵守以下规则：
@@ -105,12 +123,15 @@ const aiPrompt = `请把我接下来提供的数学错题整理成可直接导�
 6. book 必须写准确书名。即使题号相同，也要通过 book 区分，例如“张宇基础30讲”和“张宇1000题”。
 7. source.page 和 source.question_number 尽量从材料中提取；无法判断时保留空字符串，不要猜测。
 8. chapter_path 写完整层级；knowledge_points、error_types 和 tags 使用简短、稳定、可复用的中文名称。
-9. occurred_at 默认写 today。公式使用 LaTeX：行内 $...$，独立公式 $$...$$。
+9. occurred_at 默认写 today。公式使用 LaTeX：只有简短变量关系使用行内 $...$；含分式、极限、根式、求和、积分、矩阵或多层指数时必须使用独立公式 $$...$$。所有分式统一写成 \\dfrac{分子}{分母}，禁止写成 a/b 或 1/2；复杂公式使用 aligned 环境分行，每个逻辑步骤一行，不能把多组公式挤在同一行。
 10. “我的错因”必须包含错误发生在哪里、根本原因、缺少的知识或方法；如果原材料没有明确错因，根据我提供的描述归纳，不要虚构做题过程。
 
 请严格套用下面的结构：
 
 ${template}
+
+复杂公式必须遵守下面的排版模板：
+${formulaTemplate}
 
 现在请整理我接下来提供的题目内容：
 `;
@@ -119,7 +140,7 @@ export function ImportCenter() {
   const [state, previewAction, pending] = useActionState<ImportPreviewState, FormData>(previewMarkdownImportAction, {});
   const [revision, setRevision] = useState(0);
   const [previewRevision, setPreviewRevision] = useState(-1);
-  const [copied, setCopied] = useState<'prompt' | 'template' | null>(null);
+  const [copied, setCopied] = useState<'prompt' | 'template' | 'formula' | null>(null);
   const previewCurrent = Boolean(state.jobId) && previewRevision === revision;
   const rows = previewCurrent ? state.rows ?? [] : [];
   const canConfirm = previewCurrent && rows.length > 0 && rows.every((row) => row.valid);
@@ -167,6 +188,21 @@ export function ImportCenter() {
             <div className="rounded-lg border border-blue-100 bg-white p-3"><div className="font-semibold text-slate-700">一次录入多题</div><p className="mt-1 text-[11px] leading-5 text-slate-500">每道题重复一份从 YAML 的 --- 到“复盘备注”的完整结构，直接首尾相接。</p></div>
           </div>
           <pre className="mt-3 max-h-[520px] overflow-auto rounded-xl bg-slate-950 p-4 text-xs leading-5 text-slate-100"><code>{template}</code></pre>
+        </div>
+      </details>
+      <details className="mt-5 overflow-hidden rounded-xl border border-cyan-100 bg-cyan-50/60">
+        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-cyan-950">复杂公式：复制印刷式 LaTeX 模板</summary>
+        <div className="border-t border-cyan-100 px-4 pb-4 pt-3">
+          <div className="flex flex-col gap-3 text-xs leading-6 text-slate-600 sm:flex-row sm:items-start sm:justify-between">
+            <div><p>适用于分式、极限、根式、积分、求和、矩阵、多层指数和多行条件。</p><p className="mt-1">系统会用 KaTeX 按印刷体渲染；块公式中的普通 <code className="rounded bg-white px-1 py-0.5">\\frac</code> 也会自动提升为更清楚的 <code className="rounded bg-white px-1 py-0.5">\\dfrac</code>。</p></div>
+            <button type="button" onClick={async () => { await navigator.clipboard.writeText(formulaTemplate); setCopied('formula'); window.setTimeout(() => setCopied(null), 2000); }} className="atlas-button-secondary shrink-0">{copied === 'formula' ? <Check className="size-4" /> : <Copy className="size-4" />}{copied === 'formula' ? '已复制' : '复制公式模板'}</button>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <div className="rounded-lg border border-cyan-100 bg-white p-3"><div className="font-semibold text-slate-700">上下分式</div><p className="mt-1 text-[11px] leading-5 text-slate-500">使用 \\dfrac，不使用斜线分数。</p></div>
+            <div className="rounded-lg border border-cyan-100 bg-white p-3"><div className="font-semibold text-slate-700">逐行展示</div><p className="mt-1 text-[11px] leading-5 text-slate-500">使用 aligned，一行只放一个逻辑步骤。</p></div>
+            <div className="rounded-lg border border-cyan-100 bg-white p-3"><div className="font-semibold text-slate-700">过宽可滚动</div><p className="mt-1 text-[11px] leading-5 text-slate-500">公式保持印刷比例，不会强行压缩到看不清。</p></div>
+          </div>
+          <pre className="mt-3 max-h-[360px] overflow-auto rounded-xl bg-slate-950 p-4 text-xs leading-5 text-slate-100"><code>{formulaTemplate}</code></pre>
         </div>
       </details>
       <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">

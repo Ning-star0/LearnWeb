@@ -114,3 +114,29 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .atlas-markdown pre code { background: transparent; padding: 0; }
 .atlas-markdown table { width: 100%; border-collapse: collapse; }
 .atlas-markdown th, .atlas-markdown td { border: 1px solid #e2e8f0; padding: 0.5rem 0.75rem; text-align: left; }
+
+.atlas-math-print .katex { color: #1e293b; }
+.atlas-math-print .katex-display {
+  margin: 1.4rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid #e1eaf6;
+  border-radius: 0.9rem;
+  background: #f8fbff;
+  padding: 1.5rem 1.75rem;
+  scrollbar-width: thin;
+  scrollbar-color: #bfcee3 transparent;
+}
+.atlas-math-print .katex-display > .katex {
+  min-width: max-content;
+  font-size: clamp(1.22rem, 1.8vw, 1.55rem);
+  line-height: 1.65;
+  text-align: center;
+}
+.atlas-math-print .katex-display .base { margin-block: 0.12em; }
+.atlas-math-print .katex-display::-webkit-scrollbar { height: 6px; }
+.atlas-math-print .katex-display::-webkit-scrollbar-thumb { border-radius: 999px; background: #bfcee3; }
+
+@media (max-width: 640px) {
+  .atlas-math-print .katex-display { margin: 1rem 0; padding: 1.1rem 1rem; }
+}
