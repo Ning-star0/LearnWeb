@@ -4,7 +4,9 @@ import { AttemptResult, Prisma, QuestionMaterialType, QuestionStatus, QuestionTy
 import { redirect } from 'next/navigation';
 import { PageHeader } from '@/components/mistake-atlas/ui';
 import { QuestionList } from '@/components/mistake-atlas/question-list';
+import { MaterialTypeFilter } from '@/components/mistake-atlas/material-type-filter';
 import { prisma } from '@/lib/prisma';
+import { compareBookQuestions } from '@/lib/question-order';
 import { referenceSearchTerm } from '@/lib/question-reference';
 
 type Query = {
@@ -71,6 +73,7 @@ export default async function QuestionsPage({ searchParams }: { searchParams: Pr
     ] } : {}),
   };
 
+  const bookOrder = !query.sort || query.sort === 'BOOK';
   const orderBy: Prisma.QuestionOrderByWithRelationInput[] = query.sort === 'OLDEST' ? [{ createdAt: 'asc' }]
     : query.sort === 'NEXT_REVIEW' ? [{ nextReviewAt: { sort: 'asc', nulls: 'last' } }, { priority: 'desc' }]
       : query.sort === 'LAST_ATTEMPT' ? [{ lastAttemptAt: { sort: 'desc', nulls: 'last' } }]
@@ -78,7 +81,7 @@ export default async function QuestionsPage({ searchParams }: { searchParams: Pr
           : query.sort === 'STREAK' ? [{ correctStreak: 'desc' }, { updatedAt: 'desc' }]
             : query.sort === 'DIFFICULTY' ? [{ difficulty: 'desc' }, { updatedAt: 'desc' }]
               : query.sort === 'PRIORITY' ? [{ priority: 'desc' }, { updatedAt: 'desc' }]
-                : [{ textbook: { sortOrder: 'asc' } }, { chapter: { sortOrder: 'asc' } }, { sourcePage: { sort: 'asc', nulls: 'last' } }, { sourceQuestionNumber: { sort: 'asc', nulls: 'last' } }, { createdAt: 'asc' }];
+                : [{ createdAt: 'asc' }];
 
   const [questions, total, textbooks, chapters, points, errorTypes] = await Promise.all([
     prisma.question.findMany({
@@ -89,7 +92,8 @@ export default async function QuestionsPage({ searchParams }: { searchParams: Pr
         errorTypes: { include: { errorType: true }, orderBy: { primary: 'desc' } },
         attempts: { orderBy: [{ attemptedAt: 'desc' }, { createdAt: 'desc' }], take: 1, select: { result: true, attemptedAt: true } },
       },
-      orderBy, skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE,
+      orderBy,
+      ...(bookOrder ? {} : { skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE }),
     }),
     prisma.question.count({ where }),
     prisma.textbook.findMany({ where: { subjectId: math.id, active: true }, orderBy: { sortOrder: 'asc' } }),
@@ -100,13 +104,16 @@ export default async function QuestionsPage({ searchParams }: { searchParams: Pr
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   if (page > pageCount) redirect(pageHref(query, pageCount));
   const safePage = page;
+  const visibleQuestions = bookOrder
+    ? [...questions].sort(compareBookQuestions).slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+    : questions;
 
   return <>
     <PageHeader eyebrow="Mathematics · Mistake library" title="数学错题库" description="按书本中的例与练习编号排列，书名用于区分不同资料中的同号题。" action={<div className="flex gap-2"><Link href="/questions/import" className="atlas-button-secondary"><FileUp className="size-4" />批量导入</Link><Link href="/questions/new" className="atlas-button-primary"><Plus className="size-4" />录入单题</Link></div>} />
     {query.deleted ? <div className="mb-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">错题已移入回收站，可随时恢复。</div> : null}
-    <form className="atlas-card mb-5 grid gap-2 p-3 md:grid-cols-[minmax(280px,1fr)_150px_160px_auto]">
+    <form className="atlas-card mb-5 grid gap-2 p-3 md:grid-cols-[minmax(280px,1fr)_180px_160px_auto]">
       <label className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input name="q" defaultValue={q} className="atlas-input pl-9" placeholder="搜索例 1.38、练习 1.1、书名或标题" /></label>
-      <select name="materialType" defaultValue={materialType || ''} className="atlas-input"><option value="">例与练习</option><option value="EXAMPLE">只看书上例题</option><option value="EXERCISE">只看练习题</option></select>
+      <MaterialTypeFilter value={materialType || ''} />
       <select name="sort" defaultValue={query.sort || 'BOOK'} className="atlas-input"><option value="BOOK">按书本顺序</option><option value="NEWEST">最近新增</option><option value="OLDEST">最早新增</option><option value="NEXT_REVIEW">下次复习</option><option value="LAST_ATTEMPT">最近重做</option><option value="MOST_ERRORS">错误次数</option><option value="STREAK">连续正确</option><option value="DIFFICULTY">难度</option><option value="PRIORITY">优先级</option></select>
       <button className="atlas-button-primary"><Search className="size-4" />搜索</button>
       <details className="md:col-span-4">
@@ -125,7 +132,7 @@ export default async function QuestionsPage({ searchParams }: { searchParams: Pr
       </details>
     </form>
     <div className="mb-3 flex items-center justify-between text-xs text-slate-500"><span>共 {total} 道 · 第 {safePage}/{pageCount} 页</span>{Object.values(query).some(Boolean) ? <Link href="/questions" className="font-semibold text-blue-700">清除筛选</Link> : null}</div>
-    <QuestionList questions={questions.map((question) => ({ ...question, latestResultLabel: question.attempts[0] ? resultLabels[question.attempts[0].result] : null, latestAttemptAt: question.attempts[0]?.attemptedAt ?? null }))} />
+    <QuestionList questions={visibleQuestions.map((question) => ({ ...question, latestResultLabel: question.attempts[0] ? resultLabels[question.attempts[0].result] : null, latestAttemptAt: question.attempts[0]?.attemptedAt ?? null }))} />
     {pageCount > 1 ? <nav className="mt-5 flex items-center justify-center gap-3"><Link aria-disabled={safePage <= 1} href={safePage > 1 ? pageHref(query, safePage - 1) : '#'} className={`atlas-button-secondary ${safePage <= 1 ? 'pointer-events-none opacity-40' : ''}`}><ChevronLeft className="size-4" />上一页</Link><span className="text-xs text-slate-500">{safePage} / {pageCount}</span><Link aria-disabled={safePage >= pageCount} href={safePage < pageCount ? pageHref(query, safePage + 1) : '#'} className={`atlas-button-secondary ${safePage >= pageCount ? 'pointer-events-none opacity-40' : ''}`}>下一页<ChevronRight className="size-4" /></Link></nav> : null}
   </>;
 }
