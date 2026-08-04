@@ -19,10 +19,10 @@ function compareNullable(left: string | null, right: string | null) {
 export function compareBookQuestions(left: BookOrderQuestion, right: BookOrderQuestion) {
   return left.textbook.sortOrder - right.textbook.sortOrder
     || natural.compare(left.textbook.name, right.textbook.name)
-    || left.chapter.sortOrder - right.chapter.sortOrder
-    || natural.compare(left.chapter.name, right.chapter.name)
     || (left.materialType === 'EXAMPLE' ? 0 : 1) - (right.materialType === 'EXAMPLE' ? 0 : 1)
     || compareNullable(left.sourceQuestionNumber, right.sourceQuestionNumber)
     || compareNullable(left.sourcePage, right.sourcePage)
+    || left.chapter.sortOrder - right.chapter.sortOrder
+    || natural.compare(left.chapter.name, right.chapter.name)
     || left.createdAt.getTime() - right.createdAt.getTime();
 }

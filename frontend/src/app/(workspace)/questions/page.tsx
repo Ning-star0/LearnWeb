@@ -4,7 +4,7 @@ import { AttemptResult, Prisma, QuestionMaterialType, QuestionStatus, QuestionTy
 import { redirect } from 'next/navigation';
 import { PageHeader } from '@/components/mistake-atlas/ui';
 import { QuestionList } from '@/components/mistake-atlas/question-list';
-import { MaterialTypeFilter } from '@/components/mistake-atlas/material-type-filter';
+import { QuestionFilterSelect } from '@/components/mistake-atlas/question-filter-select';
 import { prisma } from '@/lib/prisma';
 import { compareBookQuestions } from '@/lib/question-order';
 import { referenceSearchTerm } from '@/lib/question-reference';
@@ -16,6 +16,63 @@ type Query = {
 };
 
 const PAGE_SIZE = 50;
+
+const materialTypeOptions = [
+  { value: '', label: '全部', description: '例题和练习题' },
+  { value: 'EXAMPLE', label: '例题', description: '书上讲解例题' },
+  { value: 'EXERCISE', label: '练习题', description: '课后题与习题册' },
+];
+
+const sortOptions = [
+  { value: 'BOOK', label: '按书本顺序', description: '按资料、出处类型和题号排列' },
+  { value: 'NEWEST', label: '最近新增' },
+  { value: 'OLDEST', label: '最早新增' },
+  { value: 'NEXT_REVIEW', label: '下次复习' },
+  { value: 'LAST_ATTEMPT', label: '最近重做' },
+  { value: 'MOST_ERRORS', label: '错误次数' },
+  { value: 'STREAK', label: '连续正确' },
+  { value: 'DIFFICULTY', label: '难度' },
+  { value: 'PRIORITY', label: '优先级' },
+];
+
+const questionTypeOptions = [
+  { value: '', label: '全部题型' },
+  { value: 'SINGLE_CHOICE', label: '单选题' },
+  { value: 'MULTIPLE_CHOICE', label: '多选题' },
+  { value: 'FILL_BLANK', label: '填空题' },
+  { value: 'CALCULATION', label: '计算题' },
+  { value: 'PROOF', label: '证明题' },
+  { value: 'TRUE_FALSE', label: '判断题' },
+  { value: 'COMPREHENSIVE', label: '综合题' },
+  { value: 'OTHER', label: '其他' },
+];
+
+const statusOptions = [
+  { value: '', label: '全部状态' },
+  { value: 'ACTIVE', label: '学习中' },
+  { value: 'MASTERED', label: '已掌握' },
+  { value: 'ARCHIVED', label: '已归档' },
+];
+
+const reviewOptions = [
+  { value: '', label: '全部复习安排' },
+  { value: 'OVERDUE', label: '已逾期' },
+  { value: 'DUE_TODAY', label: '今日待复习' },
+  { value: 'UNSCHEDULED', label: '未安排复习' },
+];
+
+const priorityOptions = [
+  { value: '', label: '全部优先级' },
+  { value: '4', label: '紧急' },
+  { value: '3', label: '高' },
+  { value: '2', label: '普通' },
+  { value: '1', label: '低' },
+];
+
+const difficultyOptions = [
+  { value: '', label: '全部难度' },
+  ...[1, 2, 3, 4, 5].map((value) => ({ value: String(value), label: `难度 ${value}` })),
+];
 
 function integer(value: string | undefined, min: number, max: number) {
   const parsed = Number(value);
@@ -113,21 +170,21 @@ export default async function QuestionsPage({ searchParams }: { searchParams: Pr
     {query.deleted ? <div className="mb-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">错题已移入回收站，可随时恢复。</div> : null}
     <form className="atlas-card mb-5 grid gap-2 p-3 md:grid-cols-[minmax(280px,1fr)_180px_160px_auto]">
       <label className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input name="q" defaultValue={q} className="atlas-input pl-9" placeholder="搜索例 1.38、练习 1.1、书名或标题" /></label>
-      <MaterialTypeFilter value={materialType || ''} />
-      <select name="sort" defaultValue={query.sort || 'BOOK'} className="atlas-input"><option value="BOOK">按书本顺序</option><option value="NEWEST">最近新增</option><option value="OLDEST">最早新增</option><option value="NEXT_REVIEW">下次复习</option><option value="LAST_ATTEMPT">最近重做</option><option value="MOST_ERRORS">错误次数</option><option value="STREAK">连续正确</option><option value="DIFFICULTY">难度</option><option value="PRIORITY">优先级</option></select>
+      <QuestionFilterSelect name="materialType" label="题目类型" value={materialType || ''} options={materialTypeOptions} icon="type" />
+      <QuestionFilterSelect name="sort" label="排序方式" value={query.sort || 'BOOK'} options={sortOptions} icon="sort" />
       <button className="atlas-button-primary"><Search className="size-4" />搜索</button>
       <details className="md:col-span-4">
         <summary className="flex cursor-pointer list-none items-center gap-2 px-1 py-1 text-xs font-semibold text-slate-500 [&::-webkit-details-marker]:hidden"><Filter className="size-3.5" />详细筛选</summary>
         <div className="mt-2 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-2 xl:grid-cols-4">
-          <select name="textbookId" defaultValue={query.textbookId || ''} className="atlas-input"><option value="">全部教材</option>{textbooks.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
-          <select name="chapterId" defaultValue={query.chapterId || ''} className="atlas-input"><option value="">全部章节</option>{chapters.map((item) => <option key={item.id} value={item.id}>{item.textbook.name} / {item.name}</option>)}</select>
-          <select name="knowledgePointId" defaultValue={query.knowledgePointId || ''} className="atlas-input"><option value="">全部知识点</option>{points.map((item) => <option key={item.id} value={item.id}>{item.chapter.name} / {item.name}</option>)}</select>
-          <select name="errorTypeId" defaultValue={query.errorTypeId || ''} className="atlas-input"><option value="">全部错误类型</option>{errorTypes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
-          <select name="questionType" defaultValue={questionType || ''} className="atlas-input"><option value="">全部题型</option><option value="SINGLE_CHOICE">单选题</option><option value="MULTIPLE_CHOICE">多选题</option><option value="FILL_BLANK">填空题</option><option value="CALCULATION">计算题</option><option value="PROOF">证明题</option><option value="TRUE_FALSE">判断题</option><option value="COMPREHENSIVE">综合题</option><option value="OTHER">其他</option></select>
-          <select name="status" defaultValue={status || ''} className="atlas-input"><option value="">全部有效状态</option><option value="ACTIVE">学习中</option><option value="MASTERED">已掌握</option><option value="ARCHIVED">已归档</option></select>
-          <select name="review" defaultValue={query.review || ''} className="atlas-input"><option value="">全部复习安排</option><option value="OVERDUE">已逾期</option><option value="DUE_TODAY">今日待复习</option><option value="UNSCHEDULED">未安排复习</option></select>
-          <select name="priority" defaultValue={priority || ''} className="atlas-input"><option value="">全部优先级</option><option value="4">紧急</option><option value="3">高</option><option value="2">普通</option><option value="1">低</option></select>
-          <select name="difficulty" defaultValue={difficulty || ''} className="atlas-input"><option value="">全部难度</option>{[1, 2, 3, 4, 5].map((value) => <option key={value} value={value}>难度 {value}</option>)}</select>
+          <QuestionFilterSelect name="textbookId" label="教材" value={query.textbookId || ''} icon="book" options={[{ value: '', label: '全部教材' }, ...textbooks.map((item) => ({ value: item.id, label: item.name }))]} />
+          <QuestionFilterSelect name="chapterId" label="章节" value={query.chapterId || ''} icon="chapter" options={[{ value: '', label: '全部章节' }, ...chapters.map((item) => ({ value: item.id, label: `${item.textbook.name} / ${item.name}` }))]} />
+          <QuestionFilterSelect name="knowledgePointId" label="知识点" value={query.knowledgePointId || ''} icon="knowledge" options={[{ value: '', label: '全部知识点' }, ...points.map((item) => ({ value: item.id, label: `${item.chapter.name} / ${item.name}` }))]} />
+          <QuestionFilterSelect name="errorTypeId" label="错误类型" value={query.errorTypeId || ''} icon="error" options={[{ value: '', label: '全部错误类型' }, ...errorTypes.map((item) => ({ value: item.id, label: item.name }))]} />
+          <QuestionFilterSelect name="questionType" label="题型" value={questionType || ''} options={questionTypeOptions} icon="type" />
+          <QuestionFilterSelect name="status" label="掌握状态" value={status || ''} options={statusOptions} icon="status" />
+          <QuestionFilterSelect name="review" label="复习安排" value={query.review || ''} options={reviewOptions} icon="review" />
+          <QuestionFilterSelect name="priority" label="优先级" value={priority ? String(priority) : ''} options={priorityOptions} icon="priority" />
+          <QuestionFilterSelect name="difficulty" label="难度" value={difficulty ? String(difficulty) : ''} options={difficultyOptions} icon="difficulty" />
         </div>
       </details>
     </form>
