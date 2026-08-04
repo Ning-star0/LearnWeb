@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, Filter, Plus, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileUp, Filter, Plus, Search } from 'lucide-react';
 import { AttemptResult, Prisma, QuestionMaterialType, QuestionStatus, QuestionType } from '@prisma/client';
 import { redirect } from 'next/navigation';
 import { PageHeader } from '@/components/mistake-atlas/ui';
@@ -102,11 +102,11 @@ export default async function QuestionsPage({ searchParams }: { searchParams: Pr
   const safePage = page;
 
   return <>
-    <PageHeader eyebrow="Mathematics · Mistake library" title="数学错题库" description="按书本中的例题与习题编号排列，点击即可直接重做。" action={<Link href="/questions/new" className="atlas-button-primary"><Plus className="size-4" />录入错题</Link>} />
+    <PageHeader eyebrow="Mathematics · Mistake library" title="数学错题库" description="按书本中的例与练习编号排列，书名用于区分不同资料中的同号题。" action={<div className="flex gap-2"><Link href="/questions/import" className="atlas-button-secondary"><FileUp className="size-4" />批量导入</Link><Link href="/questions/new" className="atlas-button-primary"><Plus className="size-4" />录入单题</Link></div>} />
     {query.deleted ? <div className="mb-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">错题已移入回收站，可随时恢复。</div> : null}
     <form className="atlas-card mb-5 grid gap-2 p-3 md:grid-cols-[minmax(280px,1fr)_150px_160px_auto]">
-      <label className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input name="q" defaultValue={q} className="atlas-input pl-9" placeholder="搜索例题 1.1、标题或题目编号" /></label>
-      <select name="materialType" defaultValue={materialType || ''} className="atlas-input"><option value="">例题与习题</option><option value="EXAMPLE">只看例题</option><option value="EXERCISE">只看习题</option></select>
+      <label className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input name="q" defaultValue={q} className="atlas-input pl-9" placeholder="搜索例 1.38、练习 1.1、书名或标题" /></label>
+      <select name="materialType" defaultValue={materialType || ''} className="atlas-input"><option value="">例与练习</option><option value="EXAMPLE">只看书上例题</option><option value="EXERCISE">只看练习题</option></select>
       <select name="sort" defaultValue={query.sort || 'BOOK'} className="atlas-input"><option value="BOOK">按书本顺序</option><option value="NEWEST">最近新增</option><option value="OLDEST">最早新增</option><option value="NEXT_REVIEW">下次复习</option><option value="LAST_ATTEMPT">最近重做</option><option value="MOST_ERRORS">错误次数</option><option value="STREAK">连续正确</option><option value="DIFFICULTY">难度</option><option value="PRIORITY">优先级</option></select>
       <button className="atlas-button-primary"><Search className="size-4" />搜索</button>
       <details className="md:col-span-4">

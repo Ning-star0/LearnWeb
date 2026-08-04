@@ -1,0 +1,13 @@
+import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
+import { ImportCenter } from '@/components/mistake-atlas/import-center';
+import { PageHeader } from '@/components/mistake-atlas/ui';
+
+export default async function QuestionImportPage({ searchParams }: { searchParams: Promise<{ completed?: string }> }) {
+  const { completed } = await searchParams;
+  return <>
+    <PageHeader eyebrow="Mathematics · Question import" title="批量导入错题" description="复制 AI 提示词生成标准 Markdown，预览无误后再写入错题库。" action={<Link href="/questions" className="atlas-button-secondary"><ArrowLeft className="size-4" />返回错题库</Link>} />
+    {completed ? <div className="mb-5 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">批量导入已经完成，题目已写入错题库。</div> : null}
+    <ImportCenter />
+  </>;
+}

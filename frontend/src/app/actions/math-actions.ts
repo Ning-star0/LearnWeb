@@ -38,7 +38,7 @@ function optionalBoundedNumber(formData: FormData, key: string, minimum: number,
 
 function materialType(formData: FormData) {
   const value = text(formData, 'materialType') as QuestionMaterialType;
-  if (!Object.values(QuestionMaterialType).includes(value)) throw new Error('请选择例题或习题。');
+  if (!Object.values(QuestionMaterialType).includes(value)) throw new Error('请选择书上例题或练习题。');
   return value;
 }
 

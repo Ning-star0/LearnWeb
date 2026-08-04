@@ -5,7 +5,7 @@ type QuestionReferenceInput = {
 };
 
 export function questionReference(question: QuestionReferenceInput) {
-  const kind = question.materialType === 'EXAMPLE' ? '例题' : '习题';
+  const kind = question.materialType === 'EXAMPLE' ? '例' : '练习';
   const number = question.sourceQuestionNumber?.trim();
   const page = question.sourcePage?.trim();
   return {
@@ -18,7 +18,7 @@ export function questionReference(question: QuestionReferenceInput) {
 export function referenceSearchTerm(query: string) {
   return query
     .replace(/\s+/g, '')
-    .replace(/^(?:例题?|习题?)/, '')
+    .replace(/^(?:例题?|练习题?|习题?)/, '')
     .replace(/^第/, '')
     .replace(/题$/, '');
 }

@@ -11,7 +11,7 @@ schema_version: "1.0"
 # 学科：必填；当前数学模块统一写“数学”
 subject: "数学"
 
-# 辅助标题：可选；错题库会优先显示“例题 1.9”，此标题放在下方帮助辨认
+# 辅助标题：可选；错题库会优先显示“例 1.9”或“练习 1.9”，此标题放在下方帮助辨认
 title: "指数函数极限——变量代换"
 
 # 教材与完整章节路径：必填；不存在时可由系统自动建立
@@ -20,14 +20,14 @@ chapter_path:
   - "第一章 函数、极限与连续"
   - "函数极限"
 
-# 内容类型：必填；教材讲解中的题写“例题”，章节练习或习题册中的题写“习题”
+# 出处类型：必填；书上讲解例题写“例题”，课后练习、基础习题、30讲或1000题写“习题”
 material_type: "例题"
 
 # 题型：必填
 # 可选值：单选题、多选题、填空题、计算题、证明题、判断题、综合题、其他
 question_type: "计算题"
 
-# 书本定位：强烈建议填写；列表主标题会显示为“例题 1.9”，页码显示为辅助信息
+# 书本定位：强烈建议填写；列表主标题显示“例 1.9”或“练习 1.9”，书名和页码同时展示
 source:
   page: "36"
   question_number: "1.9"
@@ -94,11 +94,32 @@ $\\lim_{t\\to0}\\frac{a^t-1}{t}=\\ln a$，以及无穷远变量代换。
 **相似题识别信号：** $a^{1/x}$、$(1+1/x)^x$、无穷大乘无穷小。
 `;
 
+const aiPrompt = `请把我接下来提供的数学错题整理成可直接导入“个人学习档案”的标准 Markdown。
+
+必须严格遵守以下规则：
+1. 只输出最终 Markdown，不要解释，不要使用代码围栏。
+2. 一道题输出一份完整文档；多道题就连续输出多份完整文档，每份都从 --- 开始。
+3. 不记录我的原答案、正确答案或标准解法；“# 题目”里只保留完整题干、条件、选项和必要公式。
+4. 书上讲解部分的例题：material_type 写“例题”，题号如 1.38，系统显示为“例 1.38”。
+5. 课后练习、基础习题以及《30讲》《1000题》等习题册题目：material_type 写“习题”，系统显示为“练习 1.1”。
+6. book 必须写准确书名。即使题号相同，也要通过 book 区分，例如“张宇基础30讲”和“张宇1000题”。
+7. source.page 和 source.question_number 尽量从材料中提取；无法判断时保留空字符串，不要猜测。
+8. chapter_path 写完整层级；knowledge_points、error_types 和 tags 使用简短、稳定、可复用的中文名称。
+9. occurred_at 默认写 today。公式使用 LaTeX：行内 $...$，独立公式 $$...$$。
+10. “我的错因”必须包含错误发生在哪里、根本原因、缺少的知识或方法；如果原材料没有明确错因，根据我提供的描述归纳，不要虚构做题过程。
+
+请严格套用下面的结构：
+
+${template}
+
+现在请整理我接下来提供的题目内容：
+`;
+
 export function ImportCenter() {
   const [state, previewAction, pending] = useActionState<ImportPreviewState, FormData>(previewMarkdownImportAction, {});
   const [revision, setRevision] = useState(0);
   const [previewRevision, setPreviewRevision] = useState(-1);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<'prompt' | 'template' | null>(null);
   const previewCurrent = Boolean(state.jobId) && previewRevision === revision;
   const rows = previewCurrent ? state.rows ?? [] : [];
   const canConfirm = previewCurrent && rows.length > 0 && rows.every((row) => row.valid);
@@ -110,8 +131,15 @@ export function ImportCenter() {
         <div className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><FileText className="size-5" /></div>
         <div><h2 className="font-semibold text-slate-900">标准 Markdown / ZIP 导入</h2><p className="mt-1 text-xs text-slate-400">支持粘贴、多选 .md，或单独上传含 questions/ 与 images/ 的 ZIP；预览会检查格式、分类、重复项和真实图片内容。</p></div>
       </div>
+      <details className="mt-5 overflow-hidden rounded-xl border border-amber-200 bg-amber-50/70">
+        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-amber-950">第一步：复制 AI 生成提示词</summary>
+        <div className="border-t border-amber-200 px-4 pb-4 pt-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><p className="text-xs leading-6 text-amber-900">把这段提示词发给 AI，再在末尾粘贴原题、书名、章节、页码、题号和错因。AI 返回的内容可以直接粘贴到下方导入框。</p><button type="button" onClick={async () => { await navigator.clipboard.writeText(aiPrompt); setCopied('prompt'); window.setTimeout(() => setCopied(null), 2000); }} className="atlas-button-secondary shrink-0">{copied === 'prompt' ? <Check className="size-4" /> : <Copy className="size-4" />}{copied === 'prompt' ? '已复制' : '复制完整提示词'}</button></div>
+          <pre className="mt-3 max-h-[360px] overflow-auto rounded-xl bg-slate-950 p-4 text-xs leading-5 text-slate-100"><code>{aiPrompt}</code></pre>
+        </div>
+      </details>
       <details className="mt-5 overflow-hidden rounded-xl border border-blue-100 bg-blue-50/60">
-        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-blue-900">展开标准 Markdown 模板（可一键复制）</summary>
+        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-blue-900">第二步：查看标准 Markdown 模板</summary>
         <div className="border-t border-blue-100 px-4 pb-4 pt-3">
           <div className="flex flex-col gap-3 text-xs leading-5 text-slate-600 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -123,17 +151,17 @@ export function ImportCenter() {
               type="button"
               onClick={async () => {
                 await navigator.clipboard.writeText(template);
-                setCopied(true);
-                window.setTimeout(() => setCopied(false), 2000);
+                setCopied('template');
+                window.setTimeout(() => setCopied(null), 2000);
               }}
               className="atlas-button-secondary shrink-0"
             >
-              {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-              {copied ? '已复制' : '复制模板'}
+              {copied === 'template' ? <Check className="size-4" /> : <Copy className="size-4" />}
+              {copied === 'template' ? '已复制' : '复制模板'}
             </button>
           </div>
           <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-lg border border-blue-100 bg-white p-3"><div className="font-semibold text-slate-700">必填元数据</div><p className="mt-1 text-[11px] leading-5 text-slate-500">学科、教材、章节路径、例题/习题、题型、做错日期、至少一个错因类型。</p></div>
+            <div className="rounded-lg border border-blue-100 bg-white p-3"><div className="font-semibold text-slate-700">出处不会混淆</div><p className="mt-1 text-[11px] leading-5 text-slate-500">例题显示“例”，课后与习题册显示“练习”；同号题再用书名区分。</p></div>
             <div className="rounded-lg border border-blue-100 bg-white p-3"><div className="font-semibold text-slate-700">可选元数据</div><p className="mt-1 text-[11px] leading-5 text-slate-500">标题、页码、题号、知识点、标签、图片、复习日期和 external_id。</p></div>
             <div className="rounded-lg border border-blue-100 bg-white p-3"><div className="font-semibold text-slate-700">数学题干</div><p className="mt-1 text-[11px] leading-5 text-slate-500">只写题目与必要条件，不记录原答案、正确答案或标准解法；公式支持 $...$ 和 $$...$$。</p></div>
             <div className="rounded-lg border border-blue-100 bg-white p-3"><div className="font-semibold text-slate-700">一次录入多题</div><p className="mt-1 text-[11px] leading-5 text-slate-500">每道题重复一份从 YAML 的 --- 到“复盘备注”的完整结构，直接首尾相接。</p></div>
@@ -165,7 +193,7 @@ export function ImportCenter() {
         {row.valid ? <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600" /> : <AlertCircle className="mt-0.5 size-5 shrink-0 text-rose-500" />}
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-slate-800">{row.sourceName} · 第 {row.documentIndex} 题 · {row.title}</div>
-          <div className="mt-1 text-xs text-slate-400">{row.book} / {row.chapter}{row.materialType ? ` · ${row.materialType === 'EXAMPLE' ? '例题' : '习题'}` : ''}</div>
+          <div className="mt-1 text-xs text-slate-400">{row.reference ? `${row.reference} · ` : ''}{row.book}{row.pageLabel ? ` · ${row.pageLabel}` : ''} / {row.chapter}</div>
           {row.conflict ? <div className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">检测到重复：{row.conflict.reason}，现有题目 {row.conflict.code}「{row.conflict.title}」</div> : null}
           {row.taxonomyChanges?.length ? <div className="mt-2 rounded-lg bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-800"><span className="font-semibold">确认后自动建立：</span>{row.taxonomyChanges.join('；')}</div> : null}
           {row.issues.length ? <ul className="mt-2 space-y-1 text-xs text-rose-600">{row.issues.map((issue) => <li key={issue}>· {issue}</li>)}</ul> : null}
@@ -200,7 +228,7 @@ export function JsonImportCenter() {
     {previewCurrent ? <div className="mt-5 border-t border-slate-100 pt-5">
       <div className="flex items-center justify-between"><h3 className="text-sm font-semibold text-slate-800">预览：{rows.length} 道题</h3><span className="text-xs text-slate-400">作业 {state.jobId?.slice(-8)}</span></div>
       {state.notice ? <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">{state.notice}</div> : null}
-      <div className="mt-3 max-h-72 divide-y divide-slate-100 overflow-y-auto">{rows.map((row) => <div key={row.key} className="flex gap-2 py-3 text-xs">{row.valid ? <CheckCircle2 className="size-4 shrink-0 text-emerald-600" /> : <AlertCircle className="size-4 shrink-0 text-rose-500" />}<div><div className="font-semibold text-slate-700">{row.title}</div><div className="mt-1 text-slate-400">{row.book} / {row.chapter}{row.materialType ? ` · ${row.materialType === 'EXAMPLE' ? '例题' : '习题'}` : ''}</div>{row.conflict ? <div className="mt-1 text-amber-700">重复：{row.conflict.reason}</div> : null}{row.issues.map((issue) => <div key={issue} className="mt-1 text-rose-600">{issue}</div>)}</div></div>)}</div>
+      <div className="mt-3 max-h-72 divide-y divide-slate-100 overflow-y-auto">{rows.map((row) => <div key={row.key} className="flex gap-2 py-3 text-xs">{row.valid ? <CheckCircle2 className="size-4 shrink-0 text-emerald-600" /> : <AlertCircle className="size-4 shrink-0 text-rose-500" />}<div><div className="font-semibold text-slate-700">{row.title}</div><div className="mt-1 text-slate-400">{row.reference ? `${row.reference} · ` : ''}{row.book}{row.pageLabel ? ` · ${row.pageLabel}` : ''} / {row.chapter}</div>{row.conflict ? <div className="mt-1 text-amber-700">重复：{row.conflict.reason}</div> : null}{row.issues.map((issue) => <div key={issue} className="mt-1 text-rose-600">{issue}</div>)}</div></div>)}</div>
       {canConfirm && confirmAction ? <form action={confirmAction} className="mt-4 space-y-3"><select name="strategy" required defaultValue="SKIP" className="atlas-input"><option value="SKIP">跳过重复题（推荐）</option><option value="UPDATE_BASIC">更新重复题基本信息，保留原重做轨迹</option><option value="CREATE_NEW">重复题也作为新题导入</option></select><button className="atlas-button-primary w-full"><Upload className="size-4" />确认回迁 JSON</button></form> : <div className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">存在不支持的数据，不能确认导入。</div>}
     </div> : state.jobId ? <div className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">文件在预览后发生变化，请重新生成预览。</div> : null}
   </div>;

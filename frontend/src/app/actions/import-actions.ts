@@ -13,6 +13,7 @@ import { parseMarkdownBatch, questionFingerprint, type ImportParseError, type Pa
 import { inspectImportZip, resolveZipImagePath, type InspectedImportZip } from '@/lib/imports/zip';
 import { calculateMastery } from '@/lib/mastery';
 import { prisma } from '@/lib/prisma';
+import { questionReference } from '@/lib/question-reference';
 
 export type PreviewRow = {
   key: string;
@@ -22,6 +23,8 @@ export type PreviewRow = {
   book: string;
   chapter: string;
   materialType?: 'EXAMPLE' | 'EXERCISE';
+  reference?: string;
+  pageLabel?: string | null;
   valid: boolean;
   issues: string[];
   taxonomyChanges?: string[];
@@ -212,9 +215,9 @@ async function findConflict(client: Prisma.TransactionClient | typeof prisma, su
   }
   if (taxonomy.textbookId && taxonomy.chapterId && item.sourceQuestionNumber) {
     const match = await client.question.findFirst({
-      where: { subjectId, textbookId: taxonomy.textbookId, chapterId: taxonomy.chapterId, sourceQuestionNumber: item.sourceQuestionNumber }, select,
+      where: { subjectId, textbookId: taxonomy.textbookId, chapterId: taxonomy.chapterId, materialType: item.materialType, sourceQuestionNumber: item.sourceQuestionNumber }, select,
     });
-    if (match) return { questionId: match.id, code: match.code, title: match.title, reason: `教材、章节和题号：${item.sourceQuestionNumber}` };
+    if (match) return { questionId: match.id, code: match.code, title: match.title, reason: `${item.book} · ${item.materialType === 'EXAMPLE' ? '例' : '练习'} ${item.sourceQuestionNumber}` };
   }
   const match = await client.question.findFirst({ where: { subjectId, contentFingerprint: item.contentFingerprint }, select });
   return match ? { questionId: match.id, code: match.code, title: match.title, reason: '题干内容指纹相同' } : null;
@@ -325,6 +328,8 @@ export async function previewMarkdownImportAction(_previous: ImportPreviewState,
         book: item.book,
         chapter: item.chapterPath.join(' / '),
         materialType: item.materialType,
+        reference: questionReference(item).primary,
+        pageLabel: questionReference(item).page,
         valid: issues.length === 0,
         issues,
         taxonomyChanges: taxonomy.creations,
@@ -397,6 +402,8 @@ export async function previewJsonImportAction(_previous: JsonImportPreviewState,
         key: `json:${item.id}`, sourceName: files[0].name, documentIndex: index + 1, title: item.title,
         book: booksByOldId.get(item.textbookId)?.name || '—', chapter: chaptersByOldId.get(item.chapterId)?.name || '—',
         materialType: item.materialType,
+        reference: questionReference(item).primary,
+        pageLabel: questionReference(item).page,
         valid: issues.length === 0, issues, conflict,
       });
     }
@@ -717,10 +724,11 @@ export async function confirmImportJobAction(jobId: string, formData: FormData) 
   revalidatePath('/');
   revalidatePath('/questions');
   revalidatePath('/imports');
+  revalidatePath('/questions/import');
   revalidatePath('/textbooks');
   revalidatePath('/knowledge-points');
   revalidatePath('/error-types');
-  redirect(`/imports?completed=${jobId}`);
+  redirect(`/questions/import?completed=${jobId}`);
 }
 
 type RollbackQuestion = {
