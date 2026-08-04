@@ -101,23 +101,19 @@ export function AppShell({ children, site, user, subjects, counts }: {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const practiceMode = /^\/questions\/[^/]+$/.test(pathname);
-  if (practiceMode) return <div className="min-h-screen bg-slate-50" style={{ '--atlas-blue': site.brandColor } as React.CSSProperties}>
-    {user.mustChangePassword ? <div className="border-b border-amber-200 bg-amber-50 px-6 py-2 text-center text-xs font-medium text-amber-800">首次登录必须先修改初始密码。</div> : null}
-    <main className="px-4 sm:px-6">{children}</main>
-  </div>;
   return (
     <div className="min-h-screen bg-[var(--atlas-canvas)] lg:grid lg:grid-cols-[272px_minmax(0,1fr)]" style={{ '--atlas-blue': site.brandColor } as React.CSSProperties}>
       <aside className="hidden border-r border-slate-200 lg:sticky lg:top-0 lg:block lg:h-screen"><Sidebar pathname={pathname} onNavigate={() => setOpen(false)} site={site} user={user} subjects={subjects} counts={counts} /></aside>
       {open ? <div className="fixed inset-0 z-50 lg:hidden"><button aria-label="关闭导航" className="absolute inset-0 bg-slate-950/30" onClick={() => setOpen(false)} /><aside className="relative h-full w-[286px] shadow-2xl"><button aria-label="关闭导航" className="absolute right-3 top-3 z-10 rounded-lg p-2 text-slate-500 hover:bg-slate-100" onClick={() => setOpen(false)}><X className="size-5" /></button><Sidebar pathname={pathname} onNavigate={() => setOpen(false)} site={site} user={user} subjects={subjects} counts={counts} /></aside></div> : null}
       <div className="min-w-0">
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-slate-200/90 bg-white/95 px-4 backdrop-blur lg:px-8">
+        <header className={practiceMode ? 'sticky top-0 z-30 flex h-12 items-center border-b border-slate-200/90 bg-white/95 px-4 backdrop-blur lg:hidden' : 'sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-slate-200/90 bg-white/95 px-4 backdrop-blur lg:px-8'}>
           <button aria-label="打开导航" className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden" onClick={() => setOpen(true)}><Menu className="size-5" /></button>
-          <form action="/questions" className="relative hidden max-w-md flex-1 md:block"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input name="q" className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none transition focus:border-[var(--atlas-blue)] focus:bg-white focus:ring-2 focus:ring-blue-100" placeholder="搜索题目、知识点、错因…" /></form>
-          <div className="ml-auto flex items-center gap-3"><span className="hidden text-xs font-medium text-slate-400 xl:inline">数学模块 · 当前启用</span><Link href="/questions/new" className="atlas-button-primary"><Plus className="size-4" />新建错题</Link></div>
+          {!practiceMode ? <><form action="/questions" className="relative hidden max-w-md flex-1 md:block"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input name="q" className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none transition focus:border-[var(--atlas-blue)] focus:bg-white focus:ring-2 focus:ring-blue-100" placeholder="搜索题目、知识点、错因…" /></form>
+          <div className="ml-auto flex items-center gap-3"><span className="hidden text-xs font-medium text-slate-400 xl:inline">数学模块 · 当前启用</span><Link href="/questions/new" className="atlas-button-primary"><Plus className="size-4" />新建错题</Link></div></> : <span className="ml-2 text-xs font-medium text-slate-500">专注做题</span>}
         </header>
         {user.mustChangePassword ? <div className="border-b border-amber-200 bg-amber-50 px-6 py-2 text-center text-xs font-medium text-amber-800">首次登录必须先修改初始密码，修改后所有设备会重新验证。</div> : null}
-        <main className="mx-auto w-full max-w-[1560px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{children}</main>
-        <footer className="px-6 pb-6 text-center text-xs text-slate-400">{site.name} · 私人学习档案 · <a className="hover:text-slate-600" href="https://beian.miit.gov.cn/" target="_blank" rel="noreferrer">冀ICP备2026007268号-1</a></footer>
+        <main className={`mx-auto w-full max-w-[1560px] px-4 sm:px-6 lg:px-8 ${practiceMode ? 'py-2 lg:py-3' : 'py-6 lg:py-8'}`}>{children}</main>
+        {!practiceMode ? <footer className="px-6 pb-6 text-center text-xs text-slate-400">{site.name} · 私人学习档案 · <a className="hover:text-slate-600" href="https://beian.miit.gov.cn/" target="_blank" rel="noreferrer">冀ICP备2026007268号-1</a></footer> : null}
       </div>
     </div>
   );

@@ -27,13 +27,15 @@ export function QuestionForm({ action, textbooks, chapters, knowledgePoints, err
     <form action={action} className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
       <div className="atlas-card p-6 sm:p-7">
         <div className="grid gap-5 md:grid-cols-2">
-          <label className="md:col-span-2"><span className="atlas-label">题目标题 *</span><input name="title" className="atlas-input" required defaultValue={initial?.title} placeholder="用一句话辨认这道错题" /></label>
+          <label className="md:col-span-2"><span className="atlas-label">辅助标题 *</span><input name="title" className="atlas-input" required defaultValue={initial?.title} placeholder="例如：泰勒展开确定五阶无穷小参数" /></label>
           <label><span className="atlas-label">外部标识</span><input name="externalId" className="atlas-input" defaultValue={initial?.externalId || ''} placeholder="例如 math-2026-000001" /></label>
           <label><span className="atlas-label">首次做错日期 *</span><input name="occurredAt" type="date" required className="atlas-input" defaultValue={occurredValue} /></label>
           <label><span className="atlas-label">教材 *</span><select name="textbookId" className="atlas-input" required defaultValue={initial?.textbookId}><option value="">选择教材</option>{textbooks.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
           <label><span className="atlas-label">章节 *</span><select name="chapterId" className="atlas-input" required defaultValue={initial?.chapterId}><option value="">选择章节</option>{chapters.map((item) => <option key={item.id} value={item.id}>{item.textbook.name} / {item.name}</option>)}</select></label>
           <label><span className="atlas-label">内容类型 *</span><select name="materialType" className="atlas-input" required defaultValue={initial?.materialType || 'EXERCISE'}><option value="EXERCISE">习题</option><option value="EXAMPLE">例题</option></select></label>
           <label><span className="atlas-label">题型</span><select name="questionType" className="atlas-input" defaultValue={initial?.questionType || 'CALCULATION'}><option value="SINGLE_CHOICE">单选题</option><option value="MULTIPLE_CHOICE">多选题</option><option value="FILL_BLANK">填空题</option><option value="CALCULATION">计算题</option><option value="PROOF">证明题</option><option value="TRUE_FALSE">判断题</option><option value="COMPREHENSIVE">综合题</option><option value="OTHER">其他</option></select></label>
+          <label><span className="atlas-label">书本页码</span><input name="sourcePage" className="atlas-input" defaultValue={initial?.sourcePage || ''} placeholder="例如 36" /></label>
+          <label><span className="atlas-label">例题 / 习题编号（建议必填）</span><input name="sourceQuestionNumber" className="atlas-input" defaultValue={initial?.sourceQuestionNumber || ''} placeholder="例如 1.9；列表显示为例题 1.9" /></label>
           <label><span className="atlas-label">下次复习时间</span><input name="nextReviewAt" type="datetime-local" className="atlas-input" defaultValue={reviewValue} /></label>
           <label><span className="atlas-label">难度（1-5）</span><input name="difficulty" type="number" min="1" max="5" className="atlas-input" defaultValue={initial?.difficulty || 3} /></label>
           <label><span className="atlas-label">优先级</span><select name="priority" className="atlas-input" defaultValue={initial?.priority || 2}><option value="1">低</option><option value="2">普通</option><option value="3">高</option><option value="4">紧急</option></select></label>
@@ -41,8 +43,6 @@ export function QuestionForm({ action, textbooks, chapters, knowledgePoints, err
           <label className="md:col-span-2"><span className="atlas-label">我的错因 *</span><textarea name="wrongReason" required className="min-h-32 w-full resize-y rounded-xl border border-slate-200 p-4 text-sm leading-6 outline-none focus:border-[var(--atlas-blue)] focus:ring-2 focus:ring-blue-100" defaultValue={initial?.wrongReason} placeholder="记录当时真实的思考断点，不只写“粗心”" /></label>
           <label className="md:col-span-2"><span className="atlas-label">复盘总结</span><textarea name="reflection" className="min-h-28 w-full resize-y rounded-xl border border-slate-200 p-4 text-sm leading-6 outline-none focus:border-[var(--atlas-blue)] focus:ring-2 focus:ring-blue-100" defaultValue={initial?.reflection || ''} /></label>
           <label className="md:col-span-2"><span className="atlas-label">一句话提醒</span><input name="reminder" className="atlas-input" defaultValue={initial?.reminder || ''} placeholder="下次看到这类题时先想到什么" /></label>
-          <label><span className="atlas-label">来源页码</span><input name="sourcePage" className="atlas-input" defaultValue={initial?.sourcePage || ''} /></label>
-          <label><span className="atlas-label">来源题号</span><input name="sourceQuestionNumber" className="atlas-input" defaultValue={initial?.sourceQuestionNumber || ''} /></label>
           <label className="md:col-span-2"><span className="atlas-label">标签（逗号分隔）</span><input name="tags" className="atlas-input" defaultValue={initial?.tags.join('，')} placeholder="极限，重点，二刷" /></label>
         </div>
       </div>

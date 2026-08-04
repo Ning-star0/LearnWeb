@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { PageHeader } from '@/components/mistake-atlas/ui';
 import { QuestionList } from '@/components/mistake-atlas/question-list';
 import { prisma } from '@/lib/prisma';
+import { referenceSearchTerm } from '@/lib/question-reference';
 
 type Query = {
   q?: string; status?: string; textbookId?: string; chapterId?: string; knowledgePointId?: string;
@@ -33,6 +34,7 @@ const resultLabels: Record<AttemptResult, string> = {
 export default async function QuestionsPage({ searchParams }: { searchParams: Promise<Query> }) {
   const query = await searchParams;
   const q = query.q?.trim() || '';
+  const bookNumberQuery = referenceSearchTerm(q);
   const page = integer(query.page, 1, 100_000) ?? 1;
   const priority = integer(query.priority, 1, 4);
   const difficulty = integer(query.difficulty, 1, 5);
@@ -61,6 +63,7 @@ export default async function QuestionsPage({ searchParams }: { searchParams: Pr
       { title: { contains: q, mode: 'insensitive' } }, { bodyMarkdown: { contains: q, mode: 'insensitive' } },
       { wrongReason: { contains: q, mode: 'insensitive' } }, { reflection: { contains: q, mode: 'insensitive' } },
       { sourcePage: { contains: q, mode: 'insensitive' } }, { sourceQuestionNumber: { contains: q, mode: 'insensitive' } },
+      ...(bookNumberQuery && bookNumberQuery !== q ? [{ sourceQuestionNumber: { contains: bookNumberQuery, mode: Prisma.QueryMode.insensitive } }] : []),
       { tags: { has: q } }, { textbook: { name: { contains: q, mode: 'insensitive' } } },
       { chapter: { name: { contains: q, mode: 'insensitive' } } },
       { knowledgePoints: { some: { knowledgePoint: { name: { contains: q, mode: 'insensitive' } } } } },
@@ -75,7 +78,7 @@ export default async function QuestionsPage({ searchParams }: { searchParams: Pr
           : query.sort === 'STREAK' ? [{ correctStreak: 'desc' }, { updatedAt: 'desc' }]
             : query.sort === 'DIFFICULTY' ? [{ difficulty: 'desc' }, { updatedAt: 'desc' }]
               : query.sort === 'PRIORITY' ? [{ priority: 'desc' }, { updatedAt: 'desc' }]
-                : [{ createdAt: 'desc' }];
+                : [{ textbook: { sortOrder: 'asc' } }, { chapter: { sortOrder: 'asc' } }, { sourcePage: { sort: 'asc', nulls: 'last' } }, { sourceQuestionNumber: { sort: 'asc', nulls: 'last' } }, { createdAt: 'asc' }];
 
   const [questions, total, textbooks, chapters, points, errorTypes] = await Promise.all([
     prisma.question.findMany({
@@ -99,22 +102,27 @@ export default async function QuestionsPage({ searchParams }: { searchParams: Pr
   const safePage = page;
 
   return <>
-    <PageHeader eyebrow="Mathematics · Mistake library" title="数学错题库" description="按教材、章节、知识点、错误类型、状态和复习时间筛选；每页最多读取 50 道题。" action={<Link href="/questions/new" className="atlas-button-primary"><Plus className="size-4" />录入错题</Link>} />
+    <PageHeader eyebrow="Mathematics · Mistake library" title="数学错题库" description="按书本中的例题与习题编号排列，点击即可直接重做。" action={<Link href="/questions/new" className="atlas-button-primary"><Plus className="size-4" />录入错题</Link>} />
     {query.deleted ? <div className="mb-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">错题已移入回收站，可随时恢复。</div> : null}
-    <form className="atlas-card mb-5 grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-4">
-      <label className="relative md:col-span-2"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input name="q" defaultValue={q} className="atlas-input pl-9" placeholder="搜索标题、正文、错因、来源、知识点或标签" /></label>
-      <select name="textbookId" defaultValue={query.textbookId || ''} className="atlas-input"><option value="">全部教材</option>{textbooks.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
-      <select name="chapterId" defaultValue={query.chapterId || ''} className="atlas-input"><option value="">全部章节</option>{chapters.map((item) => <option key={item.id} value={item.id}>{item.textbook.name} / {item.name}</option>)}</select>
-      <select name="knowledgePointId" defaultValue={query.knowledgePointId || ''} className="atlas-input"><option value="">全部知识点</option>{points.map((item) => <option key={item.id} value={item.id}>{item.chapter.name} / {item.name}</option>)}</select>
-      <select name="errorTypeId" defaultValue={query.errorTypeId || ''} className="atlas-input"><option value="">全部错误类型</option>{errorTypes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
-      <select name="materialType" defaultValue={materialType || ''} className="atlas-input"><option value="">全部内容类型</option><option value="EXAMPLE">例题</option><option value="EXERCISE">习题</option></select>
-      <select name="questionType" defaultValue={questionType || ''} className="atlas-input"><option value="">全部题型</option><option value="SINGLE_CHOICE">单选题</option><option value="MULTIPLE_CHOICE">多选题</option><option value="FILL_BLANK">填空题</option><option value="CALCULATION">计算题</option><option value="PROOF">证明题</option><option value="TRUE_FALSE">判断题</option><option value="COMPREHENSIVE">综合题</option><option value="OTHER">其他</option></select>
-      <select name="status" defaultValue={status || ''} className="atlas-input"><option value="">全部有效状态</option><option value="ACTIVE">学习中</option><option value="MASTERED">已掌握</option><option value="ARCHIVED">已归档</option></select>
-      <select name="review" defaultValue={query.review || ''} className="atlas-input"><option value="">全部复习安排</option><option value="OVERDUE">已逾期</option><option value="DUE_TODAY">今日待复习</option><option value="UNSCHEDULED">未安排复习</option></select>
-      <select name="priority" defaultValue={priority || ''} className="atlas-input"><option value="">全部优先级</option><option value="4">紧急</option><option value="3">高</option><option value="2">普通</option><option value="1">低</option></select>
-      <select name="difficulty" defaultValue={difficulty || ''} className="atlas-input"><option value="">全部难度</option>{[1, 2, 3, 4, 5].map((value) => <option key={value} value={value}>难度 {value}</option>)}</select>
-      <select name="sort" defaultValue={query.sort || 'NEWEST'} className="atlas-input"><option value="NEWEST">最近新增</option><option value="OLDEST">最早新增</option><option value="NEXT_REVIEW">下次复习</option><option value="LAST_ATTEMPT">最近重做</option><option value="MOST_ERRORS">错误次数</option><option value="STREAK">连续正确</option><option value="DIFFICULTY">难度</option><option value="PRIORITY">优先级</option></select>
-      <button className="atlas-button-secondary"><Filter className="size-4" />筛选与排序</button>
+    <form className="atlas-card mb-5 grid gap-2 p-3 md:grid-cols-[minmax(280px,1fr)_150px_160px_auto]">
+      <label className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input name="q" defaultValue={q} className="atlas-input pl-9" placeholder="搜索例题 1.1、标题或题目编号" /></label>
+      <select name="materialType" defaultValue={materialType || ''} className="atlas-input"><option value="">例题与习题</option><option value="EXAMPLE">只看例题</option><option value="EXERCISE">只看习题</option></select>
+      <select name="sort" defaultValue={query.sort || 'BOOK'} className="atlas-input"><option value="BOOK">按书本顺序</option><option value="NEWEST">最近新增</option><option value="OLDEST">最早新增</option><option value="NEXT_REVIEW">下次复习</option><option value="LAST_ATTEMPT">最近重做</option><option value="MOST_ERRORS">错误次数</option><option value="STREAK">连续正确</option><option value="DIFFICULTY">难度</option><option value="PRIORITY">优先级</option></select>
+      <button className="atlas-button-primary"><Search className="size-4" />搜索</button>
+      <details className="md:col-span-4">
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-1 py-1 text-xs font-semibold text-slate-500 [&::-webkit-details-marker]:hidden"><Filter className="size-3.5" />详细筛选</summary>
+        <div className="mt-2 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-2 xl:grid-cols-4">
+          <select name="textbookId" defaultValue={query.textbookId || ''} className="atlas-input"><option value="">全部教材</option>{textbooks.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+          <select name="chapterId" defaultValue={query.chapterId || ''} className="atlas-input"><option value="">全部章节</option>{chapters.map((item) => <option key={item.id} value={item.id}>{item.textbook.name} / {item.name}</option>)}</select>
+          <select name="knowledgePointId" defaultValue={query.knowledgePointId || ''} className="atlas-input"><option value="">全部知识点</option>{points.map((item) => <option key={item.id} value={item.id}>{item.chapter.name} / {item.name}</option>)}</select>
+          <select name="errorTypeId" defaultValue={query.errorTypeId || ''} className="atlas-input"><option value="">全部错误类型</option>{errorTypes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+          <select name="questionType" defaultValue={questionType || ''} className="atlas-input"><option value="">全部题型</option><option value="SINGLE_CHOICE">单选题</option><option value="MULTIPLE_CHOICE">多选题</option><option value="FILL_BLANK">填空题</option><option value="CALCULATION">计算题</option><option value="PROOF">证明题</option><option value="TRUE_FALSE">判断题</option><option value="COMPREHENSIVE">综合题</option><option value="OTHER">其他</option></select>
+          <select name="status" defaultValue={status || ''} className="atlas-input"><option value="">全部有效状态</option><option value="ACTIVE">学习中</option><option value="MASTERED">已掌握</option><option value="ARCHIVED">已归档</option></select>
+          <select name="review" defaultValue={query.review || ''} className="atlas-input"><option value="">全部复习安排</option><option value="OVERDUE">已逾期</option><option value="DUE_TODAY">今日待复习</option><option value="UNSCHEDULED">未安排复习</option></select>
+          <select name="priority" defaultValue={priority || ''} className="atlas-input"><option value="">全部优先级</option><option value="4">紧急</option><option value="3">高</option><option value="2">普通</option><option value="1">低</option></select>
+          <select name="difficulty" defaultValue={difficulty || ''} className="atlas-input"><option value="">全部难度</option>{[1, 2, 3, 4, 5].map((value) => <option key={value} value={value}>难度 {value}</option>)}</select>
+        </div>
+      </details>
     </form>
     <div className="mb-3 flex items-center justify-between text-xs text-slate-500"><span>共 {total} 道 · 第 {safePage}/{pageCount} 页</span>{Object.values(query).some(Boolean) ? <Link href="/questions" className="font-semibold text-blue-700">清除筛选</Link> : null}</div>
     <QuestionList questions={questions.map((question) => ({ ...question, latestResultLabel: question.attempts[0] ? resultLabels[question.attempts[0].result] : null, latestAttemptAt: question.attempts[0]?.attemptedAt ?? null }))} />

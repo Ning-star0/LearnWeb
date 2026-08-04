@@ -17,6 +17,7 @@ import { DangerSubmit } from '@/components/mistake-atlas/danger-submit';
 import { MarkdownContent } from '@/components/mistake-atlas/markdown-content';
 import { PageHeader, StatusPill } from '@/components/mistake-atlas/ui';
 import { prisma } from '@/lib/prisma';
+import { questionReference } from '@/lib/question-reference';
 
 const resultLabels: Record<AttemptResult, string> = {
   INDEPENDENT_CORRECT: '独立做对',
@@ -100,12 +101,13 @@ export default async function QuestionDetailPage({ params, searchParams }: {
   const statusLabel = question.status === 'ARCHIVED' ? '已归档' : question.status === 'MASTERED' ? '已掌握' : question.wrongCount >= settings.repeatedErrorThreshold ? '反复错误' : '学习中';
   const statusTone = question.status === 'ARCHIVED' ? undefined : question.status === 'MASTERED' ? 'green' as const : question.wrongCount >= settings.repeatedErrorThreshold ? 'red' as const : 'blue' as const;
   const progressSteps = Math.min(settings.masteryThreshold, 10);
+  const reference = questionReference(question);
 
   return <>
     <PageHeader
-      eyebrow={question.code}
-      title={question.title}
-      description={`${question.textbook.name} / ${question.chapter.name}`}
+      eyebrow={`${reference.page ? `${reference.page} · ` : ''}系统编号 ${question.code}`}
+      title={reference.primary}
+      description={`${question.title} · ${question.textbook.name} / ${question.chapter.name}`}
       action={<div className="flex flex-wrap gap-2">
         <Link href={`/questions/${question.id}`} className="atlas-button-secondary"><ArrowLeft className="size-4" />返回做题</Link>
         <Link href={`/questions/${question.id}/edit`} className="atlas-button-secondary"><Pencil className="size-4" />编辑</Link>

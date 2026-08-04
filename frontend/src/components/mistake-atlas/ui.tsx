@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
+import Link from 'next/link';
 
 export function PageHeader({ eyebrow, title, description, action }: {
   eyebrow?: string;
@@ -18,12 +19,13 @@ export function PageHeader({ eyebrow, title, description, action }: {
   );
 }
 
-export function StatCard({ label, value, note, icon: Icon, tone = 'blue' }: {
+export function StatCard({ label, value, note, icon: Icon, tone = 'blue', href }: {
   label: string;
   value: string;
   note: string;
   icon: LucideIcon;
   tone?: 'blue' | 'amber' | 'green' | 'slate';
+  href?: string;
 }) {
   const tones = {
     blue: 'bg-blue-50 text-blue-700',
@@ -31,18 +33,19 @@ export function StatCard({ label, value, note, icon: Icon, tone = 'blue' }: {
     green: 'bg-emerald-50 text-emerald-700',
     slate: 'bg-slate-100 text-slate-700',
   };
-  return (
-    <div className="atlas-card p-5">
+  const content = (
+    <div className={`atlas-card p-5 ${href ? 'group transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md' : ''}`}>
       <div className="flex items-start justify-between">
         <div>
           <div className="text-sm font-medium text-slate-500">{label}</div>
           <div className="mt-3 font-serif text-3xl font-semibold tabular-nums text-slate-950">{value}</div>
         </div>
-        <div className={`grid size-10 place-items-center rounded-xl ${tones[tone]}`}><Icon className="size-5" /></div>
+        <div className={`grid size-10 place-items-center rounded-xl transition ${tones[tone]} ${href ? 'group-hover:scale-105' : ''}`}><Icon className="size-5" /></div>
       </div>
       <div className="mt-3 text-xs text-slate-400">{note}</div>
     </div>
   );
+  return href ? <Link href={href} className="block rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-300">{content}</Link> : content;
 }
 
 export function StatusPill({ children, tone = 'slate' }: {

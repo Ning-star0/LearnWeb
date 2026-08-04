@@ -7,6 +7,7 @@ import { recordQuickAttemptAction } from '@/app/actions/math-actions';
 import { MarkdownContent } from '@/components/mistake-atlas/markdown-content';
 import { practicePrompt } from '@/lib/practice-prompt';
 import { prisma } from '@/lib/prisma';
+import { questionReference } from '@/lib/question-reference';
 
 function todayLabel() {
   return new Intl.DateTimeFormat('zh-CN', {
@@ -21,16 +22,17 @@ export default async function PracticeQuestionPage({ params, searchParams }: {
   const [{ id }, notice] = await Promise.all([params, searchParams]);
   const question = await prisma.question.findUnique({
     where: { id },
-    include: { textbook: true, chapter: true, attachments: { where: { deletedAt: null } } },
+    include: { textbook: true, chapter: true, knowledgePoints: { include: { knowledgePoint: true }, orderBy: { primary: 'desc' } }, attachments: { where: { deletedAt: null } } },
   });
   if (!question || question.status === 'DELETED') notFound();
 
   const prompt = practicePrompt(question.bodyMarkdown);
+  const reference = questionReference(question);
   const correctAction = recordQuickAttemptAction.bind(null, question.id, AttemptResult.INDEPENDENT_CORRECT);
   const wrongAction = recordQuickAttemptAction.bind(null, question.id, AttemptResult.WRONG);
   const canRecord = question.status === 'ACTIVE' || question.status === 'MASTERED';
 
-  return <div className="mx-auto min-h-[calc(100vh-3rem)] max-w-5xl pb-32">
+  return <div className="mx-auto min-h-[calc(100vh-3rem)] max-w-5xl">
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 py-4">
       <Link href="/questions" className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-900"><ArrowLeft className="size-4" />返回错题库</Link>
       <div className="text-xs text-slate-400">本次重做 · {todayLabel()}</div>
@@ -41,8 +43,10 @@ export default async function PracticeQuestionPage({ params, searchParams }: {
 
     <main className="mx-auto mt-10 max-w-3xl">
       <div className="text-center">
-        <div className="text-xs text-slate-400">{question.materialType === 'EXAMPLE' ? '例题' : '习题'} · {question.textbook.name} / {question.chapter.name}</div>
-        <h1 className="mt-3 font-serif text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">{question.title}</h1>
+        <div className="text-xs text-slate-400">{question.textbook.name} / {question.chapter.name}{reference.page ? ` · ${reference.page}` : ''}</div>
+        <h1 className="mt-3 font-serif text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">{reference.primary}</h1>
+        <p className="mt-2 text-sm text-slate-500">{question.title}</p>
+        {question.knowledgePoints.length ? <div className="mt-4 flex flex-wrap justify-center gap-2"><span className="py-1 text-[11px] text-slate-400">知识点</span>{question.knowledgePoints.map(({ knowledgePoint }) => <span key={knowledgePoint.id} className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-600">{knowledgePoint.name}</span>)}</div> : null}
       </div>
 
       <article className="mt-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-10">
@@ -51,7 +55,7 @@ export default async function PracticeQuestionPage({ params, searchParams }: {
       </article>
     </main>
 
-    <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 px-4 py-4 backdrop-blur">
+    <div className="sticky bottom-0 z-20 mt-10 border-t border-slate-200 bg-white/95 px-4 py-4 backdrop-blur">
       <div className="mx-auto flex max-w-xl gap-3">
         {canRecord ? <>
           <form action={wrongAction} className="flex-1"><button className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white font-semibold text-rose-600 transition hover:bg-rose-50"><X className="size-5" />做错了</button></form>
