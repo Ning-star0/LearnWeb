@@ -4,3 +4,7 @@ export function printMathMarkdown(markdown: string) {
     return `$$${printFormula}$$`;
   });
 }
+
+export function normalizeMarkdownFormatting(markdown: string) {
+  return markdown.replace(/\*\*([^\n*]*?\S)\s+\*\*/g, '**$1**');
+}

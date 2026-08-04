@@ -41,7 +41,7 @@ export default async function PracticeQuestionPage({ params, searchParams }: {
 
     {notice.attempt ? <div role="status" className={`atlas-result-notice fixed right-5 top-20 z-50 w-[min(22rem,calc(100vw-2.5rem))] rounded-xl border px-4 py-3 text-sm font-medium shadow-lg backdrop-blur ${notice.result === 'correct' ? 'border-emerald-200 bg-emerald-50/95 text-emerald-700' : 'border-rose-200 bg-rose-50/95 text-rose-700'}`}>{notice.result === 'correct' ? '已记录：这次做对了。' : '已记录：这次做错了。'}<span className="mt-1 block text-xs font-normal opacity-75">重做时间已标记为当前日期。</span></div> : null}
 
-    <main className="mx-auto mt-10 w-full max-w-3xl flex-1">
+    <main className="mt-10 w-full flex-1">
       <div className="text-center">
         <div className="text-xs text-slate-400">{question.textbook.name} / {question.chapter.name}{reference.page ? ` · ${reference.page}` : ''}</div>
         <h1 className="mt-3 font-serif text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">{reference.primary}</h1>
