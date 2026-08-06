@@ -41,14 +41,14 @@ priority: "HIGH"
 # 首次做错日期：必填；当天可写 today，历史题写 YYYY-MM-DD
 occurred_at: "today"
 
-# 知识点：可选；可以填写多个；没有时写 []
+# 知识点：由 AI 根据题干分析；使用简短、稳定、可复用的名称
 knowledge_points:
   - "重要极限"
   - "变量代换"
 
-# 错因类型：必填，至少一个；可以填写多个
+# 错因类型：如果没有提供个人错因，只能写“待复盘”，不要猜测做题过程
 error_types:
-  - "方法没有想到"
+  - "待复盘"
 
 # 自定义标签：可选；没有时写 []
 tags:
@@ -71,27 +71,15 @@ image_files: []
 
 ## 我的错因
 
-**错误发生在哪里：**
-
-直接把 $a^{1/x}-1$ 看成趋近于 0，因此误判整个乘积为 0。
-
-**根本原因：**
-
-没有识别出“无穷大乘无穷小”是不定式，也没有想到令 $t=1/x$ 转化为熟悉的重要极限。
-
-**缺少的知识或方法：**
-
-$\\lim_{t\\to0}\\frac{a^t-1}{t}=\\ln a$，以及无穷远变量代换。
+尚未记录个人错因，首次重做后补充。
 
 ## 一句话提醒
 
-看到 $x\\to\\infty$ 且式中出现 $1/x$，先尝试令 $t=1/x$。
+仅根据题干概括识别信号，不写答案或解法。
 
 ## 复盘备注
 
-**这次如何改正：** 先判断是否为不定式，再选择等价无穷小、重要极限或变量代换。
-
-**相似题识别信号：** $a^{1/x}$、$(1+1/x)^x$、无穷大乘无穷小。
+待首次重做后补充。
 `;
 
 const formulaTemplate = `复杂公式请单独使用下面的印刷式结构：
@@ -112,19 +100,20 @@ $$
 5. 分段函数使用 cases 环境；矩阵使用 pmatrix 或 bmatrix 环境。
 6. 括号使用 \\left( \\right)、\\left[ \\right]，使高度随公式自动匹配。`;
 
-const aiPrompt = `请把我接下来提供的数学错题整理成可直接导入“个人学习档案”的标准 Markdown。
+const aiPrompt = `请把我接下来提供的数学题目整理成可直接导入“个人学习档案”的标准 Markdown。我的输入通常只有题目正文和书本出处，不会提供正确答案、标准解法或我的原答案。
 
 必须严格遵守以下规则：
 1. 只输出最终 Markdown，不要解释，不要使用代码围栏。
 2. 一道题输出一份完整文档；多道题就连续输出多份完整文档，每份都从 --- 开始。
-3. 不记录我的原答案、正确答案或标准解法；“# 题目”里只保留完整题干、条件、选项和必要公式。
+3. 不要求我提供答案；不要解题，不要计算最终结果，不要补写正确答案、标准解法、证明过程或我的原答案。“# 题目”只保留完整题干、条件、选项和必要公式。
 4. 书上讲解部分的例题：material_type 写“例题”，题号如 1.38，系统显示为“例 1.38”。
 5. 课后练习、基础习题以及《30讲》《1000题》等习题册题目：material_type 写“习题”，系统显示为“练习 1.1”。
 6. book 必须写准确书名。即使题号相同，也要通过 book 区分，例如“张宇基础30讲”和“张宇1000题”。
 7. source.page 和 source.question_number 尽量从材料中提取；无法判断时保留空字符串，不要猜测。
-8. chapter_path 写完整层级；knowledge_points、error_types 和 tags 使用简短、稳定、可复用的中文名称。
+8. 根据题干分析 question_type、chapter_path、knowledge_points、difficulty 和 tags。知识点使用简短、稳定、可复用的中文名称；只做题目分类，不在正文里讲解答案。
 9. occurred_at 默认写 today。公式使用 LaTeX：只有简短变量关系使用行内 $...$；含分式、极限、根式、求和、积分、矩阵或多层指数时必须使用独立公式 $$...$$。所有分式统一写成 \\dfrac{分子}{分母}，禁止写成 a/b 或 1/2；复杂公式使用 aligned 环境分行，每个逻辑步骤一行，不能把多组公式挤在同一行。
-10. “我的错因”必须包含错误发生在哪里、根本原因、缺少的知识或方法；如果原材料没有明确错因，根据我提供的描述归纳，不要虚构做题过程。
+10. 只有当我明确提供个人错因时，才整理 error_types 和“我的错因”。如果没有提供，error_types 只写“待复盘”，“我的错因”只写“尚未记录个人错因，首次重做后补充。”，绝不能虚构我的做题过程。
+11. “一句话提醒”只能写题型识别信号、条件检查或易漏信息，不能泄露答案或完整解法；“复盘备注”没有材料时写“待首次重做后补充。”。
 
 请严格套用下面的结构：
 
@@ -152,14 +141,19 @@ export function ImportCenter() {
         <div className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><FileText className="size-5" /></div>
         <div><h2 className="font-semibold text-slate-900">标准 Markdown / ZIP 导入</h2><p className="mt-1 text-xs text-slate-400">支持粘贴、多选 .md，或单独上传含 questions/ 与 images/ 的 ZIP；预览会检查格式、分类、重复项和真实图片内容。</p></div>
       </div>
-      <details className="mt-5 overflow-hidden rounded-xl border border-amber-200 bg-amber-50/70">
-        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-amber-950">第一步：复制 AI 生成提示词</summary>
-        <div className="border-t border-amber-200 px-4 pb-4 pt-3">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><p className="text-xs leading-6 text-amber-900">把这段提示词发给 AI，再在末尾粘贴原题、书名、章节、页码、题号和错因。AI 返回的内容可以直接粘贴到下方导入框。</p><button type="button" onClick={async () => { await navigator.clipboard.writeText(aiPrompt); setCopied('prompt'); window.setTimeout(() => setCopied(null), 2000); }} className="atlas-button-secondary shrink-0">{copied === 'prompt' ? <Check className="size-4" /> : <Copy className="size-4" />}{copied === 'prompt' ? '已复制' : '复制完整提示词'}</button></div>
-          <pre className="mt-3 max-h-[360px] overflow-auto rounded-xl bg-slate-950 p-4 text-xs leading-5 text-slate-100"><code>{aiPrompt}</code></pre>
+      <div className="mt-5 grid gap-2 sm:grid-cols-3">
+        <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-4"><div className="text-xs font-semibold text-blue-900">你只需要提供</div><p className="mt-1 text-[11px] leading-5 text-blue-700">题目正文、书名、页码和题号；个人错因有就写，没有可以不写。</p></div>
+        <div className="rounded-xl border border-violet-100 bg-violet-50/70 p-4"><div className="text-xs font-semibold text-violet-900">AI 负责整理</div><p className="mt-1 text-[11px] leading-5 text-violet-700">题型、章节、知识点、难度、标签和标准导入格式。</p></div>
+        <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-4"><div className="text-xs font-semibold text-emerald-900">不保存答案</div><p className="mt-1 text-[11px] leading-5 text-emerald-700">不需要正确答案、标准解法或原答案，做题页面也不会展示答案。</p></div>
+      </div>
+      <details className="mt-4 overflow-hidden rounded-xl border border-blue-200 bg-blue-50/60">
+        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-blue-950">总提示词：复制后直接粘贴题目</summary>
+        <div className="border-t border-blue-200 px-4 pb-4 pt-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><p className="text-xs leading-6 text-blue-900">只复制这一份提示词发给 AI，然后在末尾粘贴题目和出处信息。模板、公式排版和无答案规则已经全部包含在里面。</p><button type="button" onClick={async () => { await navigator.clipboard.writeText(aiPrompt); setCopied('prompt'); window.setTimeout(() => setCopied(null), 2000); }} className="atlas-button-secondary shrink-0">{copied === 'prompt' ? <Check className="size-4" /> : <Copy className="size-4" />}{copied === 'prompt' ? '已复制' : '复制总提示词'}</button></div>
+          <pre className="mt-3 max-h-[440px] overflow-auto rounded-xl border border-blue-100 bg-white/80 p-4 text-xs leading-5 text-slate-700 shadow-inner"><code>{aiPrompt}</code></pre>
         </div>
       </details>
-      <details className="mt-5 overflow-hidden rounded-xl border border-blue-100 bg-blue-50/60">
+      <details className="hidden">
         <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-blue-900">第二步：查看标准 Markdown 模板</summary>
         <div className="border-t border-blue-100 px-4 pb-4 pt-3">
           <div className="flex flex-col gap-3 text-xs leading-5 text-slate-600 sm:flex-row sm:items-start sm:justify-between">
@@ -190,7 +184,7 @@ export function ImportCenter() {
           <pre className="mt-3 max-h-[520px] overflow-auto rounded-xl bg-slate-950 p-4 text-xs leading-5 text-slate-100"><code>{template}</code></pre>
         </div>
       </details>
-      <details className="mt-5 overflow-hidden rounded-xl border border-cyan-100 bg-cyan-50/60">
+      <details className="hidden">
         <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-cyan-950">复杂公式：复制印刷式 LaTeX 模板</summary>
         <div className="border-t border-cyan-100 px-4 pb-4 pt-3">
           <div className="flex flex-col gap-3 text-xs leading-6 text-slate-600 sm:flex-row sm:items-start sm:justify-between">
@@ -213,12 +207,12 @@ export function ImportCenter() {
         </span>
       </label>
       <label className="mt-5 block"><span className="atlas-label">Markdown 文件（可多选）或单个 ZIP</span><input name="files" type="file" accept=".md,.zip,text/markdown,text/plain,application/zip" multiple onChange={() => setRevision((value) => value + 1)} className="block w-full rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600" /></label>
-      <label className="mt-4 block"><span className="atlas-label">粘贴 Markdown</span><textarea name="markdown" placeholder="把复制并填写好的标准 Markdown 粘贴到这里……" onChange={() => setRevision((value) => value + 1)} onKeyDown={(event) => {
+      <label className="mt-4 block"><span className="atlas-label">粘贴 AI 返回的 Markdown</span><textarea name="markdown" placeholder="把 AI 按总提示词生成的 Markdown 粘贴到这里……" onChange={() => setRevision((value) => value + 1)} onKeyDown={(event) => {
         if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
           event.preventDefault();
           event.currentTarget.form?.requestSubmit();
         }
-      }} className="mt-1 min-h-[360px] w-full rounded-xl border border-slate-200 bg-slate-950 p-5 font-mono text-sm leading-6 text-slate-100 outline-none placeholder:text-slate-500 focus:border-blue-400" /><span className="mt-1 block text-right text-[11px] text-slate-400">Ctrl / ⌘ + Enter 生成预览</span></label>
+      }} className="mt-1 min-h-[360px] w-full rounded-xl border border-blue-100 bg-blue-50/50 p-5 font-mono text-sm leading-7 text-slate-800 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:bg-white focus:ring-2 focus:ring-blue-100" /><span className="mt-1 block text-right text-[11px] text-slate-400">Ctrl / ⌘ + Enter 生成预览</span></label>
       {state.error ? <div role="alert" className="mt-4 flex gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"><AlertCircle className="mt-0.5 size-4 shrink-0" />{state.error}</div> : null}
       <div className="mt-4 flex justify-end"><button disabled={pending} className="atlas-button-secondary disabled:cursor-wait disabled:opacity-60">{pending ? <LoaderCircle className="size-4 animate-spin" /> : <Upload className="size-4" />}{pending ? '正在解析并检查…' : '生成服务端预览'}</button></div>
     </form>
