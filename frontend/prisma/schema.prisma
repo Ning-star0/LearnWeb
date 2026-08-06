@@ -69,6 +69,12 @@ enum QuestionMaterialType {
   EXERCISE
 }
 
+enum MemoryCardKind {
+  FORMULA
+  TECHNIQUE
+  MEMORY
+}
+
 model User {
   id                 String    @id @default(cuid())
   username           String    @unique
@@ -119,6 +125,27 @@ model Subject {
   textbooks   Textbook[]
   errorTypes  ErrorType[]
   questions   Question[]
+  memoryCards MemoryCard[]
+}
+
+model MemoryCard {
+  id              String         @id @default(cuid())
+  subjectId       String
+  subject         Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  kind            MemoryCardKind @default(FORMULA)
+  title           String
+  category        String
+  contentMarkdown String
+  summary         String?
+  tags            String[]
+  pinned          Boolean        @default(false)
+  showOnHome      Boolean        @default(true)
+  sortOrder       Int            @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([subjectId, kind])
+  @@index([subjectId, showOnHome, pinned, sortOrder])
 }
 
 model Textbook {

@@ -17,6 +17,16 @@ test('解析完整 JSON 导出并验证跨表引用', () => {
   const parsed = parseFullJsonExport(JSON.stringify(fixture));
   assert.equal(parsed.questions[0].title, '测试题');
   assert.equal(parsed.questions[0].materialType, 'EXERCISE');
+  assert.deepEqual(parsed.memoryCards, []);
+});
+
+test('解析公式与技巧并验证学科引用', () => {
+  const value = structuredClone(fixture) as typeof fixture & { memoryCards: unknown[] };
+  value.memoryCards = [{ id: 'm1', subjectId: 's1', kind: 'FORMULA', title: '泰勒公式', category: '高等数学', contentMarkdown: '$$e^x=\\sum_{n=0}^{\\infty}\\frac{x^n}{n!}$$', summary: null, tags: ['泰勒'], pinned: true, showOnHome: true, sortOrder: 0 }];
+  const parsed = parseFullJsonExport(JSON.stringify(value));
+  assert.equal(parsed.memoryCards[0].title, '泰勒公式');
+  value.memoryCards[0] = { ...(value.memoryCards[0] as object), subjectId: 'missing' };
+  assert.throws(() => parseFullJsonExport(JSON.stringify(value)), /引用了不存在的学科/);
 });
 
 test('拒绝题目引用不存在的章节', () => {

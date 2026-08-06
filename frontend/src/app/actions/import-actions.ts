@@ -410,15 +410,15 @@ export async function previewJsonImportAction(_previous: JsonImportPreviewState,
     const attachmentCount = data.questions.reduce((sum, item) => sum + item.attachments.length, 0);
     const job = await prisma.importJob.create({
       data: {
-        sourceType: ImportSourceType.JSON, originalName: files[0].name.slice(0, 255), totalCount: data.questions.length,
+        sourceType: ImportSourceType.JSON, originalName: files[0].name.slice(0, 255), totalCount: data.questions.length + data.memoryCards.length,
         failedCount: rows.filter((row) => !row.valid).length, preview: json({ data, rows } satisfies StoredJsonPreview),
       },
     });
-    await prisma.auditLog.create({ data: { action: 'JSON_IMPORT_PREVIEW_CREATED', entity: 'ImportJob', entityId: job.id, detail: { questions: data.questions.length, attachmentsWithoutFiles: attachmentCount } } });
+    await prisma.auditLog.create({ data: { action: 'JSON_IMPORT_PREVIEW_CREATED', entity: 'ImportJob', entityId: job.id, detail: { questions: data.questions.length, memoryCards: data.memoryCards.length, attachmentsWithoutFiles: attachmentCount } } });
     revalidatePath('/imports');
     return {
       jobId: job.id, rows, sourceType: ImportSourceType.JSON,
-      notice: attachmentCount ? `JSON 只包含 ${attachmentCount} 条附件元数据，不包含图片文件；图片请通过服务器备份恢复。` : undefined,
+      notice: [data.memoryCards.length ? `将同时恢复 ${data.memoryCards.length} 条公式与技巧。` : '', attachmentCount ? `JSON 只包含 ${attachmentCount} 条附件元数据，不包含图片文件；图片请通过服务器备份恢复。` : ''].filter(Boolean).join(' ') || undefined,
     };
   } catch (error) {
     return { error: error instanceof Error ? error.message : '无法生成 JSON 导入预览。' };
@@ -540,7 +540,30 @@ async function confirmJsonImportJob(jobId: string, strategy: ImportConflictStrat
     const settings = await tx.learningSettings.findUniqueOrThrow({ where: { id: 'learning' } });
     const threshold = preview.data.learningSettings?.masteryThreshold ?? settings.masteryThreshold;
     const createdQuestionIds: string[] = []; const updatedQuestions: Array<Record<string, unknown>> = [];
+    const createdMemoryCardIds: string[] = []; const updatedMemoryCards: Array<Record<string, unknown>> = [];
     let skippedCount = 0;
+
+    for (const item of preview.data.memoryCards) {
+      const subjectId = maps.subjects.get(item.subjectId)!;
+      const existing = await tx.memoryCard.findFirst({ where: { subjectId, title: item.title, category: item.category } });
+      if (existing && strategy === ImportConflictStrategy.SKIP) { skippedCount += 1; continue; }
+      const cardData = {
+        subjectId, kind: item.kind, title: item.title, category: item.category,
+        contentMarkdown: item.contentMarkdown, summary: item.summary, tags: item.tags,
+        pinned: item.pinned, showOnHome: item.showOnHome, sortOrder: item.sortOrder,
+      };
+      if (existing && strategy === ImportConflictStrategy.UPDATE_BASIC) {
+        updatedMemoryCards.push({ id: existing.id, data: {
+          subjectId: existing.subjectId, kind: existing.kind, title: existing.title, category: existing.category,
+          contentMarkdown: existing.contentMarkdown, summary: existing.summary, tags: existing.tags,
+          pinned: existing.pinned, showOnHome: existing.showOnHome, sortOrder: existing.sortOrder,
+        } });
+        await tx.memoryCard.update({ where: { id: existing.id }, data: cardData });
+      } else {
+        const created = await tx.memoryCard.create({ data: cardData, select: { id: true } });
+        createdMemoryCardIds.push(created.id);
+      }
+    }
 
     for (const item of preview.data.questions) {
       const subjectId = maps.subjects.get(item.subjectId)!;
@@ -604,11 +627,11 @@ async function confirmJsonImportJob(jobId: string, strategy: ImportConflictStrat
       reviewIntervals: preview.data.learningSettings.reviewIntervals, timezone: preview.data.learningSettings.timezone,
     } });
     await tx.importJob.update({ where: { id: job.id }, data: {
-      status: ImportJobStatus.COMPLETED, conflictStrategy: strategy, successCount: createdQuestionIds.length + updatedQuestions.length,
+      status: ImportJobStatus.COMPLETED, conflictStrategy: strategy, successCount: createdQuestionIds.length + updatedQuestions.length + createdMemoryCardIds.length + updatedMemoryCards.length,
       skippedCount, failedCount: 0, completedAt: new Date(),
-      rollbackData: json({ kind: 'JSON', createdQuestionIds, updatedQuestions, createdTaxonomy: maps.created, siteBefore, learningBefore }),
+      rollbackData: json({ kind: 'JSON', createdQuestionIds, updatedQuestions, createdMemoryCardIds, updatedMemoryCards, createdTaxonomy: maps.created, siteBefore, learningBefore }),
     } });
-    await tx.auditLog.create({ data: { action: 'JSON_IMPORT_COMPLETED', entity: 'ImportJob', entityId: job.id, detail: { created: createdQuestionIds.length, updated: updatedQuestions.length, skipped: skippedCount } } });
+    await tx.auditLog.create({ data: { action: 'JSON_IMPORT_COMPLETED', entity: 'ImportJob', entityId: job.id, detail: { created: createdQuestionIds.length, updated: updatedQuestions.length, memoryCardsCreated: createdMemoryCardIds.length, memoryCardsUpdated: updatedMemoryCards.length, skipped: skippedCount } } });
   }, { maxWait: 10_000, timeout: 300_000 });
 }
 
@@ -751,6 +774,8 @@ export async function rollbackImportJobAction(jobId: string) {
     if (!job || job.status !== ImportJobStatus.COMPLETED || !job.rollbackData) throw new Error('该导入作业不能回滚。');
     const rollback = job.rollbackData as unknown as {
       kind?: 'JSON'; createdQuestionIds: string[]; updatedQuestions: RollbackQuestion[];
+      createdMemoryCardIds?: string[];
+      updatedMemoryCards?: Array<{ id: string; data: { subjectId: string; kind: 'FORMULA' | 'TECHNIQUE' | 'MEMORY'; title: string; category: string; contentMarkdown: string; summary: string | null; tags: string[]; pinned: boolean; showOnHome: boolean; sortOrder: number } }>;
       createdTaxonomy?: { subjectIds: string[]; textbookIds: string[]; chapterIds: string[]; knowledgePointIds: string[]; errorTypeIds: string[] };
       siteBefore?: { siteName: string; siteSubtitle: string; siteDescription: string; accessTitle: string; accessDescription: string; homeGreeting: string; brandColor: string } | null;
       learningBefore?: { masteryThreshold: number; repeatedErrorThreshold: number; reviewIntervals: number[]; timezone: string } | null;
@@ -761,6 +786,8 @@ export async function rollbackImportJobAction(jobId: string) {
     });
     removedStorageNames.push(...attachments.map((attachment) => attachment.storageName));
     await tx.question.deleteMany({ where: { id: { in: rollback.createdQuestionIds }, importJobId: job.id } });
+    await tx.memoryCard.deleteMany({ where: { id: { in: rollback.createdMemoryCardIds || [] } } });
+    for (const snapshot of rollback.updatedMemoryCards || []) await tx.memoryCard.update({ where: { id: snapshot.id }, data: snapshot.data });
     for (const snapshot of rollback.updatedQuestions) {
       await tx.questionKnowledgePoint.deleteMany({ where: { questionId: snapshot.id } });
       await tx.questionErrorType.deleteMany({ where: { questionId: snapshot.id } });
@@ -796,5 +823,6 @@ export async function rollbackImportJobAction(jobId: string) {
   revalidatePath('/textbooks');
   revalidatePath('/knowledge-points');
   revalidatePath('/error-types');
+  revalidatePath('/memory');
   redirect(`/imports?rolledBack=${jobId}`);
 }

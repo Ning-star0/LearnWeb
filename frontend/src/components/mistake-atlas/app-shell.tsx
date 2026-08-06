@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
-  ArchiveRestore, BarChart3, BookMarked, BrainCircuit, CalendarCheck2,
+  ArchiveRestore, BarChart3, BookMarked, BookOpenCheck, BrainCircuit, CalendarCheck2,
   CheckCircle2, ChevronDown, CircleAlert, Cpu, FileUp, Languages,
   Landmark, LayoutDashboard, LibraryBig, ListChecks, LogOut, Menu, Plus,
   PanelLeftClose, PanelLeftOpen, Search, Settings2, Sigma, Tags, X,
@@ -25,6 +25,7 @@ const mainNavigation = [
 const manageNavigation = [
   { label: '教材与章节', href: '/textbooks', icon: LibraryBig },
   { label: '知识点', href: '/knowledge-points', icon: Sigma },
+  { label: '公式与技巧', href: '/memory', icon: BookOpenCheck },
   { label: '错误类型', href: '/error-types', icon: Tags },
 ];
 const systemNavigation = [

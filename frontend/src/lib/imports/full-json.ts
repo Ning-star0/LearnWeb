@@ -55,6 +55,14 @@ const questionSchema = z.object({
   attachments: z.array(z.object({ id: id.optional(), originalName: z.string(), mimeType: z.string(), size: z.number().int(), sha256: z.string() }).passthrough()).max(50_000),
 }).passthrough();
 
+const memoryCardSchema = z.object({
+  id, subjectId: id, kind: z.enum(['FORMULA', 'TECHNIQUE', 'MEMORY']),
+  title: z.string().min(1).max(160), category: z.string().min(1).max(80),
+  contentMarkdown: z.string().min(1).max(100_000), summary: z.string().max(300).nullable(),
+  tags: z.array(z.string().min(1).max(100)).max(20), pinned: z.boolean(), showOnHome: z.boolean(),
+  sortOrder: z.number().int().min(-9999).max(9999), createdAt: date.optional(), updatedAt: date.optional(),
+}).passthrough();
+
 const siteSettingsSchema = z.object({
   siteName: z.string().min(1).max(100), siteSubtitle: z.string().max(200), siteDescription: z.string().max(500),
   accessTitle: z.string().max(200), accessDescription: z.string().max(500), homeGreeting: z.string().max(200),
@@ -68,7 +76,8 @@ const learningSettingsSchema = z.object({
 
 const exportSchema = z.object({
   version: z.literal(1), exportedAt: date, subjects: z.array(subjectSchema).min(1).max(20),
-  questions: z.array(questionSchema).max(10_000), siteSettings: siteSettingsSchema, learningSettings: learningSettingsSchema,
+  questions: z.array(questionSchema).max(10_000), memoryCards: z.array(memoryCardSchema).max(10_000).default([]),
+  siteSettings: siteSettingsSchema, learningSettings: learningSettingsSchema,
 }).strict();
 
 export type FullJsonExport = z.infer<typeof exportSchema>;
@@ -93,6 +102,7 @@ export function parseFullJsonExport(raw: string): FullJsonExport {
   const errorTypes = data.subjects.flatMap((item) => item.errorTypes);
   unique([...subjects.keys()], '学科'); unique(textbooks.map((item) => item.id), '教材'); unique(chapters.map((item) => item.id), '章节');
   unique(points.map((item) => item.id), '知识点'); unique(errorTypes.map((item) => item.id), '错误类型'); unique(data.questions.map((item) => item.id), '题目');
+  unique(data.memoryCards.map((item) => item.id), '公式与技巧');
   const textbookById = new Map(textbooks.map((item) => [item.id, item]));
   const chapterById = new Map(chapters.map((item) => [item.id, item]));
   const pointIds = new Set(points.map((item) => item.id));
@@ -110,6 +120,7 @@ export function parseFullJsonExport(raw: string): FullJsonExport {
   }
   for (const point of points) if (!chapterById.has(point.chapterId)) throw new Error(`知识点 ${point.name} 引用了不存在的章节。`);
   for (const item of errorTypes) if (!subjects.has(item.subjectId)) throw new Error(`错误类型 ${item.name} 引用了不存在的学科。`);
+  for (const item of data.memoryCards) if (!subjects.has(item.subjectId)) throw new Error(`公式与技巧 ${item.title} 引用了不存在的学科。`);
   const questionIds = new Set(data.questions.map((item) => item.id));
   for (const question of data.questions) {
     const textbook = textbookById.get(question.textbookId); const chapter = chapterById.get(question.chapterId);
