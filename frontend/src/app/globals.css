@@ -3,8 +3,8 @@
 :root {
   --atlas-blue: #2458d3;
   --atlas-blue-hover: #1d49b2;
-  --atlas-blue-soft: #edf3ff;
-  --atlas-canvas: #f5f7fa;
+  --atlas-blue-soft: #eef4ff;
+  --atlas-canvas: #f7f9fc;
   --atlas-ink: #162033;
 }
 
@@ -136,6 +136,17 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .atlas-math-print .katex-display .base { margin-block: 0.12em; }
 .atlas-math-print .katex-display::-webkit-scrollbar { height: 6px; }
 .atlas-math-print .katex-display::-webkit-scrollbar-thumb { border-radius: 999px; background: #bfcee3; }
+
+.atlas-dashboard-formula .atlas-markdown { font-size: 0.9rem; }
+.atlas-dashboard-formula .atlas-math-print .katex-display {
+  margin: 0.9rem 0 0;
+  border-color: #e9e4fb;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 1.15rem 1.25rem;
+}
+.atlas-dashboard-formula .atlas-math-print .katex-display > .katex {
+  font-size: clamp(1.08rem, 1.45vw, 1.35rem);
+}
 
 @media (max-width: 640px) {
   .atlas-math-print .katex-display { margin: 1rem 0; padding: 1.1rem 1rem; }
