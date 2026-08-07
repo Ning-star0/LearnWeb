@@ -1,10 +1,11 @@
 import { MemoryCardKind } from '@prisma/client';
-import { BookOpenCheck, Lightbulb, Pin, Plus, Search, Sigma, Sparkles } from 'lucide-react';
+import { BookOpenCheck, ChevronDown, Lightbulb, Pin, Search, Sigma, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { createMemoryCardAction, deleteMemoryCardAction, updateMemoryCardAction } from '@/app/actions/memory-actions';
 import { DangerSubmit } from '@/components/mistake-atlas/danger-submit';
 import { MarkdownContent } from '@/components/mistake-atlas/markdown-content';
 import { QuestionFilterSelect } from '@/components/mistake-atlas/question-filter-select';
+import { StructuredImportPanel } from '@/components/mistake-atlas/structured-import-panel';
 import { PageHeader, StatusPill } from '@/components/mistake-atlas/ui';
 import { prisma } from '@/lib/prisma';
 
@@ -28,7 +29,7 @@ function MemoryForm({ card }: { card?: {
     </div>
     <label className="block text-xs font-semibold text-slate-600">一句话提示<input name="summary" defaultValue={card?.summary || ''} placeholder="帮助快速回忆使用条件或易错点" className="atlas-input mt-1.5" /></label>
     <label className="block text-xs font-semibold text-slate-600">公式或技巧正文（支持 Markdown 与 LaTeX）
-      <textarea name="contentMarkdown" required defaultValue={card?.contentMarkdown || ''} placeholder={'行内公式用 $...$，独立公式用：\n\n$$\n\\frac{1}{1-x}=\\sum_{n=0}^{\\infty}x^n\n$$\n\n可以继续写适用条件、记忆口诀和易错点。'} className="mt-1.5 min-h-64 w-full rounded-xl border border-slate-200 bg-white p-4 font-mono text-sm leading-7 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100" />
+      <textarea name="contentMarkdown" required defaultValue={card?.contentMarkdown || ''} placeholder={'行内公式用 $...$，独立公式用：\n\n$$\n\\frac{1}{1-x}=\\sum_{n=0}^{\\infty}x^n\n$$\n\n可以继续写适用条件、记忆口诀和易错点。'} className="mt-1.5 min-h-52 w-full rounded-xl border border-slate-200 bg-white p-4 font-mono text-sm leading-7 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100" />
     </label>
     <label className="block text-xs font-semibold text-slate-600">标签<input name="tags" defaultValue={card?.tags.join('，') || ''} placeholder="极限，展开，常用" className="atlas-input mt-1.5" /></label>
     <div className="flex flex-wrap gap-5 text-xs text-slate-600">
@@ -54,7 +55,15 @@ export default async function MemoryPage({ searchParams }: { searchParams: Promi
   });
 
   return <>
-    <PageHeader eyebrow="Mathematics · Memory" title="公式与技巧" description="集中保存求积公式、泰勒公式、欧拉公式、解题技巧和需要反复记忆的内容；首页会自动展示你选中的卡片。" action={<a href="#new-memory" className="atlas-button-primary"><Plus className="size-4" />添加内容</a>} />
+    <PageHeader eyebrow="Mathematics · Memory" title="公式与技巧" description="集中保存求积公式、泰勒公式、欧拉公式、解题技巧和需要反复记忆的内容；优先使用 AI 规范导入，手动添加仅作为备用。" action={<a href="#ai-structured-import" className="atlas-button-primary"><Sparkles className="size-4" />AI 规范导入</a>} />
+    <div className="mb-4"><StructuredImportPanel /></div>
+    <details id="new-memory" className="group atlas-card mb-5 scroll-mt-24 overflow-hidden">
+      <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+        <span>手动添加（备用）</span>
+        <span className="flex items-center gap-2 font-normal text-slate-400">只在不使用 AI 时展开<ChevronDown className="size-3.5 transition group-open:rotate-180" /></span>
+      </summary>
+      <div className="border-t border-slate-100 p-5"><MemoryForm /></div>
+    </details>
     <form className="atlas-card mb-5 flex flex-col gap-3 p-3 md:flex-row">
       <label className="relative min-w-0 flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input name="q" defaultValue={q} placeholder="搜索公式、技巧、分类或标签" className="atlas-input pl-9" /></label>
       <div className="md:w-56"><QuestionFilterSelect name="kind" label="内容类型" value={kind || ''} icon="type" options={[{ value: '', label: '全部内容', description: '显示公式、技巧和记忆内容' }, { value: 'FORMULA', label: '公式', description: '常用定理与公式' }, { value: 'TECHNIQUE', label: '技巧', description: '解题方法与识别信号' }, { value: 'MEMORY', label: '记忆', description: '需要反复记住的结论' }]} /></div>
@@ -62,8 +71,7 @@ export default async function MemoryPage({ searchParams }: { searchParams: Promi
       {(q || kind) ? <Link href="/memory" className="atlas-button-secondary">清除</Link> : null}
     </form>
 
-    <div className="grid items-start gap-5 2xl:grid-cols-[minmax(0,1fr)_420px]">
-      <section className="space-y-4">
+    <section className="space-y-4">
         {cards.map((card) => {
           const meta = kindMeta[card.kind];
           const Icon = meta.icon;
@@ -76,9 +84,7 @@ export default async function MemoryPage({ searchParams }: { searchParams: Promi
             <details className="border-t border-slate-100 bg-slate-50/60 px-5 py-3"><summary className="cursor-pointer list-none text-xs font-semibold text-slate-500 hover:text-slate-800">编辑这条内容</summary><div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_150px]"><MemoryForm card={card} /><form action={deleteMemoryCardAction.bind(null, card.id)}><DangerSubmit label="删除内容" confirmText={`确定删除“${card.title}”吗？删除后无法恢复。`} /></form></div></details>
           </article>;
         })}
-        {!cards.length ? <div className="atlas-card grid min-h-64 place-items-center border-dashed p-8 text-center"><div><Sigma className="mx-auto size-9 text-blue-300" /><h2 className="mt-4 font-semibold text-slate-800">还没有符合条件的内容</h2><p className="mt-2 text-sm text-slate-400">先录入一条常用公式或解题技巧，之后打开首页就能直接复习。</p></div></div> : null}
-      </section>
-      <aside id="new-memory" className="atlas-card scroll-mt-24 p-5 2xl:sticky 2xl:top-24"><div className="mb-5"><h2 className="font-semibold text-slate-900">添加公式或技巧</h2><p className="mt-1 text-xs leading-5 text-slate-400">复杂公式请使用独立的 <code>$$...$$</code> 区块，系统会按印刷体自动放大渲染。</p></div><MemoryForm /></aside>
-    </div>
+      {!cards.length ? <div className="atlas-card grid min-h-48 place-items-center border-dashed p-8 text-center"><div><Sigma className="mx-auto size-9 text-blue-300" /><h2 className="mt-4 font-semibold text-slate-800">还没有符合条件的内容</h2><p className="mt-2 text-sm text-slate-400">复制总提示词，让 AI 整理后粘贴导入即可。</p></div></div> : null}
+    </section>
   </>;
 }

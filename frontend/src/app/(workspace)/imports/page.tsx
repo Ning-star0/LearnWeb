@@ -3,6 +3,7 @@ import { Download, FileJson, History, RotateCcw } from 'lucide-react';
 import { rollbackImportJobAction } from '@/app/actions/import-actions';
 import { DangerSubmit } from '@/components/mistake-atlas/danger-submit';
 import { JsonImportCenter } from '@/components/mistake-atlas/import-center';
+import { StructuredImportPanel } from '@/components/mistake-atlas/structured-import-panel';
 import { PageHeader, StatusPill } from '@/components/mistake-atlas/ui';
 import { prisma } from '@/lib/prisma';
 
@@ -16,14 +17,14 @@ export default async function ImportsPage({ searchParams }: { searchParams: Prom
     prisma.importJob.findMany({ orderBy: { createdAt: 'desc' }, take: 20 }),
   ]);
   return <>
-    <PageHeader eyebrow="System · Backup and restore" title="系统数据导入与导出" description="这里只处理整站 JSON 备份与恢复；日常批量录入题目请使用错题库中的“批量导入”。" action={<a href="/api/exports/full" className="atlas-button-primary"><Download className="size-4" />导出完整 JSON</a>} />
+    <PageHeader eyebrow="System · Import and backup" title="系统数据导入与导出" description="AI 规范 Markdown 用于日常建立公式、目录和知识分类；完整 JSON 仅用于整站备份与恢复。" action={<a href="/api/exports/full" className="atlas-button-primary"><Download className="size-4" />导出完整 JSON</a>} />
     {completed ? <div className="mb-5 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">完整 JSON 回迁已经完成。</div> : null}
     {rolledBack ? <div className="mb-5 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">导入作业已回滚：新建题目已移除，被更新题目已恢复。</div> : null}
     <div className="grid gap-5 2xl:grid-cols-[minmax(0,1.35fr)_380px]">
-      <div className="space-y-5"><JsonImportCenter /></div>
+      <div className="space-y-5"><StructuredImportPanel compact /><JsonImportCenter /></div>
       <aside className="space-y-5">
         <div className="atlas-card p-5"><div className="flex items-center gap-2 font-semibold text-slate-800"><FileJson className="size-4" />完整 JSON</div><p className="mt-3 text-xs leading-6 text-slate-500">导出包含学科、教材、章节、知识点、错误类型、错题、重做轨迹、附件元数据和非敏感站点设置；不包含图片文件、密码、会话、图标二进制和服务器密钥。</p><a href="/api/exports/full" className="atlas-button-secondary mt-4 w-full"><Download className="size-4" />立即下载</a></div>
-        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-xs leading-6 text-blue-900"><strong>两种导入已经分开</strong><br />错题 Markdown / ZIP 从错题库的“批量导入”进入；这里的 JSON 只用于整站迁移或灾难恢复，避免日常录题时误操作系统备份。</div>
+        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-xs leading-6 text-blue-900"><strong>三类内容各有入口</strong><br />公式、教材目录和知识分类使用上方 AI 规范导入；错题 Markdown / ZIP 从错题库的“批量导入”进入；JSON 只用于整站迁移或灾难恢复。</div>
       </aside>
     </div>
 
