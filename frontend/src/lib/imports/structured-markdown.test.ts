@@ -74,3 +74,38 @@ test('不接受规范之外的字段', () => {
   assert.equal(result.records.length, 0);
   assert.match(result.errors[0].message, /answer/);
 });
+
+test('兼容旧提示词生成的 name、book 与 chapter_path 公式卡片', () => {
+  const legacy = `---
+schema_version: "1.0"
+record_type: "memory_card"
+subject: "数学"
+book: "张宇基础30讲"
+chapter_path: ["第9讲 一元函数积分学的计算", "基本积分公式"]
+name: "幂函数基本积分"
+kind: "公式"
+tags: ["不定积分"]
+---
+
+# 内容
+
+$$\\int x^k\\,dx=\\dfrac{x^{k+1}}{k+1}+C$$`;
+  const result = parseStructuredMarkdownBatch(legacy);
+  assert.equal(result.errors.length, 0);
+  const card = result.records[0];
+  assert.equal(card.recordType, 'memory_card');
+  if (card.recordType !== 'memory_card') return;
+  assert.equal(card.title, '幂函数基本积分');
+  assert.equal(card.category, '张宇基础30讲 / 第9讲 一元函数积分学的计算 / 基本积分公式');
+});
+
+test('解析错误会保留 record_type 供页面按导入范围过滤', () => {
+  const invalidChapter = `---
+schema_version: "1.0"
+record_type: "chapter"
+subject: "数学"
+book: "张宇基础30讲"
+---`;
+  const result = parseStructuredMarkdownBatch(invalidChapter);
+  assert.equal(result.errors[0].recordType, 'chapter');
+});

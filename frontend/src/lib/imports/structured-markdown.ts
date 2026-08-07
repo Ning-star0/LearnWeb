@@ -10,15 +10,21 @@ const common = {
 const memoryCardSchema = z.object({
   ...common,
   record_type: z.literal('memory_card'),
-  title: z.string().trim().min(1).max(160),
-  category: z.string().trim().min(1).max(120),
+  title: z.string().trim().min(1).max(160).optional(),
+  category: z.string().trim().min(1).max(240).optional(),
+  name: z.string().trim().min(1).max(160).optional(),
+  book: z.string().trim().min(1).max(160).optional(),
+  chapter_path: z.array(z.string().trim().min(1).max(160)).max(12).optional().default([]),
   kind: z.enum(['公式', '技巧', '记忆', 'FORMULA', 'TECHNIQUE', 'MEMORY']).default('公式'),
   summary: z.string().trim().max(300).optional().default(''),
   tags: z.array(z.string().trim().min(1).max(80)).max(30).optional().default([]),
   pinned: z.boolean().optional().default(false),
   show_on_home: z.boolean().optional().default(true),
   sort_order: z.coerce.number().int().min(-9999).max(9999).optional().default(0),
-}).strict();
+}).strict().superRefine((data, context) => {
+  if (!data.title && !data.name) context.addIssue({ code: 'custom', path: ['title'], message: 'title 与 name 至少填写一项' });
+  if (!data.category && !data.book) context.addIssue({ code: 'custom', path: ['category'], message: 'category 与 book 至少填写一项' });
+});
 
 const textbookSchema = z.object({
   ...common,
@@ -83,7 +89,7 @@ export type StructuredImportRecord =
   | { recordType: 'knowledge_point'; book: string; chapterPath: string[]; name: string; description: string | null }
   | { recordType: 'error_type'; name: string; description: string | null; color: string };
 
-export type StructuredImportError = { documentIndex: number; message: string };
+export type StructuredImportError = { documentIndex: number; recordType?: string; message: string };
 
 function normalizeLineEndings(value: string) {
   return value.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
@@ -131,10 +137,13 @@ function mapRecord(data: ParsedYamlRecord, markdown: string): StructuredImportRe
   if (data.record_type === 'memory_card') {
     const contentMarkdown = contentSection(markdown);
     if (!contentMarkdown) throw new Error('memory_card 缺少必填区块“# 内容”或区块内容为空');
+    const title = data.title || data.name;
+    const category = data.category || [data.book, ...data.chapter_path].filter(Boolean).join(' / ');
+    if (!title || !category) throw new Error('memory_card 无法确定标题或分类');
     return {
       recordType: 'memory_card',
-      title: data.title,
-      category: data.category,
+      title,
+      category,
       kind: kindMap[data.kind],
       summary: data.summary || null,
       tags: [...new Set(data.tags)],
@@ -159,7 +168,8 @@ export function parseStructuredMarkdownBatch(raw: string) {
       const { data, markdown } = parseFrontMatter(document);
       records.push(mapRecord(data, markdown));
     } catch (error) {
-      errors.push({ documentIndex: index + 1, message: error instanceof Error ? error.message : '解析失败' });
+      const recordType = /^record_type\s*:\s*["']?([^\s"']+)/m.exec(document)?.[1];
+      errors.push({ documentIndex: index + 1, recordType, message: error instanceof Error ? error.message : '解析失败' });
     }
   });
   return { records, errors, documentCount: documents.length };

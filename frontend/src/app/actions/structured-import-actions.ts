@@ -89,21 +89,31 @@ export async function importStructuredMarkdownAction(
   await requireUser();
   try {
     const markdown = String(formData.get('markdown') || '').trim();
+    const scope = formData.get('scope') === 'memory' ? 'memory' : 'all';
     if (!markdown) return { error: '请先粘贴 AI 返回的标准 Markdown。' };
     if (Buffer.byteLength(markdown, 'utf8') > 1024 * 1024) return { error: '单次粘贴内容不能超过 1MB。' };
 
     const parsed = parseStructuredMarkdownBatch(markdown);
     if (!parsed.documentCount) return { error: '没有检测到可导入的文档。' };
     if (parsed.documentCount > 1000) return { error: '单次最多导入 1000 条内容。' };
-    if (parsed.errors.length) {
-      const details = parsed.errors.slice(0, 5).map((item) => `第 ${item.documentIndex} 条：${item.message}`).join('；');
-      return { error: `${details}${parsed.errors.length > 5 ? `；另有 ${parsed.errors.length - 5} 条错误` : ''}` };
+    const blockingErrors = scope === 'memory'
+      ? parsed.errors.filter((item) => !item.recordType || item.recordType === 'memory_card')
+      : parsed.errors;
+    if (blockingErrors.length) {
+      const details = blockingErrors.slice(0, 5).map((item) => `第 ${item.documentIndex} 条：${item.message}`).join('；');
+      return { error: `${details}${blockingErrors.length > 5 ? `；另有 ${blockingErrors.length - 5} 条错误` : ''}` };
     }
+
+    const records = scope === 'memory'
+      ? parsed.records.filter((record) => record.recordType === 'memory_card')
+      : parsed.records;
+    if (!records.length) return { error: scope === 'memory' ? '没有检测到可导入的公式、技巧或记忆卡片。' : '没有检测到可导入的规范内容。' };
+    const ignoredCount = parsed.documentCount - records.length - blockingErrors.length;
 
     const counters: ImportCounters = { created: 0, updated: 0, byType: {} };
     await prisma.$transaction(async (tx) => {
       const subject = await tx.subject.findUniqueOrThrow({ where: { slug: 'mathematics' } });
-      for (const record of parsed.records) {
+      for (const record of records) {
         if (record.recordType === 'memory_card') {
           const existing = await tx.memoryCard.findFirst({
             where: { subjectId: subject.id, title: record.title, category: record.category },
@@ -181,7 +191,7 @@ export async function importStructuredMarkdownAction(
         data: {
           action: 'STRUCTURED_MARKDOWN_IMPORTED',
           entity: 'System',
-          detail: { documents: parsed.documentCount, created: counters.created, updated: counters.updated, byType: counters.byType },
+          detail: { scope, documents: records.length, ignored: ignoredCount, created: counters.created, updated: counters.updated, byType: counters.byType },
         },
       });
     }, { maxWait: 10_000, timeout: 60_000 });
@@ -190,7 +200,9 @@ export async function importStructuredMarkdownAction(
       revalidatePath(path);
     }
     return {
-      success: `已处理 ${parsed.documentCount} 条规范内容：新建 ${counters.created} 条，更新 ${counters.updated} 条。`,
+      success: scope === 'memory'
+        ? `已导入 ${records.length} 张公式卡片：新建 ${counters.created} 张，更新 ${counters.updated} 张${ignoredCount > 0 ? `；已忽略 ${ignoredCount} 条目录或知识点记录` : ''}。`
+        : `已处理 ${records.length} 条规范内容：新建 ${counters.created} 条，更新 ${counters.updated} 条。`,
       created: counters.created,
       updated: counters.updated,
       importedByType: counters.byType,
