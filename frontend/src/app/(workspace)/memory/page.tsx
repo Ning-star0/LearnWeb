@@ -56,7 +56,7 @@ export default async function MemoryPage({ searchParams }: { searchParams: Promi
 
   return <>
     <PageHeader eyebrow="Mathematics · Memory" title="公式与技巧" description="集中保存求积公式、泰勒公式、欧拉公式、解题技巧和需要反复记忆的内容；优先使用 AI 规范导入，手动添加仅作为备用。" action={<a href="#ai-structured-import" className="atlas-button-primary"><Sparkles className="size-4" />AI 规范导入</a>} />
-    <div className="mb-4"><StructuredImportPanel scope="memory" /></div>
+    <div className="mb-4"><StructuredImportPanel /></div>
     <details id="new-memory" className="group atlas-card mb-5 scroll-mt-24 overflow-hidden">
       <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-xs font-semibold text-slate-600 hover:bg-slate-50">
         <span>手动添加（备用）</span>

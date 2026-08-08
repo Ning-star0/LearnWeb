@@ -88,10 +88,16 @@ export async function importStructuredMarkdownAction(
 ): Promise<StructuredImportState> {
   await requireUser();
   try {
-    const markdown = String(formData.get('markdown') || '').trim();
+    const pastedMarkdown = String(formData.get('markdown') || '').trim();
+    const uploaded = formData.get('markdownFile');
+    const markdownFile = uploaded instanceof File && uploaded.size > 0 ? uploaded : null;
     const scope = formData.get('scope') === 'memory' ? 'memory' : 'all';
-    if (!markdown) return { error: '请先粘贴 AI 返回的标准 Markdown。' };
-    if (Buffer.byteLength(markdown, 'utf8') > 1024 * 1024) return { error: '单次粘贴内容不能超过 1MB。' };
+    if (markdownFile && pastedMarkdown) return { error: '请选择 Markdown 文件或粘贴文本，不要同时使用两种方式。' };
+    if (!markdownFile && !pastedMarkdown) return { error: '请选择一个 Markdown 文件，或直接粘贴 Markdown 文本。' };
+    if (markdownFile && !markdownFile.name.toLocaleLowerCase().endsWith('.md')) return { error: '只支持上传 .md 格式的 Markdown 文件。' };
+    if (markdownFile && markdownFile.size > 1024 * 1024) return { error: 'Markdown 文件不能超过 1MB。' };
+    const markdown = markdownFile ? (await markdownFile.text()).trim() : pastedMarkdown;
+    if (Buffer.byteLength(markdown, 'utf8') > 1024 * 1024) return { error: 'Markdown 内容不能超过 1MB。' };
 
     const parsed = parseStructuredMarkdownBatch(markdown);
     if (!parsed.documentCount) return { error: '没有检测到可导入的文档。' };
@@ -109,6 +115,10 @@ export async function importStructuredMarkdownAction(
       : parsed.records;
     if (!records.length) return { error: scope === 'memory' ? '没有检测到可导入的公式、技巧或记忆卡片。' : '没有检测到可导入的规范内容。' };
     const ignoredCount = parsed.documentCount - records.length - blockingErrors.length;
+    const recordCounts = records.reduce((counts, record) => {
+      counts[record.recordType] = (counts[record.recordType] || 0) + 1;
+      return counts;
+    }, {} as Partial<Record<(typeof records)[number]['recordType'], number>>);
 
     const counters: ImportCounters = { created: 0, updated: 0, byType: {} };
     await prisma.$transaction(async (tx) => {
@@ -202,7 +212,7 @@ export async function importStructuredMarkdownAction(
     return {
       success: scope === 'memory'
         ? `已导入 ${records.length} 张公式卡片：新建 ${counters.created} 张，更新 ${counters.updated} 张${ignoredCount > 0 ? `；已忽略 ${ignoredCount} 条目录或知识点记录` : ''}。`
-        : `已处理 ${records.length} 条规范内容：新建 ${counters.created} 条，更新 ${counters.updated} 条。`,
+        : `已分析 ${records.length} 个结构块：公式/技巧 ${recordCounts.memory_card || 0}，教材 ${recordCounts.textbook || 0}，章节 ${recordCounts.chapter || 0}，知识点 ${recordCounts.knowledge_point || 0}；新建 ${counters.created} 条，更新 ${counters.updated} 条。`,
       created: counters.created,
       updated: counters.updated,
       importedByType: counters.byType,
