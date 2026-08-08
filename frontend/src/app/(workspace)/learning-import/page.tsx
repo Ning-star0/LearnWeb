@@ -20,24 +20,26 @@ export default function LearningImportPage() {
       action={<Link href="/questions/import" className="atlas-button-secondary">需要导入错题<ArrowRight className="size-4" /></Link>}
     />
     <ImportTypeNav active="learning" />
-
-    <div className="mb-5 grid gap-3 sm:grid-cols-3">
-      {[
-        ['01', '复制总提示词', '提示词只在本页维护'],
-        ['02', '发送照片与出处', '书名或章节不清楚时可注明'],
-        ['03', '上传 AI 返回的 .md', '系统自动分析并分类写入'],
-      ].map(([number, title, note]) => <div key={number} className="rounded-2xl border border-blue-100 bg-blue-50/45 px-4 py-3">
-        <div className="text-[10px] font-bold tracking-[0.16em] text-blue-400">{number}</div>
-        <div className="mt-1 text-sm font-semibold text-slate-800">{title}</div>
-        <div className="mt-1 text-[11px] text-slate-400">{note}</div>
-      </div>)}
+    <div className="grid items-start gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
+      <aside className="atlas-card overflow-hidden">
+        <div className="border-b border-slate-100 px-5 py-4"><h2 className="text-sm font-semibold text-slate-900">三步完成导入</h2><p className="mt-1 text-[11px] leading-5 text-slate-400">只整理一次，系统负责拆分和归档。</p></div>
+        <ol className="space-y-1 p-3">
+          {[
+            ['1', '复制总提示词', '提示词只在这个页面维护'],
+            ['2', '发送照片与出处', '告诉 AI 书名和已知章节'],
+            ['3', '上传生成的 .md', '自动分析并写入对应板块'],
+          ].map(([number, title, note]) => <li key={number} className="flex gap-3 rounded-xl p-3 hover:bg-slate-50">
+            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-blue-50 text-[11px] font-bold text-blue-600">{number}</span>
+            <div><div className="text-xs font-semibold text-slate-700">{title}</div><div className="mt-1 text-[10px] leading-4 text-slate-400">{note}</div></div>
+          </li>)}
+        </ol>
+        <div className="border-t border-slate-100 bg-slate-50/50 p-4">
+          <div className="mb-3 flex items-center justify-between"><span className="text-[11px] font-semibold text-slate-600">自动写入</span><span className="text-[9px] text-slate-400">同名自动复用</span></div>
+          <div className="grid grid-cols-2 gap-2">{destinations.map((item) => { const Icon = item.icon; return <Link key={item.label} href={item.href} title={item.note} className="group flex items-center gap-2 rounded-lg border border-slate-100 bg-white px-2.5 py-2 text-[11px] font-medium text-slate-600 transition hover:border-blue-100 hover:text-blue-700"><Icon className="size-3.5 text-blue-500" />{item.label}</Link>; })}</div>
+          <p className="mt-3 text-[10px] leading-5 text-slate-400">无需预建章节，系统会按书名和完整章节路径自动建立目录。</p>
+        </div>
+      </aside>
+      <div className="min-w-0"><StructuredImportPanel compact /></div>
     </div>
-
-    <StructuredImportPanel />
-
-    <section className="mt-5 atlas-card p-5">
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="text-sm font-semibold text-slate-900">一份文件会写入这些位置</h2><p className="mt-1 text-xs text-slate-400">不需要提前手动创建章节；系统会根据书名和完整章节路径自动建立或复用目录。</p></div><span className="text-[10px] text-slate-400">重复名称自动更新或复用</span></div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{destinations.map((item) => { const Icon = item.icon; return <Link key={item.label} href={item.href} className="group flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/60 p-3 transition hover:border-blue-100 hover:bg-blue-50/50"><div className="grid size-9 shrink-0 place-items-center rounded-lg bg-white text-blue-600 shadow-sm"><Icon className="size-4" /></div><div><div className="text-xs font-semibold text-slate-700 group-hover:text-blue-700">{item.label}</div><div className="mt-0.5 text-[10px] text-slate-400">{item.note}</div></div></Link>; })}</div>
-    </section>
   </>;
 }

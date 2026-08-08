@@ -26,19 +26,22 @@ const importTypes = [
 ] as const;
 
 export function ImportTypeNav({ active }: { active: (typeof importTypes)[number]['id'] }) {
-  return <nav aria-label="选择导入类型" className="atlas-card mb-5 grid gap-2 p-2 sm:grid-cols-3">
-    {importTypes.map((item) => {
-      const Icon = item.icon;
-      const selected = item.id === active;
-      return <Link
-        key={item.id}
-        href={item.href}
-        aria-current={selected ? 'page' : undefined}
-        className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition ${selected ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
-      >
-        <div className={`grid size-8 shrink-0 place-items-center rounded-lg ${selected ? 'bg-white text-blue-600' : 'bg-slate-100 text-slate-500'}`}><Icon className="size-4" /></div>
-        <div className="min-w-0"><div className="text-xs font-semibold">{item.label}</div><div className={`mt-0.5 truncate text-[10px] ${selected ? 'text-blue-500' : 'text-slate-400'}`}>{item.description}</div></div>
-      </Link>;
-    })}
-  </nav>;
+  return <div className="mb-5 flex flex-wrap items-center gap-3">
+    <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">导入类型</span>
+    <nav aria-label="选择导入类型" className="inline-flex max-w-full flex-wrap items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
+      {importTypes.map((item) => {
+        const Icon = item.icon;
+        const selected = item.id === active;
+        return <Link
+          key={item.id}
+          href={item.href}
+          aria-current={selected ? 'page' : undefined}
+          title={item.description}
+          className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-semibold transition ${selected ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
+        >
+          <Icon className="size-3.5" />{item.label}
+        </Link>;
+      })}
+    </nav>
+  </div>;
 }

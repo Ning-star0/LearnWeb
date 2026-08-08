@@ -93,6 +93,7 @@ export function StructuredImportPanel({ compact = false }: { compact?: boolean }
   const [copied, setCopied] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [pasteOpen, setPasteOpen] = useState(false);
+  const [fileName, setFileName] = useState('');
 
   async function copyPrompt() {
     await navigator.clipboard.writeText(photoToMarkdownPrompt);
@@ -118,20 +119,24 @@ export function StructuredImportPanel({ compact = false }: { compact?: boolean }
       </div>
     </div>
 
-    {importOpen ? <form action={action} className="border-t border-blue-50 bg-blue-50/20 p-3 sm:p-4">
+    {importOpen ? <form action={action} className="border-t border-blue-50 bg-blue-50/20 p-4 sm:p-5">
       <input type="hidden" name="scope" value="all" />
-      <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-blue-200 bg-white px-4 py-3 transition hover:border-blue-300 hover:bg-blue-50/40">
-        <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600"><FileUp className="size-4" /></div>
-        <div className="min-w-0 flex-1"><div className="text-xs font-semibold text-slate-700">选择 AI 生成的 Markdown 文件</div><div className="mt-0.5 text-[10px] text-slate-400">仅支持 .md，单个文件不超过 1MB</div></div>
-        <input name="markdownFile" type="file" accept=".md,text/markdown,text/plain" className="max-w-56 text-xs text-slate-500 file:mr-2 file:rounded-md file:border-0 file:bg-blue-50 file:px-2.5 file:py-1.5 file:text-xs file:font-semibold file:text-blue-700" />
+      <label className="grid min-h-44 cursor-pointer place-items-center rounded-2xl border border-dashed border-blue-200 bg-white p-5 text-center transition hover:border-blue-300 hover:bg-blue-50/30">
+        <div>
+          <div className="mx-auto grid size-11 place-items-center rounded-2xl bg-blue-50 text-blue-600"><FileUp className="size-5" /></div>
+          <div className="mt-3 text-sm font-semibold text-slate-700">上传 AI 生成的 Markdown</div>
+          <div className="mt-1 text-[11px] text-slate-400">点击选择 .md 文件，最大 1MB</div>
+          <span className="mt-3 inline-flex h-8 items-center rounded-lg bg-blue-50 px-3 text-xs font-semibold text-blue-700">{fileName || '选择文件'}</span>
+        </div>
+        <input name="markdownFile" type="file" accept=".md,text/markdown,text/plain" className="sr-only" onChange={(event) => setFileName(event.target.files?.[0]?.name || '')} />
       </label>
 
       <button type="button" onClick={() => setPasteOpen((value) => !value)} className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-400 transition hover:text-blue-600"><ClipboardPaste className="size-3.5" />{pasteOpen ? '收起文本粘贴' : '没有文件？也可以直接粘贴 Markdown 文本'}</button>
       {pasteOpen ? <textarea name="markdown" placeholder="把 AI 生成的结构化 Markdown 粘贴到这里……" className={`${compact ? 'min-h-28' : 'min-h-36'} mt-2 w-full resize-y rounded-xl border border-blue-100 bg-white p-3 font-mono text-xs leading-6 text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100`} /> : null}
 
-      {state.error ? <div role="alert" className="mt-2 flex gap-2 rounded-lg bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-700"><AlertCircle className="mt-0.5 size-3.5 shrink-0" />{state.error}</div> : null}
-      {state.success ? <div role="status" className="mt-2 flex gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-700"><CheckCircle2 className="mt-0.5 size-3.5 shrink-0" />{state.success}</div> : null}
-      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      {state.error ? <div role="alert" className="mt-3 inline-flex max-w-full gap-2 rounded-xl bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-700"><AlertCircle className="mt-0.5 size-3.5 shrink-0" />{state.error}</div> : null}
+      {state.success ? <div role="status" className="mt-3 inline-flex max-w-full gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-700"><CheckCircle2 className="mt-0.5 size-3.5 shrink-0" />{state.success}</div> : null}
+      <div className="mt-4 flex flex-col gap-2 border-t border-blue-50 pt-4 sm:flex-row sm:items-center sm:justify-between">
         <span className="text-[10px] text-slate-400">无需预建章节；系统会按 book 与 chapter_path 自动建立目录。</span>
         <button disabled={pending} className="atlas-button-primary h-8 shrink-0 px-3 text-xs disabled:cursor-wait disabled:opacity-60">{pending ? <LoaderCircle className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}{pending ? '正在分析并导入…' : '分析并导入结构文件'}</button>
       </div>
