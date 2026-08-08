@@ -88,7 +88,7 @@ export default async function DashboardPage() {
         <h1 className="mt-2 font-serif text-3xl font-semibold tracking-tight text-slate-950 sm:text-[2.15rem]">{site.homeGreeting}</h1>
         <p className="mt-2 text-sm text-slate-500">先处理到期复习，再回顾一条公式。保持节奏，不堆积任务。</p>
       </div>
-      <div className="flex flex-wrap gap-2"><Link href="/questions/import" className="atlas-button-secondary"><FileUp className="size-4" />批量导入</Link><Link href="/questions/new" className="atlas-button-primary"><Plus className="size-4" />录入错题</Link></div>
+      <div className="flex flex-wrap gap-2"><Link href="/learning-import" className="atlas-button-secondary"><FileUp className="size-4" />学习资料导入</Link><Link href="/questions/new" className="atlas-button-primary"><Plus className="size-4" />录入错题</Link></div>
     </header>
 
     <section className="grid gap-4 2xl:grid-cols-[minmax(420px,0.9fr)_minmax(0,1.3fr)]">

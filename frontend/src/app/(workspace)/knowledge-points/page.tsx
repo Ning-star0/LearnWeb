@@ -1,4 +1,5 @@
-import { Merge, Pencil, Plus, Sigma } from 'lucide-react';
+import Link from 'next/link';
+import { FileUp, Merge, Pencil, Plus, Sigma } from 'lucide-react';
 import { createKnowledgePointAction, mergeKnowledgePointAction, updateKnowledgePointAction } from '@/app/actions/math-actions';
 import { DangerSubmit } from '@/components/mistake-atlas/danger-submit';
 import { PageHeader, ProgressBar, SectionTitle, StatusPill } from '@/components/mistake-atlas/ui';
@@ -12,7 +13,7 @@ export default async function KnowledgePointsPage() {
   ]);
   const activePoints = points.filter((point) => point.active);
   return <>
-    <PageHeader eyebrow="Mathematics · Knowledge map" title="数学知识点" description="知识点挂在教材章节下；可编辑、停用或合并，合并会在事务中迁移全部题目关联。" />
+    <PageHeader eyebrow="Mathematics · Knowledge map" title="数学知识点" description="知识点可随学习资料 Markdown 自动建立并挂到对应章节，也可以在本页手动维护和合并。" action={<Link href="/learning-import" className="atlas-button-primary"><FileUp className="size-4" />学习资料导入</Link>} />
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
       <div className="space-y-3">{points.map((point) => {
         const effective = point.questions.filter((link) => link.question.status !== 'DELETED');

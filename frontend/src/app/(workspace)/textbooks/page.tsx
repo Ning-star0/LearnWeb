@@ -1,4 +1,5 @@
-import { BookOpen, FolderTree, Pencil, Plus } from 'lucide-react';
+import Link from 'next/link';
+import { BookOpen, FileUp, FolderTree, Pencil, Plus } from 'lucide-react';
 import { createChapterAction, createTextbookAction, mergeChapterAction, updateChapterAction, updateTextbookAction } from '@/app/actions/math-actions';
 import { DangerSubmit } from '@/components/mistake-atlas/danger-submit';
 import { PageHeader, SectionTitle, StatusPill } from '@/components/mistake-atlas/ui';
@@ -8,7 +9,7 @@ export default async function TextbooksPage() {
   const math = await prisma.subject.findUniqueOrThrow({ where: { slug: 'mathematics' } });
   const textbooks = await prisma.textbook.findMany({ where: { subjectId: math.id }, include: { chapters: { orderBy: { sortOrder: 'asc' } }, _count: { select: { questions: true } } }, orderBy: { sortOrder: 'asc' } });
   return <>
-    <PageHeader eyebrow="Mathematics · Taxonomy" title="教材与章节" description="可编辑、排序和停用教材与树形章节；停用只影响后续选择，不删除历史错题。" />
+    <PageHeader eyebrow="Mathematics · Taxonomy" title="教材与章节" description="教材和多级章节可由学习资料 Markdown 自动建立，也可以在本页手动维护。" action={<Link href="/learning-import" className="atlas-button-primary"><FileUp className="size-4" />学习资料导入</Link>} />
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
       <div className="space-y-4">{textbooks.map((book) => <section key={book.id} className="atlas-card p-5">
         <div className="flex items-start gap-3"><div className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><BookOpen className="size-5" /></div><div className="flex-1"><div className="flex flex-wrap items-center gap-2"><h2 className="font-semibold text-slate-900">{book.name}</h2><StatusPill tone="blue">{book._count.questions} 道错题</StatusPill><StatusPill tone={book.active ? 'green' : 'slate'}>{book.active ? '启用' : '停用'}</StatusPill></div><p className="mt-1 text-xs text-slate-400">{book.description || '暂无说明'}</p></div></div>

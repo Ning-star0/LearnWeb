@@ -1,11 +1,10 @@
 import { MemoryCardKind } from '@prisma/client';
-import { BookOpenCheck, ChevronDown, Lightbulb, Pin, Search, Sigma, Sparkles } from 'lucide-react';
+import { BookOpenCheck, ChevronDown, FileUp, Lightbulb, Pin, Search, Sigma, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { createMemoryCardAction, deleteMemoryCardAction, updateMemoryCardAction } from '@/app/actions/memory-actions';
 import { DangerSubmit } from '@/components/mistake-atlas/danger-submit';
 import { MarkdownContent } from '@/components/mistake-atlas/markdown-content';
 import { QuestionFilterSelect } from '@/components/mistake-atlas/question-filter-select';
-import { StructuredImportPanel } from '@/components/mistake-atlas/structured-import-panel';
 import { PageHeader, StatusPill } from '@/components/mistake-atlas/ui';
 import { prisma } from '@/lib/prisma';
 
@@ -55,8 +54,7 @@ export default async function MemoryPage({ searchParams }: { searchParams: Promi
   });
 
   return <>
-    <PageHeader eyebrow="Mathematics · Memory" title="公式与技巧" description="集中保存求积公式、泰勒公式、欧拉公式、解题技巧和需要反复记忆的内容；优先使用 AI 规范导入，手动添加仅作为备用。" action={<a href="#ai-structured-import" className="atlas-button-primary"><Sparkles className="size-4" />AI 规范导入</a>} />
-    <div className="mb-4"><StructuredImportPanel /></div>
+    <PageHeader eyebrow="Mathematics · Memory" title="公式与技巧" description="集中保存求积公式、泰勒公式、欧拉公式、解题技巧和需要反复记忆的内容；手动添加仅作为备用。" action={<Link href="/learning-import" className="atlas-button-primary"><FileUp className="size-4" />学习资料导入</Link>} />
     <details id="new-memory" className="group atlas-card mb-5 scroll-mt-24 overflow-hidden">
       <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-xs font-semibold text-slate-600 hover:bg-slate-50">
         <span>手动添加（备用）</span>
@@ -84,7 +82,7 @@ export default async function MemoryPage({ searchParams }: { searchParams: Promi
             <details className="border-t border-slate-100 bg-slate-50/60 px-5 py-3"><summary className="cursor-pointer list-none text-xs font-semibold text-slate-500 hover:text-slate-800">编辑这条内容</summary><div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_150px]"><MemoryForm card={card} /><form action={deleteMemoryCardAction.bind(null, card.id)}><DangerSubmit label="删除内容" confirmText={`确定删除“${card.title}”吗？删除后无法恢复。`} /></form></div></details>
           </article>;
         })}
-      {!cards.length ? <div className="atlas-card grid min-h-48 place-items-center border-dashed p-8 text-center"><div><Sigma className="mx-auto size-9 text-blue-300" /><h2 className="mt-4 font-semibold text-slate-800">还没有符合条件的内容</h2><p className="mt-2 text-sm text-slate-400">复制总提示词，让 AI 整理后粘贴导入即可。</p></div></div> : null}
+      {!cards.length ? <div className="atlas-card grid min-h-48 place-items-center border-dashed p-8 text-center"><div><Sigma className="mx-auto size-9 text-blue-300" /><h2 className="mt-4 font-semibold text-slate-800">还没有符合条件的内容</h2><p className="mt-2 text-sm text-slate-400">到学习资料导入页复制总提示词，让 AI 整理后上传 .md 即可。</p><Link href="/learning-import" className="atlas-button-secondary mt-4"><FileUp className="size-4" />前往学习资料导入</Link></div></div> : null}
     </section>
   </>;
 }

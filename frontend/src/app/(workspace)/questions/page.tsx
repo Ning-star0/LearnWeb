@@ -166,7 +166,7 @@ export default async function QuestionsPage({ searchParams }: { searchParams: Pr
     : questions;
 
   return <>
-    <PageHeader eyebrow="Mathematics · Mistake library" title="数学错题库" description="按书本中的例与练习编号排列，书名用于区分不同资料中的同号题。" action={<div className="flex gap-2"><Link href="/questions/import" className="atlas-button-secondary"><FileUp className="size-4" />批量导入</Link><Link href="/questions/new" className="atlas-button-primary"><Plus className="size-4" />录入单题</Link></div>} />
+    <PageHeader eyebrow="Mathematics · Mistake library" title="数学错题库" description="按书本中的例与练习编号排列，书名用于区分不同资料中的同号题。" action={<div className="flex gap-2"><Link href="/questions/import" className="atlas-button-secondary"><FileUp className="size-4" />导入错题</Link><Link href="/questions/new" className="atlas-button-primary"><Plus className="size-4" />录入单题</Link></div>} />
     {query.deleted ? <div className="mb-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">错题已移入回收站，可随时恢复。</div> : null}
     <form className="atlas-card mb-5 grid gap-2 p-3 md:grid-cols-[minmax(280px,1fr)_180px_160px_auto]">
       <label className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input name="q" defaultValue={q} className="atlas-input pl-9" placeholder="搜索例 1.38、练习 1.1、书名或标题" /></label>

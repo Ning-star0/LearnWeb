@@ -6,6 +6,11 @@ import { importStructuredMarkdownAction, type StructuredImportState } from '@/ap
 
 const photoToMarkdownPrompt = `你是“个人学习档案”的数学资料结构化助手。我会给你教材、讲义或笔记的照片，并补充书名、章节等出处信息。请准确读取照片，把其中的公式、定理、方法、技巧和知识点整理成一份可直接导入系统的 Markdown 文件。
 
+使用方式与信息来源：
+- 我会在本提示词后附上照片，并尽量提供书名、当前讲/章/节。请优先采用我明确提供的出处；照片上能清楚识别的目录标题可用于补全 chapter_path。
+- 如果书名或章节确实无法确认，不要虚构。请先向我询问缺失的出处，得到回答后再生成文件。
+- 我不需要提前在系统中建立教材、章节或知识点；你必须把这些目录信息一起写入同一份 Markdown 文件。
+
 输出要求：
 1. 最终创建一个 UTF-8 编码的 .md 文件并作为附件交付，文件名使用“书名_章节_知识结构.md”；不要解释，不要使用代码围栏。只有在当前平台确实无法创建文件附件时，才直接输出该文件的完整正文。
 2. 一个文件中可以连续包含多份结构记录。每份记录都必须以 --- 开始，YAML 结束后再写一个 ---。
@@ -80,7 +85,7 @@ sort_order: 0
 - 如果照片跨越多个章节，分别输出对应的 chapter、knowledge_point 和 memory_card。
 - 我如果一次提供多张连续照片，要合并理解后输出同一个 Markdown 文件。
 
-现在请读取我接下来提供的照片和出处信息，并严格生成上述结构化 Markdown 文件：
+现在请读取我接下来提供的照片和出处信息，并严格生成上述结构化 Markdown 文件。最终只交付一个 .md 文件；不要把目录、说明或提示词放在文件之外：
 `;
 
 export function StructuredImportPanel({ compact = false }: { compact?: boolean }) {
@@ -101,14 +106,14 @@ export function StructuredImportPanel({ compact = false }: { compact?: boolean }
         <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-600"><Sparkles className="size-4" /></div>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-sm font-semibold text-slate-900">照片结构化导入</h2>
-            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] text-blue-600">公式 · 章节 · 知识点</span>
+            <h2 className="text-sm font-semibold text-slate-900">学习资料 Markdown 导入</h2>
+            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] text-blue-600">教材 · 章节 · 知识点 · 公式</span>
           </div>
-          <p className="mt-0.5 text-xs text-slate-400">让 AI 根据照片生成一份 .md 文件，上传后系统自动拆分到对应板块。</p>
+          <p className="mt-0.5 text-xs text-slate-400">复制唯一的总提示词，让 AI 根据照片生成 .md；上传后自动拆分到对应板块。</p>
         </div>
       </div>
       <div className="flex shrink-0 flex-wrap gap-2">
-        <button type="button" onClick={copyPrompt} className="atlas-button-secondary h-8 px-3 text-xs">{copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}{copied ? '已复制' : '复制照片整理提示词'}</button>
+        <button type="button" onClick={copyPrompt} className="atlas-button-secondary h-8 px-3 text-xs">{copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}{copied ? '已复制' : '复制总提示词'}</button>
         <button type="button" onClick={() => setImportOpen((value) => !value)} className="atlas-button-primary h-8 px-3 text-xs"><FileUp className="size-3.5" />{importOpen ? '收起' : '上传 Markdown'}</button>
       </div>
     </div>
@@ -127,7 +132,7 @@ export function StructuredImportPanel({ compact = false }: { compact?: boolean }
       {state.error ? <div role="alert" className="mt-2 flex gap-2 rounded-lg bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-700"><AlertCircle className="mt-0.5 size-3.5 shrink-0" />{state.error}</div> : null}
       {state.success ? <div role="status" className="mt-2 flex gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-700"><CheckCircle2 className="mt-0.5 size-3.5 shrink-0" />{state.success}</div> : null}
       <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <span className="text-[10px] text-slate-400">公式进入公式与技巧；教材、章节和知识点进入各自目录。</span>
+        <span className="text-[10px] text-slate-400">无需预建章节；系统会按 book 与 chapter_path 自动建立目录。</span>
         <button disabled={pending} className="atlas-button-primary h-8 shrink-0 px-3 text-xs disabled:cursor-wait disabled:opacity-60">{pending ? <LoaderCircle className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}{pending ? '正在分析并导入…' : '分析并导入结构文件'}</button>
       </div>
     </form> : null}

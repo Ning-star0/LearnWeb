@@ -206,7 +206,7 @@ export async function importStructuredMarkdownAction(
       });
     }, { maxWait: 10_000, timeout: 60_000 });
 
-    for (const path of ['/', '/memory', '/textbooks', '/knowledge-points', '/error-types', '/questions', '/questions/new', '/imports']) {
+    for (const path of ['/', '/learning-import', '/memory', '/textbooks', '/knowledge-points', '/error-types', '/questions', '/questions/new', '/imports']) {
       revalidatePath(path);
     }
     return {

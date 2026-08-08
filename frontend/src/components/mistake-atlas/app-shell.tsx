@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
   ArchiveRestore, BarChart3, BookMarked, BookOpenCheck, BrainCircuit, CalendarCheck2,
-  CheckCircle2, ChevronDown, CircleAlert, Cpu, FileUp, Languages,
+  CheckCircle2, ChevronDown, CircleAlert, Cpu, DatabaseBackup, FileUp, Languages,
   Landmark, LayoutDashboard, LibraryBig, ListChecks, LogOut, Menu, Plus,
   PanelLeftClose, PanelLeftOpen, Search, Settings2, Sigma, Tags, X,
 } from 'lucide-react';
@@ -23,6 +23,7 @@ const mainNavigation = [
   { label: '反复错误', href: '/status/repeated-errors', icon: CircleAlert, countKey: 'repeated' as const },
 ];
 const manageNavigation = [
+  { label: '学习资料导入', href: '/learning-import', icon: FileUp },
   { label: '教材与章节', href: '/textbooks', icon: LibraryBig },
   { label: '知识点', href: '/knowledge-points', icon: Sigma },
   { label: '公式与技巧', href: '/memory', icon: BookOpenCheck },
@@ -31,7 +32,7 @@ const manageNavigation = [
 const systemNavigation = [
   { label: '周报与预报', href: '/reports/weekly', icon: BarChart3 },
   { label: 'AI 分析', href: '/ai', icon: BrainCircuit },
-  { label: '系统数据', href: '/imports', icon: FileUp },
+  { label: '系统备份', href: '/imports', icon: DatabaseBackup },
   { label: '设置', href: '/settings', icon: Settings2 },
   { label: '回收站', href: '/trash', icon: ArchiveRestore },
 ];
