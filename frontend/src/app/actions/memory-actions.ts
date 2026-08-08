@@ -4,6 +4,7 @@ import { MemoryCardKind } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/auth';
+import { memoryDateKey, nextMemoryReviewAt } from '@/lib/memory-schedule';
 import { prisma } from '@/lib/prisma';
 
 function text(formData: FormData, key: string) {
@@ -69,4 +70,39 @@ export async function deleteMemoryCardAction(cardId: string) {
   revalidatePath('/');
   revalidatePath('/memory');
   redirect('/memory?deleted=1');
+}
+
+export async function markMemoryViewedAction(cardId: string) {
+  await requireUser();
+  const now = new Date();
+  const dateKey = memoryDateKey(now);
+  const [card, settings] = await Promise.all([
+    prisma.memoryCard.findUniqueOrThrow({ where: { id: cardId } }),
+    prisma.learningSettings.upsert({ where: { id: 'learning' }, update: {}, create: {} }),
+  ]);
+  const existing = await prisma.memoryReview.findUnique({
+    where: { memoryCardId_dateKey: { memoryCardId: cardId, dateKey } },
+  });
+  if (!existing) {
+    const intervals = settings.memoryReviewIntervals.length
+      ? settings.memoryReviewIntervals
+      : [2, 3, 7, 14, 30];
+    await prisma.$transaction([
+      prisma.memoryReview.create({ data: { memoryCardId: cardId, dateKey, viewedAt: now } }),
+      prisma.memoryCard.update({
+        where: { id: cardId },
+        data: {
+          viewCount: { increment: 1 },
+          lastViewedAt: now,
+          nextReviewAt: nextMemoryReviewAt(now, intervals[Math.min(card.viewCount, intervals.length - 1)]),
+        },
+      }),
+      prisma.auditLog.create({
+        data: { action: 'MEMORY_CARD_VIEWED', entity: 'MemoryCard', entityId: cardId, detail: { dateKey } },
+      }),
+    ]);
+  }
+  revalidatePath('/');
+  revalidatePath('/memory');
+  revalidatePath(`/memory/${cardId}`);
 }

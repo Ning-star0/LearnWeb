@@ -9,6 +9,7 @@ import { MarkdownContent } from '@/components/mistake-atlas/markdown-content';
 import { ProgressBar, StatusPill } from '@/components/mistake-atlas/ui';
 import { prisma } from '@/lib/prisma';
 import { getSiteSettings } from '@/lib/site-settings';
+import { isViewedToday, memoryDateKey } from '@/lib/memory-schedule';
 
 const resultMeta = {
   INDEPENDENT_CORRECT: { label: '独立做对', className: 'bg-emerald-50 text-emerald-700' },
@@ -24,6 +25,12 @@ function PanelHeading({ title, description, action }: { title: string; descripti
     <div><h2 className="text-base font-semibold text-slate-900">{title}</h2>{description ? <p className="mt-1 text-xs leading-5 text-slate-400">{description}</p> : null}</div>
     {action}
   </div>;
+}
+
+function memoryPreview(markdown: string) {
+  return markdown.match(/\$\$[\s\S]*?\$\$/)?.[0]
+    || markdown.split(/\n\s*\n/).find((block) => block.trim())?.slice(0, 900)
+    || markdown.slice(0, 900);
 }
 
 function Metric({ label, value, note, icon: Icon, tone }: {
@@ -61,7 +68,7 @@ export default async function DashboardPage() {
     }),
     prisma.errorType.findMany({ where: { subjectId: math.id }, include: { _count: { select: { questions: true } } }, orderBy: { questions: { _count: 'desc' } }, take: 5 }),
     prisma.attempt.findMany({ where: { question: { subjectId: math.id }, attemptedAt: { gte: weekStart } }, select: { result: true, attemptedAt: true } }),
-    prisma.memoryCard.findMany({ where: { subjectId: math.id, showOnHome: true }, orderBy: [{ pinned: 'desc' }, { sortOrder: 'asc' }, { updatedAt: 'desc' }], take: 1 }),
+    prisma.memoryCard.findMany({ where: { subjectId: math.id, showOnHome: true }, orderBy: [{ pinned: 'desc' }, { sortOrder: 'asc' }, { updatedAt: 'desc' }] }),
     prisma.attempt.findMany({
       where: { question: { subjectId: math.id } }, orderBy: { attemptedAt: 'desc' }, take: 3,
       select: { id: true, result: true, attemptedAt: true, question: { select: { id: true, title: true, materialType: true, sourceQuestionNumber: true, textbook: { select: { name: true } } } } },
@@ -78,7 +85,10 @@ export default async function DashboardPage() {
     return recentAttempts.filter((item) => item.attemptedAt >= day && item.attemptedAt < new Date(day.getTime() + 86400000)).length;
   });
   const maxDaily = Math.max(1, ...daily);
-  const memory = memoryCards[0];
+  const dueMemory = memoryCards.find((item) => item.nextReviewAt && item.nextReviewAt <= now && !isViewedToday(item.lastViewedAt, now));
+  const dayIndex = Number(memoryDateKey(now).replaceAll('-', '')) % Math.max(1, memoryCards.length);
+  const memory = dueMemory || memoryCards[dayIndex];
+  const memoryIndex = memory ? memoryCards.findIndex((item) => item.id === memory.id) : -1;
   const MemoryIcon = memory?.kind === 'TECHNIQUE' ? Lightbulb : memory?.kind === 'MEMORY' ? BookOpenCheck : Sigma;
 
   return <div className="space-y-5 pb-2">
@@ -108,8 +118,8 @@ export default async function DashboardPage() {
 
     <section className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(380px,0.92fr)]">
       <div className="atlas-card p-5 sm:p-6">
-        <PanelHeading title="今日公式" description="每天快速回顾一条公式、技巧或记忆卡片" action={<Link href="/memory" className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800">查看全部<ArrowRight className="size-3.5" /></Link>} />
-        {memory ? <Link href={`/memory#memory-${memory.id}`} className="mt-4 block rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50/70 to-blue-50/40 p-4 transition hover:border-violet-200 sm:p-5"><div className="flex items-start gap-3"><div className="grid size-9 shrink-0 place-items-center rounded-xl bg-white text-violet-600 shadow-sm"><MemoryIcon className="size-4.5" /></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold text-slate-900">{memory.title}</h3><StatusPill tone={memory.kind === 'TECHNIQUE' ? 'amber' : memory.kind === 'MEMORY' ? 'green' : 'blue'}>{memory.kind === 'TECHNIQUE' ? '技巧' : memory.kind === 'MEMORY' ? '记忆' : '公式'}</StatusPill></div><p className="mt-1 text-xs text-slate-400">{memory.category}</p></div></div><div className="atlas-dashboard-formula mt-3 max-h-52 overflow-auto"><MarkdownContent>{memory.contentMarkdown}</MarkdownContent></div></Link> : <Link href="/memory#new-memory" className="mt-4 flex min-h-36 items-center justify-center rounded-2xl border border-dashed border-violet-200 bg-violet-50/35 p-6 text-center transition hover:bg-violet-50/70"><div><Sparkles className="mx-auto size-7 text-violet-300" /><div className="mt-3 text-sm font-semibold text-slate-700">添加第一条公式或技巧</div><p className="mt-1 text-xs text-slate-400">录入后，首页每天都可以快速回顾。</p></div></Link>}
+        <PanelHeading title="今日背诵" description="按间隔计划优先展示到期内容；没有到期项时每天轮换一条" action={<Link href="/memory" className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800">打开手册<ArrowRight className="size-3.5" /></Link>} />
+        {memory ? <Link href={`/memory/${memory.id}`} className="mt-4 block rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50/70 to-blue-50/40 p-4 transition hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-sm sm:p-5"><div className="flex items-start gap-3"><div className="grid size-9 shrink-0 place-items-center rounded-xl bg-white text-violet-600 shadow-sm"><MemoryIcon className="size-4.5" /></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-[10px] font-bold tracking-[0.14em] text-blue-500">第 {String(memoryIndex + 1).padStart(2, '0')} 条 / 共 {memoryCards.length} 条</span><StatusPill tone={memory.kind === 'TECHNIQUE' ? 'amber' : memory.kind === 'MEMORY' ? 'green' : 'blue'}>{memory.kind === 'TECHNIQUE' ? '技巧' : memory.kind === 'MEMORY' ? '记忆' : '公式'}</StatusPill>{isViewedToday(memory.lastViewedAt, now) ? <StatusPill tone="green">今天已看</StatusPill> : null}</div><h3 className="mt-2 font-semibold text-slate-900">{memory.title}</h3><p className="mt-1 text-xs text-slate-400">{memory.category}</p></div></div>{memory.summary ? <p className="mt-3 rounded-xl bg-white/70 px-3 py-2 text-xs leading-6 text-slate-600">怎么背：{memory.summary}</p> : null}<div className="atlas-memory-preview mt-3 rounded-xl border border-white/80 bg-white/65 p-3"><MarkdownContent>{memoryPreview(memory.contentMarkdown)}</MarkdownContent></div><div className="mt-3 text-right text-xs font-semibold text-blue-600">开始背诵 →</div></Link> : <Link href="/memory#new-memory" className="mt-4 flex min-h-36 items-center justify-center rounded-2xl border border-dashed border-violet-200 bg-violet-50/35 p-6 text-center transition hover:bg-violet-50/70"><div><Sparkles className="mx-auto size-7 text-violet-300" /><div className="mt-3 text-sm font-semibold text-slate-700">添加第一条公式或技巧</div><p className="mt-1 text-xs text-slate-400">录入后，首页每天都可以快速回顾。</p></div></Link>}
       </div>
 
       <Link href="/settings" className="atlas-card block p-5 transition hover:border-blue-200 hover:shadow-md sm:p-6">

@@ -1,11 +1,12 @@
 import { MemoryCardKind } from '@prisma/client';
-import { BookOpenCheck, ChevronDown, FileUp, Lightbulb, Pin, Search, Sigma, Sparkles } from 'lucide-react';
+import { ArrowRight, BookOpenCheck, ChevronDown, FileUp, Lightbulb, Pin, Search, Sigma, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { createMemoryCardAction, deleteMemoryCardAction, updateMemoryCardAction } from '@/app/actions/memory-actions';
 import { DangerSubmit } from '@/components/mistake-atlas/danger-submit';
 import { MarkdownContent } from '@/components/mistake-atlas/markdown-content';
 import { QuestionFilterSelect } from '@/components/mistake-atlas/question-filter-select';
 import { PageHeader, StatusPill } from '@/components/mistake-atlas/ui';
+import { isViewedThisWeek, isViewedToday } from '@/lib/memory-schedule';
 import { prisma } from '@/lib/prisma';
 
 const kindMeta = {
@@ -13,6 +14,12 @@ const kindMeta = {
   TECHNIQUE: { label: '技巧', icon: Lightbulb, tone: 'amber' as const },
   MEMORY: { label: '记忆', icon: BookOpenCheck, tone: 'green' as const },
 };
+
+function memoryPreview(markdown: string) {
+  const displayFormula = markdown.match(/\$\$[\s\S]*?\$\$/)?.[0];
+  if (displayFormula) return displayFormula;
+  return markdown.split(/\n\s*\n/).find((block) => block.trim())?.slice(0, 1200) || markdown.slice(0, 1200);
+}
 
 function MemoryForm({ card }: { card?: {
   id: string; title: string; category: string; contentMarkdown: string; summary: string | null;
@@ -52,9 +59,10 @@ export default async function MemoryPage({ searchParams }: { searchParams: Promi
     },
     orderBy: [{ pinned: 'desc' }, { sortOrder: 'asc' }, { updatedAt: 'desc' }],
   });
+  const now = new Date();
 
   return <>
-    <PageHeader eyebrow="Mathematics · Memory" title="公式与技巧" description="集中保存求积公式、泰勒公式、欧拉公式、解题技巧和需要反复记忆的内容；手动添加仅作为备用。" action={<Link href="/learning-import" className="atlas-button-primary"><FileUp className="size-4" />学习资料导入</Link>} />
+    <PageHeader eyebrow="Mathematics · Memory handbook" title="公式与技巧手册" description="按编号整理每天需要背诵的公式、方法与记忆要点；先回忆，再进入背诵模式核对。" action={<div className="flex flex-wrap gap-2"><Link href="/learning-import" className="atlas-button-secondary"><FileUp className="size-4" />导入内容</Link>{cards[0] ? <Link href={`/memory/${cards[0].id}`} className="atlas-button-primary">从第 01 条开始<ArrowRight className="size-4" /></Link> : null}</div>} />
     <details id="new-memory" className="group atlas-card mb-5 scroll-mt-24 overflow-hidden">
       <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-xs font-semibold text-slate-600 hover:bg-slate-50">
         <span>手动添加（备用）</span>
@@ -69,20 +77,26 @@ export default async function MemoryPage({ searchParams }: { searchParams: Promi
       {(q || kind) ? <Link href="/memory" className="atlas-button-secondary">清除</Link> : null}
     </form>
 
-    <section className="space-y-4">
-        {cards.map((card) => {
+    <div className="mb-4 flex items-center justify-between text-xs text-slate-400"><span>手册共 <strong className="text-slate-700">{cards.length}</strong> 条</span><span>大公式使用独立展示，正文公式保持正常字号</span></div>
+    <section className="grid gap-4 xl:grid-cols-2">
+        {cards.map((card, index) => {
           const meta = kindMeta[card.kind];
           const Icon = meta.icon;
-          return <article id={`memory-${card.id}`} key={card.id} className="atlas-card scroll-mt-24 overflow-hidden">
-            <div className="flex flex-wrap items-start gap-3 border-b border-slate-100 px-5 py-4">
-              <div className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon className="size-5" /></div>
-              <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-semibold text-slate-950">{card.title}</h2>{card.pinned ? <Pin className="size-3.5 fill-blue-500 text-blue-500" /> : null}<StatusPill tone={meta.tone}>{meta.label}</StatusPill>{card.showOnHome ? <StatusPill tone="slate">首页展示</StatusPill> : null}</div><div className="mt-1 text-xs text-slate-400">{card.category}</div>{card.summary ? <p className="mt-2 text-sm text-slate-600">{card.summary}</p> : null}</div>
+          const viewedToday = isViewedToday(card.lastViewedAt, now);
+          const viewedThisWeek = isViewedThisWeek(card.lastViewedAt, now);
+          const reviewDue = Boolean(card.nextReviewAt && card.nextReviewAt <= now && !viewedToday);
+          return <article id={`memory-${card.id}`} key={card.id} className="atlas-card flex scroll-mt-24 flex-col overflow-hidden">
+            <div className="flex items-start gap-3 px-5 pt-5">
+              <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon className="size-5" /></div>
+              <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-[10px] font-bold tracking-[0.14em] text-blue-500">第 {String(index + 1).padStart(2, '0')} 条</span><StatusPill tone={meta.tone}>{meta.label}</StatusPill>{viewedToday ? <StatusPill tone="green">今天已看</StatusPill> : viewedThisWeek ? <StatusPill tone="blue">本周已看</StatusPill> : reviewDue ? <StatusPill tone="amber">待复习</StatusPill> : null}{card.pinned ? <Pin className="size-3.5 fill-blue-500 text-blue-500" /> : null}</div><h2 className="mt-2 text-lg font-semibold text-slate-950">{card.title}</h2><div className="mt-1 truncate text-[11px] text-slate-400">{card.category}{card.viewCount ? ` · 已看 ${card.viewCount} 次` : ''}</div></div>
             </div>
-            <div className="px-5 py-6 sm:px-7"><MarkdownContent>{card.contentMarkdown}</MarkdownContent>{card.tags.length ? <div className="mt-5 flex flex-wrap gap-2">{card.tags.map((tag) => <span key={tag} className="rounded-full border border-blue-100 bg-blue-50/70 px-2.5 py-1 text-[11px] text-blue-700">{tag}</span>)}</div> : null}</div>
+            {card.summary ? <div className="mx-5 mt-4 rounded-xl bg-amber-50/60 px-3 py-2.5 text-xs leading-6 text-amber-900"><span className="mr-2 font-semibold text-amber-600">记忆提示</span>{card.summary}</div> : null}
+            <div className="atlas-memory-preview mx-5 mt-4 flex min-h-32 flex-1 items-center justify-center overflow-hidden rounded-xl border border-blue-100 bg-blue-50/35 p-4"><MarkdownContent>{memoryPreview(card.contentMarkdown)}</MarkdownContent></div>
+            <div className="flex items-center justify-between gap-3 px-5 py-4"><div className="flex min-w-0 gap-1.5 overflow-hidden">{card.tags.slice(0, 3).map((tag) => <span key={tag} className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-[9px] text-slate-500">{tag}</span>)}</div><Link href={`/memory/${card.id}`} className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800">打开背诵<ArrowRight className="size-3.5" /></Link></div>
             <details className="border-t border-slate-100 bg-slate-50/60 px-5 py-3"><summary className="cursor-pointer list-none text-xs font-semibold text-slate-500 hover:text-slate-800">编辑这条内容</summary><div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_150px]"><MemoryForm card={card} /><form action={deleteMemoryCardAction.bind(null, card.id)}><DangerSubmit label="删除内容" confirmText={`确定删除“${card.title}”吗？删除后无法恢复。`} /></form></div></details>
           </article>;
         })}
-      {!cards.length ? <div className="atlas-card grid min-h-48 place-items-center border-dashed p-8 text-center"><div><Sigma className="mx-auto size-9 text-blue-300" /><h2 className="mt-4 font-semibold text-slate-800">还没有符合条件的内容</h2><p className="mt-2 text-sm text-slate-400">到学习资料导入页复制总提示词，让 AI 整理后上传 .md 即可。</p><Link href="/learning-import" className="atlas-button-secondary mt-4"><FileUp className="size-4" />前往学习资料导入</Link></div></div> : null}
+      {!cards.length ? <div className="atlas-card grid min-h-48 place-items-center border-dashed p-8 text-center xl:col-span-2"><div><Sigma className="mx-auto size-9 text-blue-300" /><h2 className="mt-4 font-semibold text-slate-800">手册还是空的</h2><p className="mt-2 text-sm text-slate-400">到学习资料导入页，让 AI 整理公式和知识点后上传 .md。</p><Link href="/learning-import" className="atlas-button-secondary mt-4"><FileUp className="size-4" />前往学习资料导入</Link></div></div> : null}
     </section>
   </>;
 }

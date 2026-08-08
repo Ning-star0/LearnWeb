@@ -42,7 +42,14 @@ export async function updateLearningSettingsAction(formData: FormData) {
   const masteryThreshold = Math.min(10, Math.max(1, Number(formData.get('masteryThreshold')) || 3));
   const repeatedErrorThreshold = Math.min(20, Math.max(2, Number(formData.get('repeatedErrorThreshold')) || 3));
   const reviewIntervals = value(formData, 'reviewIntervals').split(/[,，\s]+/).map(Number).filter((item) => Number.isInteger(item) && item > 0 && item <= 365);
-  await prisma.learningSettings.upsert({ where: { id: 'learning' }, update: { masteryThreshold, repeatedErrorThreshold, reviewIntervals: reviewIntervals.length ? reviewIntervals : [1, 3, 7, 14, 30] }, create: { masteryThreshold, repeatedErrorThreshold, reviewIntervals: reviewIntervals.length ? reviewIntervals : [1, 3, 7, 14, 30] } });
+  const memoryReviewIntervals = value(formData, 'memoryReviewIntervals').split(/[,，\s]+/).map(Number).filter((item) => Number.isInteger(item) && item > 0 && item <= 365);
+  const data = {
+    masteryThreshold,
+    repeatedErrorThreshold,
+    reviewIntervals: reviewIntervals.length ? reviewIntervals : [1, 3, 7, 14, 30],
+    memoryReviewIntervals: memoryReviewIntervals.length ? memoryReviewIntervals : [2, 3, 7, 14, 30],
+  };
+  await prisma.learningSettings.upsert({ where: { id: 'learning' }, update: data, create: data });
   revalidatePath('/settings');
   redirect('/settings?learning=saved');
 }
