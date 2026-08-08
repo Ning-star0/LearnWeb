@@ -158,12 +158,26 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .atlas-memory-preview .atlas-math-print .katex-display > .katex {
   font-size: clamp(1.02rem, 1.25vw, 1.28rem);
 }
-.atlas-memory-study .atlas-markdown { font-size: 1rem; line-height: 1.95; }
-.atlas-memory-study .atlas-math-print .katex-display > .katex {
-  font-size: clamp(1.3rem, 2vw, 1.82rem);
+.atlas-memory-study .atlas-markdown { font-size: 0.94rem; line-height: 1.72; }
+.atlas-memory-study .atlas-markdown p,
+.atlas-memory-study .atlas-markdown ul,
+.atlas-memory-study .atlas-markdown ol,
+.atlas-memory-study .atlas-markdown blockquote,
+.atlas-memory-study .atlas-markdown pre,
+.atlas-memory-study .atlas-markdown table { margin: 0.65em 0; }
+.atlas-memory-study .atlas-math-print .katex-display {
+  margin: 0.65rem 0;
+  border-radius: 0.75rem;
+  background: #f8fbff;
+  padding: 0.8rem 1rem;
 }
-.atlas-memory-study .atlas-math-print p .katex { font-size: 1.02em; }
+.atlas-memory-study .atlas-math-print .katex-display > .katex {
+  font-size: clamp(0.98rem, 1.15vw, 1.16rem);
+  line-height: 1.45;
+}
+.atlas-memory-study .atlas-math-print p .katex { font-size: 0.98em; }
 
 @media (max-width: 640px) {
   .atlas-math-print .katex-display { margin: 1rem 0; padding: 1.1rem 1rem; }
+  .atlas-memory-study .atlas-math-print .katex-display { margin: 0.6rem 0; padding: 0.75rem 0.8rem; }
 }

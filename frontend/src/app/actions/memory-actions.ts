@@ -106,3 +106,44 @@ export async function markMemoryViewedAction(cardId: string) {
   revalidatePath('/memory');
   revalidatePath(`/memory/${cardId}`);
 }
+
+export async function markMemoryMemorizedAction(cardId: string) {
+  await requireUser();
+  const now = new Date();
+  const dateKey = memoryDateKey(now);
+  const [card, settings] = await Promise.all([
+    prisma.memoryCard.findUniqueOrThrow({ where: { id: cardId } }),
+    prisma.learningSettings.upsert({ where: { id: 'learning' }, update: {}, create: {} }),
+  ]);
+  const existing = await prisma.memoryReview.findUnique({
+    where: { memoryCardId_dateKey: { memoryCardId: cardId, dateKey } },
+  });
+  if (!existing?.memorizedAt) {
+    const intervals = settings.memoryReviewIntervals.length
+      ? settings.memoryReviewIntervals
+      : [2, 3, 7, 14, 30];
+    await prisma.$transaction([
+      existing
+        ? prisma.memoryReview.update({ where: { id: existing.id }, data: { memorizedAt: now } })
+        : prisma.memoryReview.create({ data: { memoryCardId: cardId, dateKey, viewedAt: now, memorizedAt: now } }),
+      prisma.memoryCard.update({
+        where: { id: cardId },
+        data: {
+          ...(!existing ? {
+            viewCount: { increment: 1 },
+            lastViewedAt: now,
+            nextReviewAt: nextMemoryReviewAt(now, intervals[Math.min(card.viewCount, intervals.length - 1)]),
+          } : {}),
+          memorizedCount: { increment: 1 },
+          lastMemorizedAt: now,
+        },
+      }),
+      prisma.auditLog.create({
+        data: { action: 'MEMORY_CARD_MEMORIZED', entity: 'MemoryCard', entityId: cardId, detail: { dateKey } },
+      }),
+    ]);
+  }
+  revalidatePath('/');
+  revalidatePath('/memory');
+  revalidatePath(`/memory/${cardId}`);
+}

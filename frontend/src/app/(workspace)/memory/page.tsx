@@ -55,14 +55,14 @@ export default async function MemoryPage({ searchParams }: { searchParams: Promi
     where: {
       subjectId: subject.id,
       ...(kind ? { kind } : {}),
-      ...(q ? { OR: [{ title: { contains: q, mode: 'insensitive' } }, { category: { contains: q, mode: 'insensitive' } }, { contentMarkdown: { contains: q, mode: 'insensitive' } }, { tags: { has: q } }] } : {}),
+      ...(q ? { OR: [{ code: { contains: q, mode: 'insensitive' } }, { title: { contains: q, mode: 'insensitive' } }, { category: { contains: q, mode: 'insensitive' } }, { contentMarkdown: { contains: q, mode: 'insensitive' } }, { tags: { has: q } }] } : {}),
     },
     orderBy: [{ pinned: 'desc' }, { sortOrder: 'asc' }, { updatedAt: 'desc' }],
   });
   const now = new Date();
 
   return <>
-    <PageHeader eyebrow="Mathematics · Memory handbook" title="公式与技巧手册" description="按编号整理每天需要背诵的公式、方法与记忆要点；先回忆，再进入背诵模式核对。" action={<div className="flex flex-wrap gap-2"><Link href="/learning-import" className="atlas-button-secondary"><FileUp className="size-4" />导入内容</Link>{cards[0] ? <Link href={`/memory/${cards[0].id}`} className="atlas-button-primary">从第 01 条开始<ArrowRight className="size-4" /></Link> : null}</div>} />
+    <PageHeader eyebrow="Mathematics · Memory handbook" title="公式与技巧手册" description="按永久编号整理每天需要背诵的公式、方法与记忆要点；打开卡片即可直接阅读与背诵。" action={<div className="flex flex-wrap gap-2"><Link href="/learning-import" className="atlas-button-secondary"><FileUp className="size-4" />导入内容</Link>{cards[0] ? <Link href={`/memory/${cards[0].id}`} className="atlas-button-primary">从 {cards[0].code} 开始<ArrowRight className="size-4" /></Link> : null}</div>} />
     <details id="new-memory" className="group atlas-card mb-5 scroll-mt-24 overflow-hidden">
       <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-xs font-semibold text-slate-600 hover:bg-slate-50">
         <span>手动添加（备用）</span>
@@ -71,7 +71,7 @@ export default async function MemoryPage({ searchParams }: { searchParams: Promi
       <div className="border-t border-slate-100 p-5"><MemoryForm /></div>
     </details>
     <form className="atlas-card mb-5 flex flex-col gap-3 p-3 md:flex-row">
-      <label className="relative min-w-0 flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input name="q" defaultValue={q} placeholder="搜索公式、技巧、分类或标签" className="atlas-input pl-9" /></label>
+      <label className="relative min-w-0 flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input name="q" defaultValue={q} placeholder="搜索编号、公式、技巧、分类或标签" className="atlas-input pl-9" /></label>
       <div className="md:w-56"><QuestionFilterSelect name="kind" label="内容类型" value={kind || ''} icon="type" options={[{ value: '', label: '全部内容', description: '显示公式、技巧和记忆内容' }, { value: 'FORMULA', label: '公式', description: '常用定理与公式' }, { value: 'TECHNIQUE', label: '技巧', description: '解题方法与识别信号' }, { value: 'MEMORY', label: '记忆', description: '需要反复记住的结论' }]} /></div>
       <button className="atlas-button-secondary">筛选</button>
       {(q || kind) ? <Link href="/memory" className="atlas-button-secondary">清除</Link> : null}
@@ -79,16 +79,17 @@ export default async function MemoryPage({ searchParams }: { searchParams: Promi
 
     <div className="mb-4 flex items-center justify-between text-xs text-slate-400"><span>手册共 <strong className="text-slate-700">{cards.length}</strong> 条</span><span>大公式使用独立展示，正文公式保持正常字号</span></div>
     <section className="grid gap-4 xl:grid-cols-2">
-        {cards.map((card, index) => {
+        {cards.map((card) => {
           const meta = kindMeta[card.kind];
           const Icon = meta.icon;
           const viewedToday = isViewedToday(card.lastViewedAt, now);
+          const memorizedToday = isViewedToday(card.lastMemorizedAt, now);
           const viewedThisWeek = isViewedThisWeek(card.lastViewedAt, now);
           const reviewDue = Boolean(card.nextReviewAt && card.nextReviewAt <= now && !viewedToday);
           return <article id={`memory-${card.id}`} key={card.id} className="atlas-card flex scroll-mt-24 flex-col overflow-hidden">
             <div className="flex items-start gap-3 px-5 pt-5">
               <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon className="size-5" /></div>
-              <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-[10px] font-bold tracking-[0.14em] text-blue-500">第 {String(index + 1).padStart(2, '0')} 条</span><StatusPill tone={meta.tone}>{meta.label}</StatusPill>{viewedToday ? <StatusPill tone="green">今天已看</StatusPill> : viewedThisWeek ? <StatusPill tone="blue">本周已看</StatusPill> : reviewDue ? <StatusPill tone="amber">待复习</StatusPill> : null}{card.pinned ? <Pin className="size-3.5 fill-blue-500 text-blue-500" /> : null}</div><h2 className="mt-2 text-lg font-semibold text-slate-950">{card.title}</h2><div className="mt-1 truncate text-[11px] text-slate-400">{card.category}{card.viewCount ? ` · 已看 ${card.viewCount} 次` : ''}</div></div>
+              <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-bold tracking-[0.1em] text-blue-700">{card.code}</span><StatusPill tone={meta.tone}>{meta.label}</StatusPill>{memorizedToday ? <StatusPill tone="green">今天已背</StatusPill> : viewedToday ? <StatusPill tone="green">今天已读</StatusPill> : viewedThisWeek ? <StatusPill tone="blue">本周已读</StatusPill> : reviewDue ? <StatusPill tone="amber">待复习</StatusPill> : null}{card.pinned ? <Pin className="size-3.5 fill-blue-500 text-blue-500" /> : null}</div><h2 className="mt-2 text-lg font-semibold text-slate-950">{card.title}</h2><div className="mt-1 truncate text-[11px] text-slate-400">{card.category}{card.viewCount ? ` · 已读 ${card.viewCount} 次` : ''}{card.memorizedCount ? ` · 已背 ${card.memorizedCount} 次` : ''}</div></div>
             </div>
             {card.summary ? <div className="mx-5 mt-4 rounded-xl bg-amber-50/60 px-3 py-2.5 text-xs leading-6 text-amber-900"><span className="mr-2 font-semibold text-amber-600">记忆提示</span>{card.summary}</div> : null}
             <div className="atlas-memory-preview mx-5 mt-4 flex min-h-32 flex-1 items-center justify-center overflow-hidden rounded-xl border border-blue-100 bg-blue-50/35 p-4"><MarkdownContent>{memoryPreview(card.contentMarkdown)}</MarkdownContent></div>
