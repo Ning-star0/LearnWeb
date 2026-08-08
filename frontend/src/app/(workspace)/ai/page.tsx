@@ -23,7 +23,7 @@ export default async function AiPage({ searchParams }: { searchParams: Promise<{
       attempts: { orderBy: { attemptedAt: 'desc' }, take: 5 },
     },
     orderBy: [{ wrongCount: 'desc' }, { updatedAt: 'desc' }],
-    take: 100,
+    take: 50,
   });
   const context = {
     subject: '数学',

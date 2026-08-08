@@ -48,7 +48,7 @@ export async function POST(request: Request) {
   if (!provider.enabled || !provider.apiKey) return NextResponse.json({ error: '请先在设置中启用 DeepSeek 并保存 API Key。' }, { status: 503 });
   const body = await request.json().catch(() => null) as { prompt?: string; context?: unknown } | null;
   if (!body?.prompt || body.prompt.length > 4000) return NextResponse.json({ error: '问题不能为空且不能超过 4000 字。' }, { status: 400 });
-  const serializedContext = JSON.stringify(body.context ?? {}).slice(0, 80_000);
+  const serializedContext = JSON.stringify(body.context ?? {}).slice(0, 40_000);
   const [coreMemories, importedCandidates] = await Promise.all([
     prisma.agentMemory.findMany({ where: { active: true, kind: { not: AgentMemoryKind.CHATGPT_IMPORT } }, orderBy: { updatedAt: 'desc' }, take: 30 }),
     prisma.agentMemory.findMany({ where: { active: true, kind: AgentMemoryKind.CHATGPT_IMPORT }, orderBy: { updatedAt: 'desc' }, take: 200 }),
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
   const memorySnapshot = [...coreMemories, ...imported]
     .map((item) => `[${item.kind}] ${item.title}\n${item.content}`)
     .join('\n\n§\n\n')
-    .slice(0, 30_000);
+    .slice(0, 20_000);
   const identity = await requestIdentity();
   try {
     const response = await fetch(`${provider.baseUrl}/chat/completions`, {
@@ -77,9 +77,11 @@ export async function POST(request: Request) {
         ],
         tools,
         tool_choice: 'auto',
+        thinking: { type: 'disabled' },
+        max_tokens: 1600,
         stream: false,
       }),
-      signal: AbortSignal.timeout(Number(process.env.AI_TIMEOUT_MS) || 60_000),
+      signal: AbortSignal.timeout(Math.max(120_000, Number(process.env.AI_TIMEOUT_MS) || 0)),
     });
     if (!response.ok) throw new Error(`Provider HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`);
     const result = await response.json();

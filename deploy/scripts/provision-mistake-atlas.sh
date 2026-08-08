@@ -39,7 +39,7 @@ SQL
     printf 'APP_TIMEZONE=Asia/Shanghai\n'
     printf 'UPLOAD_ROOT=%s/uploads\n' "$DATA_DIR"
     printf 'IMPORT_ROOT=%s/imports\n' "$DATA_DIR"
-    printf 'AI_BASE_URL=\nAI_API_KEY=\nAI_MODEL=\nAI_TIMEOUT_MS=60000\n'
+    printf 'AI_BASE_URL=\nAI_API_KEY=\nAI_MODEL=\nAI_TIMEOUT_MS=120000\n'
   } > "$ENV_FILE"
   chown root:mistake-atlas "$ENV_FILE"
   chmod 0640 "$ENV_FILE"
